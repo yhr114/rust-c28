@@ -1,0 +1,9 @@
+name = "can_pin_mux_basic"
+category = "can"
+entry = "src/main.rs"
+status = "verified"
+safe_hal_status = "verified-via-mir"
+mir_verify = "tools/verify-mir-can-pin-mux.ps1"
+requires = ["gpio-mux", "delay", "test-runtime"]
+source_c = "fpga_delivery_28035/case_src/can/can_pin_mux_basic/src/main.c"
+verification = "F28035 JTAG: status=1, fail_code=0"

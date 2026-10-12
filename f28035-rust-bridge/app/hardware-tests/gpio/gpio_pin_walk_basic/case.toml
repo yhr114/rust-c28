@@ -1,0 +1,10 @@
+name = "gpio_pin_walk_basic"
+category = "gpio"
+entry = "src/main.rs"
+status = "verified"
+safe_hal_status = "verified-via-mir"
+mir_verify = "tools/verify-mir-gpio-pin-walk.ps1"
+requires = ["gpio", "test-runtime"]
+source_c = "fpga_delivery_28035/case_src/gpio/gpio_pin_walk_basic/src/main.c"
+verification = "F28035 JTAG: status=1, fail_code=0"
+note = "Per-pin drive walk on GPIO A (0..31) + B (32..44) banks, mux/qsel sweep, then reset + mux/direction readback. Loop sunk into C-ABI f28035_gpio_pin_walk_smoke (self-contained, reports via test runtime). Pure internal self-check, no external jumper -> PASS on bare board."

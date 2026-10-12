@@ -1,0 +1,11 @@
+name = "epwm_reg_rw_smoke"
+category = "epwm"
+entry = "src/main.rs"
+status = "compiled"`nsafe_hal_status = "verified-via-mir"
+requires = ["epwm", "delay", "test-runtime"]
+source_c = "fpga_delivery_28035/case_src/epwm/epwm_reg_rw_smoke/src/main.c"
+verification = "F28035 JTAG: status=1, fail_code=0"
+note = "Reset-snapshot + masked 16-bit RW scan sunk into C-ABI f28035_epwm1_reg_rw_smoke (translator has no loops / cross-ABI locals). HRCNFG/HRPWR/HRPCTL power+config masked-RW, HR mirror-alias, and packed-32-bit assertions are excluded on the bare board (HRPWM clock not enabled); their reset-value checks are retained."
+
+[mir_verify]
+script = "tools/verify-mir-epwm_reg_rw.ps1"

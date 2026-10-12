@@ -1,0 +1,5 @@
+can_mailbox32_shadow_sweep_basic_CASE_CATEGORY := peripheral
+can_mailbox32_shadow_sweep_basic_CASE_SRCS := src/main.c
+can_mailbox32_shadow_sweep_basic_CASE_INCLUDES := include ../../common/board
+can_mailbox32_shadow_sweep_basic_EXPECTED_SYMBOLS := _main _pass _fail _exit
+can_mailbox32_shadow_sweep_basic_SIM_APP_NAME := can_mailbox32_shadow_sweep_basic

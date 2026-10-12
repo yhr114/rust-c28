@@ -1,0 +1,24 @@
+name = "gpio_direction_switch_basic"
+category = "gpio"
+entry = "src/main.rs"
+status = "verified"
+requires = ["gpio", "delay", "test-runtime"]
+source_c = "fpga_delivery_28035/case_src/gpio/gpio_direction_switch_basic/src/main.c"
+verification = "F28035 JTAG RAM: SAFE_HAL_CASE_TARGET_TEST=PASS; GPIO34 MUX=0 DIR=1 DATA=0 QSEL=Sync PUD=enabled"
+safe_hal_status = "verified-via-mir"
+safe_hal_verify = "tools/verify-safe-hal-case-ram.ps1 -Case gpio/gpio_direction_switch_basic"
+build_route = "app registry -> crates/rust-api::rust_gpio34_direction_switch -> rustc MIR -> backend/c28x-mir -> TI CGT RAM link"
+
+# Safe HAL MIR route: the application body is safe Rust (no unsafe, no direct
+# FFI).  GPIO34 is driven as an output high, reconfigured as an input (Sync
+# qualification, pull-up enabled), then reconfigured back as an output low.
+# The C harness snapshots MUX/DIR/DATA plus the input-stage residue
+# (GPBQSEL1 = Sync, GPBPUD = pull-up enabled) that only exists if the pin
+# really switched through the input configuration.  Verified through the true
+# rustc -> c28x-mir -> TI assembler path over RAM (flash untouched).
+[mir_template]
+app = "rust_gpio34_direction_switch"
+probe = "XDS100v1"
+link = "RAM (SARAM, no flash)"
+observed = "called=1 MUX=0 DIR=1 DATA=0 QSEL=Sync PUD=enabled PASS"
+hal = "rust-api (OutputPin/InputPin typed handles, direction switch via MIR)"

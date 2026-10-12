@@ -1,0 +1,5 @@
+can_selftest_mode_toggle_basic_CASE_CATEGORY := system
+can_selftest_mode_toggle_basic_CASE_SRCS := src/main.c
+can_selftest_mode_toggle_basic_CASE_INCLUDES := include
+can_selftest_mode_toggle_basic_EXPECTED_SYMBOLS := _main _pass _fail _exit
+can_selftest_mode_toggle_basic_SIM_APP_NAME := can_selftest_mode_toggle_basic

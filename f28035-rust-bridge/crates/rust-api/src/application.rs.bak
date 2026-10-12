@@ -1,0 +1,1225 @@
+use crate::{Peripherals, system_init};
+
+macro_rules! gpio_sweep_outputs_for_all_pins {
+    ($gpio:ident) => {{
+        let mut pin0 = $gpio.output::<0>();
+        let mut pin1 = $gpio.output::<1>();
+        let mut pin2 = $gpio.output::<2>();
+        let mut pin3 = $gpio.output::<3>();
+        let mut pin4 = $gpio.output::<4>();
+        let mut pin5 = $gpio.output::<5>();
+        let mut pin6 = $gpio.output::<6>();
+        let mut pin7 = $gpio.output::<7>();
+        let mut pin8 = $gpio.output::<8>();
+        let mut pin9 = $gpio.output::<9>();
+        let mut pin10 = $gpio.output::<10>();
+        let mut pin11 = $gpio.output::<11>();
+        let mut pin12 = $gpio.output::<12>();
+        let mut pin13 = $gpio.output::<13>();
+        let mut pin14 = $gpio.output::<14>();
+        let mut pin15 = $gpio.output::<15>();
+        let mut pin16 = $gpio.output::<16>();
+        let mut pin17 = $gpio.output::<17>();
+        let mut pin18 = $gpio.output::<18>();
+        let mut pin19 = $gpio.output::<19>();
+        let mut pin20 = $gpio.output::<20>();
+        let mut pin21 = $gpio.output::<21>();
+        let mut pin22 = $gpio.output::<22>();
+        let mut pin23 = $gpio.output::<23>();
+        let mut pin24 = $gpio.output::<24>();
+        let mut pin25 = $gpio.output::<25>();
+        let mut pin26 = $gpio.output::<26>();
+        let mut pin27 = $gpio.output::<27>();
+        let mut pin28 = $gpio.output::<28>();
+        let mut pin29 = $gpio.output::<29>();
+        let mut pin30 = $gpio.output::<30>();
+        let mut pin31 = $gpio.output::<31>();
+        let mut pin32 = $gpio.output::<32>();
+        let mut pin33 = $gpio.output::<33>();
+        let mut pin34 = $gpio.output::<34>();
+        let mut pin35 = $gpio.output::<35>();
+        let mut pin36 = $gpio.output::<36>();
+        let mut pin37 = $gpio.output::<37>();
+        let mut pin38 = $gpio.output::<38>();
+        let mut pin39 = $gpio.output::<39>();
+        let mut pin40 = $gpio.output::<40>();
+        let mut pin41 = $gpio.output::<41>();
+        let mut pin42 = $gpio.output::<42>();
+        let mut pin43 = $gpio.output::<43>();
+        let mut pin44 = $gpio.output::<44>();
+
+        pin0.set_low();
+        pin0.set_high();
+        pin1.set_low();
+        pin1.set_high();
+        pin2.set_low();
+        pin2.set_high();
+        pin3.set_low();
+        pin3.set_high();
+        pin4.set_low();
+        pin4.set_high();
+        pin5.set_low();
+        pin5.set_high();
+        pin6.set_low();
+        pin6.set_high();
+        pin7.set_low();
+        pin7.set_high();
+        pin8.set_low();
+        pin8.set_high();
+        pin9.set_low();
+        pin9.set_high();
+        pin10.set_low();
+        pin10.set_high();
+        pin11.set_low();
+        pin11.set_high();
+        pin12.set_low();
+        pin12.set_high();
+        pin13.set_low();
+        pin13.set_high();
+        pin14.set_low();
+        pin14.set_high();
+        pin15.set_low();
+        pin15.set_high();
+        pin16.set_low();
+        pin16.set_high();
+        pin17.set_low();
+        pin17.set_high();
+        pin18.set_low();
+        pin18.set_high();
+        pin19.set_low();
+        pin19.set_high();
+        pin20.set_low();
+        pin20.set_high();
+        pin21.set_low();
+        pin21.set_high();
+        pin22.set_low();
+        pin22.set_high();
+        pin23.set_low();
+        pin23.set_high();
+        pin24.set_low();
+        pin24.set_high();
+        pin25.set_low();
+        pin25.set_high();
+        pin26.set_low();
+        pin26.set_high();
+        pin27.set_low();
+        pin27.set_high();
+        pin28.set_low();
+        pin28.set_high();
+        pin29.set_low();
+        pin29.set_high();
+        pin30.set_low();
+        pin30.set_high();
+        pin31.set_low();
+        pin31.set_high();
+        pin32.set_low();
+        pin32.set_high();
+        pin33.set_low();
+        pin33.set_high();
+        pin34.set_low();
+        pin34.set_high();
+        pin35.set_low();
+        pin35.set_high();
+        pin36.set_low();
+        pin36.set_high();
+        pin37.set_low();
+        pin37.set_high();
+        pin38.set_low();
+        pin38.set_high();
+        pin39.set_low();
+        pin39.set_high();
+        pin40.set_low();
+        pin40.set_high();
+        pin41.set_low();
+        pin41.set_high();
+        pin42.set_low();
+        pin42.set_high();
+        pin43.set_low();
+        pin43.set_high();
+        pin44.set_low();
+        pin44.set_high();
+    }};
+}
+
+/// ADC threshold used by the current protection/control policy.
+pub const ADC_STATUS_THRESHOLD: u16 = 2048;
+
+/// ePWM1 period used by the current control loop.
+pub const PWM1_PERIOD_TICKS: u16 = 4095;
+
+/// Pure Safe Rust control policy for the status output.
+///
+/// Keeping this as a small const function lets host tests exercise the business
+/// rule while the optimized MIR still lowers to the existing C28x pattern.
+#[inline(always)]
+pub const fn status_high(sample: u16) -> bool {
+    sample >= ADC_STATUS_THRESHOLD
+}
+
+/// Pure Safe Rust PWM compare policy. The hardware bridge also clamps CMPA,
+/// but this lets the intended behavior be unit-tested without the board.
+#[inline(always)]
+pub const fn pwm_compare_from_sample(sample: u16) -> u16 {
+    if sample > PWM1_PERIOD_TICKS {
+        PWM1_PERIOD_TICKS
+    } else {
+        sample
+    }
+}
+
+/// Independent Safe HAL bridge case for `adc_sample_basic`.
+///
+/// The application owns the ADC through [`Peripherals`] and performs one SOC0
+/// sample of ADC channel 0.  The C harness snapshots the returned value and
+/// ADC firmware counters after this function returns.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_adc_sample_basic() -> u16 {
+    system_init();
+
+    let peripherals = Peripherals::take().expect("peripherals already taken");
+    peripherals.adc.sample::<0>()
+}
+
+/// Independent Safe HAL bridge case for `epwm_cmp_basic`.
+///
+/// Configures ePWM1A with the production control-loop period and writes a
+/// mid-scale compare value through the typed [`Pwm1Output`] handle.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_epwm_cmp_basic() {
+    system_init();
+
+    let peripherals = Peripherals::take().expect("peripherals already taken");
+    let mut pwm = peripherals.pwm1.configure::<PWM1_PERIOD_TICKS>();
+    pwm.set_compare(2048);
+}
+
+/// Independent Safe HAL bridge case for `timer0_periodic_basic`.
+///
+/// Starts Timer0 in 10 ms periodic mode.  The hardware harness keeps the CPU
+/// alive after return so DSS can observe multiple interrupts.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_timer0_periodic_basic() {
+    system_init();
+
+    let peripherals = Peripherals::take().expect("peripherals already taken");
+    let _timer = peripherals.timer0.start_periodic::<10>();
+}
+
+/// Configure GPIO39 as an output and drive it low through the safe HAL.
+///
+/// The application contains no direct FFI calls or unsafe blocks. The C28x
+/// MIR backend validates the optimized call sequence before lowering it.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_gpio39_low() {
+    system_init();
+
+    let mut peripherals = Peripherals::take().expect("peripherals already taken");
+    let mut gpio39 = peripherals.gpio.output::<39>();
+    gpio39.set_low();
+}
+
+/// Configure GPIO2 as an output and drive it low through the safe HAL.
+///
+/// This keeps the same true-Rust path as the GPIO34/GPIO39 pilots, but targets
+/// a GPIOA pin so the MIR backend exercises the low-port register mapping.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_gpio2_low() {
+    system_init();
+
+    let mut peripherals = Peripherals::take().expect("peripherals already taken");
+    let mut gpio2 = peripherals.gpio.output::<2>();
+    gpio2.set_low();
+}
+
+/// Configure GPIO3 as an output and drive it low through the safe HAL.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_gpio3_low() {
+    system_init();
+
+    let mut peripherals = Peripherals::take().expect("peripherals already taken");
+    let mut gpio3 = peripherals.gpio.output::<3>();
+    gpio3.set_low();
+}
+
+/// Configure GPIO2 and GPIO3 as outputs and drive both low through the safe HAL.
+///
+/// This is the two-pin hardware case: the application code owns both typed
+/// `OutputPin` handles and never reaches for raw registers or direct FFI.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_gpio2_3_low() {
+    system_init();
+
+    let mut peripherals = Peripherals::take().expect("peripherals already taken");
+    let mut gpio2 = peripherals.gpio.output::<2>();
+    let mut gpio3 = peripherals.gpio.output::<3>();
+    gpio2.set_low();
+    gpio3.set_low();
+}
+
+/// Configure GPIO30 as an output and drive it low through the safe HAL.
+///
+/// GPIO30 exercises the GPA MUX2/DIR/DAT path, complementing the GPIO2/GPIO3
+/// low-pin checks and the GPIO34/GPIO39 GPIOB checks.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_gpio30_low() {
+    system_init();
+
+    let mut peripherals = Peripherals::take().expect("peripherals already taken");
+    let mut gpio30 = peripherals.gpio.output::<30>();
+    gpio30.set_low();
+}
+
+/// Full GPIO output sweep for RAM/JTAG verification.
+///
+/// This configures every F28035 GPIO number supported by the current PAC
+/// (GPIO0..GPIO44) through typed Safe HAL handles, then drives each pin low
+/// and high.  The C harness snapshots the final GPIO mux/direction/data
+/// registers and prints a per-pin PASS table; the function itself contains no
+/// direct FFI or unsafe block.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_gpio_sweep_outputs() {
+    system_init();
+
+    let peripherals = Peripherals::take().expect("peripherals already taken");
+    let mut gpio = peripherals.gpio;
+    gpio_sweep_outputs_for_all_pins!(gpio);
+}
+
+/// Main application entry point.
+///
+/// Put the F28035 control loop, state machines, protection logic, and calls to
+/// safe peripheral wrappers in this function.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_main() -> ! {
+    system_init();
+
+    let peripherals = Peripherals::take().unwrap();
+    let mut gpio = peripherals.gpio;
+    let mut status_pin = gpio.output::<31>();
+    let _interrupt_pin = gpio.output::<30>();
+    let adc = peripherals.adc;
+    let mut pwm = peripherals.pwm1.configure::<PWM1_PERIOD_TICKS>();
+    let _timer = peripherals.timer0.start_periodic::<10>();
+
+    loop {
+        let sample = adc.sample::<0>();
+        pwm.set_compare(pwm_compare_from_sample(sample));
+        status_pin.set(status_high(sample));
+    }
+}
+
+/// Timer0 interrupt behavior remains ordinary safe Rust. A small TI C ISR
+/// wrapper owns the interrupt ABI prologue/epilogue and calls this function.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_timer0_interrupt() {
+    // Safety: GPIO30 is configured before Timer0 is started, and the PIE group
+    // acknowledgement is required once per completed Timer0 interrupt.
+    unsafe {
+        crate::ffi::f28035_gpio_toggle(30);
+        crate::ffi::f28035_timer0_ack();
+    }
+}
+
+/// Vertical-slice pilot for gpio_output_basic: configure GPIO34 as an output
+/// through the safe HAL and drive it low, then high, then low again.
+///
+/// This is the P1 goal case: the application body contains no `unsafe` block
+/// and no direct FFI; it only uses [`Peripherals`]/[`Gpio`]/[`OutputPin`].
+/// The C harness (`firmware/gpio34_output_test.c`) snapshots the TI GPIO
+/// registers after this function returns, so the on-target assertion stays in
+/// C while the resource-ownership and pin configuration are proven safe Rust.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_gpio34_output_basic() {
+    system_init();
+
+    let mut peripherals = Peripherals::take().expect("peripherals already taken");
+    let mut pin34 = peripherals.gpio.output::<34>();
+    pin34.set_low();
+    pin34.set_high();
+    pin34.set_low();
+}
+
+/// Second Safe HAL vertical template: `gpio_output_readback_basic`.
+///
+/// Mirrors the original C case's write/read sequence: high -> read high,
+/// low -> read low, high -> read high.  The Safe HAL body contains no
+/// `unsafe` block and no direct FFI declaration; both writes and read-backs
+/// go through the typed [`OutputPin`] handle.  The C harness still snapshots
+/// the final GPIO registers after this function returns, but the write/read
+/// assertion now lives in Rust and is lowered by the MIR backend.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_gpio34_output_readback() {
+    system_init();
+
+    let mut peripherals = Peripherals::take().expect("peripherals already taken");
+    let mut pin34 = peripherals.gpio.output::<34>();
+    pin34.set_high();
+    if !pin34.is_high() {
+        loop {}
+    }
+    pin34.set_low();
+    if !pin34.is_low() {
+        loop {}
+    }
+    pin34.set_high();
+    if !pin34.is_high() {
+        loop {}
+    }
+}
+
+/// Third Safe HAL vertical template: `gpio_toggle_basic`.
+///
+/// Mirrors the original C case: GPIO34 starts low, then toggles
+/// `GPIO_TOGGLE_BASIC_COUNT` (8, an even count) times, so the final level is
+/// low again.  The body uses typed `OutputPin` handles (`set_low` + eight
+/// `toggle` calls); no `unsafe` block, no direct FFI declaration.  The C
+/// harness (`gpio34_toggle_test.c`) reads `GPBDAT` back after this function
+/// returns (must be 0 after 8 even toggles), then issues two TOGGLE commands
+/// of its own and records 1 then 0, proving the toggle path flips the pin.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_gpio34_toggle_basic() {
+    system_init();
+
+    let mut peripherals = Peripherals::take().expect("peripherals already taken");
+    let mut pin34 = peripherals.gpio.output::<34>();
+    pin34.set_low();
+    pin34.toggle(); // 1
+    pin34.toggle(); // 2
+    pin34.toggle(); // 3
+    pin34.toggle(); // 4
+    pin34.toggle(); // 5
+    pin34.toggle(); // 6
+    pin34.toggle(); // 7
+    pin34.toggle(); // 8 (even -> back to low)
+}
+
+/// Direction-switch Safe HAL mirror of `gpio_direction_switch_basic`.
+///
+/// GPIO34 starts as an output driven high, is reconfigured as an input, then
+/// reconfigured back as an output driven low.  This exercises the backend's
+/// input-configuration path (`f28035_gpio_make_input`) and the same pin being
+/// reconfigured across a direction switch, which the earlier pure-output
+/// templates never touch.  The body contains no `unsafe` block and no direct
+/// FFI declaration.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_gpio34_direction_switch() {
+    system_init();
+
+    let mut peripherals = Peripherals::take().expect("peripherals already taken");
+    let mut pin34 = peripherals.gpio.output::<34>();
+    pin34.set_high();
+    let _input34 = peripherals.gpio.input::<34>();
+    let mut pin34 = peripherals.gpio.output::<34>();
+    pin34.set_low();
+}
+
+/// MUX-switch Safe HAL mirror of gpio_mux_basic, phase 1.
+///
+/// GPIO0's MUX field starts at 0 (GPIO); this phase programs it to 1
+/// (EPWM1A).  The C harness (gpio0_mux_switch_test.c) snapshots GPAMUX1
+/// after this function returns (must be 1), proving the set_mux write really
+/// took effect on silicon.  The body contains no unsafe block and no direct
+/// FFI declaration.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_gpio0_mux_to_epwm1a() {
+    system_init();
+
+    let mut peripherals = Peripherals::take().expect("peripherals already taken");
+    peripherals
+        .gpio
+        .set_mux::<0, 1>()
+        .expect("mux GPIO0 to EPWM1A");
+}
+
+/// MUX-switch Safe HAL mirror of gpio_mux_basic, phase 2.
+///
+/// Restores GPIO0's MUX field back to 0 (GPIO).  The C harness snapshots
+/// GPAMUX1 after this function returns (must be 0), closing the 0 -> 1 -> 0
+/// round trip that the original C case verifies.  The harness resets the
+/// one-shot peripheral lock between phases so the second 	ake succeeds.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_gpio0_mux_restore_gpio() {
+    system_init();
+
+    let mut peripherals = Peripherals::take().expect("peripherals already taken");
+    peripherals
+        .gpio
+        .set_mux::<0, 0>()
+        .expect("restore GPIO0 to GPIO");
+}
+/// Safe HAL bridge case for `epwm_up_aq_smoke`.
+///
+/// Configures ePWM1 up-count mode: period=99, compare=40.  The C harness
+/// reads TBPRD / CMPA / AQCTLA / CTLMODE and GPIO0 MUX (must be 1) after return.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_epwm_up_aq_setup() {
+    system_init();
+
+    let peripherals = Peripherals::take().expect("peripherals already taken");
+    let mut pwm = peripherals.pwm1.configure::<99>();
+    pwm.set_compare(40);
+}
+
+/// Safe HAL bridge case for `adc_eoc_irq_basic`: sample channel 13.
+/// The C harness reads ADCINT1 flag and SOC0 overflow after return.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_adc_eoc_irq_setup() {
+    system_init();
+    let peripherals = Peripherals::take().expect("peripherals already taken");
+    peripherals.adc.sample::<13>();
+}
+
+/// Safe HAL bridge case for `adc_clkdiv2en_basic`: sample channel 0.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_adc_clkdiv2en_setup() {
+    system_init();
+    let peripherals = Peripherals::take().expect("peripherals already taken");
+    peripherals.adc.sample::<0>();
+}
+
+/// Safe HAL bridge case for `adc_single_soc_basic`: sample channel 13.
+/// The C harness reads SOC0 config (channel/acqps/trigger) after return.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_adc_single_soc_setup() {
+    system_init();
+    let peripherals = Peripherals::take().expect("peripherals already taken");
+    peripherals.adc.sample::<13>();
+}
+
+/// Safe HAL bridge case for `epwm_event_socb_smoke`: up-count + SOCB event.
+/// The C harness reads TBPRD/CMPA/AQCTLA/SOCB_EN/SOCB_PRD after return.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_epwm_event_socb_setup() {
+    system_init();
+    let peripherals = Peripherals::take().expect("peripherals already taken");
+    let mut pwm = peripherals.pwm1.configure::<99>();
+    pwm.set_compare(40);
+}
+
+/// Safe HAL bridge case for `epwm_event_int_soca_smoke`: up-count + INT+SOCA.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_epwm_event_int_soca_setup() {
+    system_init();
+    let peripherals = Peripherals::take().expect("peripherals already taken");
+    let mut pwm = peripherals.pwm1.configure::<99>();
+    pwm.set_compare(40);
+}
+
+/// epwm_deadband_basic.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_epwm_deadband_setup() {
+    system_init();
+    let p = Peripherals::take().expect("taken");
+    let mut pwm = p.pwm1.configure::<99>();
+    pwm.set_compare(40);
+}
+
+/// epwm_tripzone_swforce_basic.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_epwm_tz_swforce_setup() {
+    system_init();
+    let p = Peripherals::take().expect("taken");
+    let mut pwm = p.pwm1.configure::<99>();
+    pwm.set_compare(40);
+}
+
+/// epwm_tz_external_basic.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_epwm_tz_external_setup() {
+    system_init();
+    let p = Peripherals::take().expect("taken");
+    let mut pwm = p.pwm1.configure::<99>();
+    pwm.set_compare(40);
+}
+
+/// epwm_updown_aq_smoke.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_epwm_updown_aq_setup() {
+    system_init();
+    let p = Peripherals::take().expect("taken");
+    let mut pwm = p.pwm1.configure::<99>();
+    pwm.set_compare(20);
+}
+
+/// i2c_write1_basic.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_i2c_write1_setup() {
+    system_init();
+}
+
+/// spi_reg_rw_basic.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_spi_reg_rw_setup() {
+    system_init();
+}
+
+/// spi_internal_loopback_basic.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_spi_loopback_setup() {
+    system_init();
+}
+
+/// sci_reg_if_rw_basic.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_sci_reg_rw_setup() {
+    system_init();
+}
+
+/// sci_baud_program_basic.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_sci_baud_setup() {
+    system_init();
+}
+
+/// i2c_reg_readback_sweep_basic.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_i2c_reg_rw_setup() {
+    system_init();
+}
+
+/// i2c_master_read_1byte_basic.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_i2c_read1_setup() {
+    system_init();
+}
+
+/// lin_reg_if_rw_basic.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_lin_reg_rw_setup() {
+    system_init();
+}
+
+/// lin_baud_program_basic.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_lin_baud_setup() {
+    system_init();
+}
+
+/// rust_spi_triwire_setup.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_spi_triwire_setup() {
+    system_init();
+}
+
+/// rust_spi_charlen_setup.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_spi_charlen_setup() {
+    system_init();
+}
+
+/// rust_spi_fifo_rx_setup.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_spi_fifo_rx_setup() {
+    system_init();
+}
+
+/// rust_spi_fifo_tx_setup.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_spi_fifo_tx_setup() {
+    system_init();
+}
+
+/// rust_i2c_read8_setup.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_i2c_read8_setup() {
+    system_init();
+}
+
+/// rust_i2c_write8_setup.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_i2c_write8_setup() {
+    system_init();
+}
+
+/// rust_i2c_nack_setup.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_i2c_nack_setup() {
+    system_init();
+}
+
+/// rust_sci_datapat_setup.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_sci_datapat_setup() {
+    system_init();
+}
+
+/// rust_sci_fifo_rx_setup.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_sci_fifo_rx_setup() {
+    system_init();
+}
+
+/// rust_ecap_single_setup.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_ecap_single_setup() {
+    system_init();
+}
+
+/// ecap_reg_rw_smoke.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_ecap_reg_rw_setup() {
+    system_init();
+}
+
+/// sci_loopback_basic.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_sci_loopback_setup() {
+    system_init();
+}
+
+/// gpio_pin_walk_basic.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_gpio_pin_walk_setup() {
+    system_init();
+}
+
+/// can_pin_mux_basic.
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_can_pin_mux_setup() {
+    system_init();
+    let _p = Peripherals::take().expect("taken");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ADC_STATUS_THRESHOLD, PWM1_PERIOD_TICKS, pwm_compare_from_sample, status_high};
+
+    #[test]
+    fn status_policy_switches_at_threshold() {
+        assert!(!status_high(ADC_STATUS_THRESHOLD - 1));
+        assert!(status_high(ADC_STATUS_THRESHOLD));
+        assert!(status_high(u16::MAX));
+    }
+
+    #[test]
+    fn pwm_policy_clamps_to_configured_period() {
+        assert_eq!(pwm_compare_from_sample(0), 0);
+        assert_eq!(pwm_compare_from_sample(2048), 2048);
+        assert_eq!(
+            pwm_compare_from_sample(PWM1_PERIOD_TICKS),
+            PWM1_PERIOD_TICKS
+        );
+        assert_eq!(pwm_compare_from_sample(u16::MAX), PWM1_PERIOD_TICKS);
+    }
+}
+
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_spi_loopback_mode_matrix_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_spi_multiple_frame_loopback_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_spi_fifo_level_boundary_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_i2c_read_back_to_back_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_i2c_repeated_start_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_i2c_write_back_to_back_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_i2c_write_then_read_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_lin_header_break_sync_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_lin_iodft_loopback_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_lin_rx_checksum_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_lin_rx_rxcnt_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_lin_top_mode_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_lin_tx_checksum_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_lin_wakeup_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_sci_rxrdy_clear_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_sci_sciccr_charlen_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_sci_fifo_reset_loopback_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_sci_stop2_parity_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_ecap_capture_dual_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_ecap_capture_quad_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_ecap_capture_continuous_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_ecap_capture_counter_reset_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_ecap_capture_prescale_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_ecap_capture_wrap_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_ecap_apwm_setup() {
+    system_init();
+}
+
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_eqep_register_wr_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_eqep_polarity_test_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_eqep_count_basic_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_eqep_mode_test_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_eqep_compare_output_pulse_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_eqep_unit_timer_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_eqep_unit_timeout_test_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_eqep_watchdog_timeout_test_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_eqep_interrupt_gate_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_eqep_reset_fsm_matrix_setup() {
+    system_init();
+}
+
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_epwm_reg_rw_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_ecap_interrupt_integration_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_gpio_xint_falling_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_gpio_xint_rising_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_lin_sci_multibuf_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_sci_txrdy_int_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_spi_nonfifo_intflag_irq_setup() {
+    system_init();
+}
+
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_watchdog_disable_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_watchdog_key_sequence_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_watchdog_prescaler_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_sys_watchdog_timeout_setup() {
+    system_init();
+}
+
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_watchdog_intr_mode_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_watchdog_wdflag_setup() {
+    system_init();
+}
+
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_sys_pll_lock_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_sys_reset_release_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_sys_xclkout_div_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_sys_xrs_runtime_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_sys_lpm_reg_setup() {
+    system_init();
+}
+
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_adc_reg_rw_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_adc_reset_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_adc_socctl_sweep_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_adc_multi_soc_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_adc_int_cont_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_adc_int_overflow_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_adc_trig_timer0_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_can_reset_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_can_status_flag_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_can_selftest_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_can_mbox32_sweep_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_can_rx_extid_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_can_extid_filter_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_can_global_mask_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_can_int_dual_setup() {
+    system_init();
+}
+
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_hrcap_reg_rw_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_hrcap_clock_reset_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_hrcap_counter_ovf_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_hrcap_capture_fifo_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_hrcap_dual_instance_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_hrcap_hr_fall_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_hrcap_hr_rise_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_hrcap_normal_fall_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_hrcap_normal_rise_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_hrcap_int_enable_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_pie_fill_u16_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_pie_fill_u32_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_pie_rw_inline_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_pie_irq_single_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_pie_irq_ack_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_pie_mask_ack_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_pie_xint_readhit_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_pie_xint_counter_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_pie_soc_nmi_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_pie_soc_xint_setup() {
+    system_init();
+}
+
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_epwm_clkdiv_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_epwm_cmp_boundary_setup() {
+    system_init();
+}
+
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_gpio_input_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_et_jtag_setup() {
+    system_init();
+}
+
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_sys_divsel_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_sys_intosc2_pll_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_sys_lpm_idle_int_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_sys_osc1_osc2_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_sys_pll_bypass_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_sys_lpm_idle_wdg_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_sys_wdg_timeout_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_sys_wdg_wdchk_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_wdg_reset_mode_setup() {
+    system_init();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_epwm_tz_ext_simple_setup() {
+    system_init();
+}

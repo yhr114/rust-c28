@@ -1,0 +1,13 @@
+name = "ecap_reg_rw_smoke"
+category = "ecap"
+entry = "src/main.rs"
+status = "verified"
+safe_hal_status = "verified-via-mir"
+mir_verify = "tools/verify-mir-ecap_reg_rw.ps1"
+safe_hal_status = "verified-via-mir"
+mir_verify = "tools/verify-mir-ecap_reg_rw.ps1"
+requires = []
+
+source_c = "fpga_delivery_28035/case_src/ecap/ecap_reg_rw_smoke/src/main.c"
+verification = "F28035 build OK (ECap1Regs symbol added); JTAG verify pending"
+

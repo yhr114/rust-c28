@@ -1,0 +1,17 @@
+name = "epwm_cmp_basic"
+category = "epwm"
+entry = "src/main.rs"
+status = "verified"
+requires = ["epwm", "gpio", "delay", "test-runtime"]
+source_c = ""
+verification = "F28035 JTAG RAM: EPWM_CMP_BASIC_TARGET_TEST=PASS; GPIO0 MUX=1; TBPRD=4095; CMPA=2048"
+safe_hal_status = "verified-via-mir"
+safe_hal_verify = "tools/verify-safe-hal-case-ram.ps1 -Case epwm/epwm_cmp_basic"
+build_route = "app registry -> crates/rust-api::rust_epwm_cmp_basic -> rustc MIR -> backend/c28x-mir -> TI CGT RAM link"
+
+[mir_template]
+app = "rust_epwm_cmp_basic"
+probe = "XDS100v1"
+link = "RAM (SARAM, no flash)"
+observed = "called=1 GPIO0_MUX=1 TBPRD=4095 CMPA=2048 PASS"
+hal = "rust-api ePWM1 configure/set_compare through Peripherals ownership"

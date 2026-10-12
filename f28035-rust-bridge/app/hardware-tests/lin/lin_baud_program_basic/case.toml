@@ -1,0 +1,13 @@
+name = "lin_baud_program_basic"
+category = "lin"
+entry = "src/main.rs"
+status = "verified"
+safe_hal_status = "verified-via-mir"
+mir_verify = "tools/verify-mir-lin_baud.ps1"
+safe_hal_status = "verified-via-mir"
+mir_verify = "tools/verify-mir-lin_baud.ps1"
+requires = []
+
+source_c = "fpga_delivery_28035/case_src/lin/lin_baud_program_basic/src/main.c"
+verification = "F28035 build OK (LinaRegs symbol added); JTAG verify pending"
+

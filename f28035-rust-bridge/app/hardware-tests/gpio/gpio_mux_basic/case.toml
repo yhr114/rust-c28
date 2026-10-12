@@ -1,0 +1,24 @@
+name = "gpio_mux_basic"
+category = "gpio"
+entry = "src/main.rs"
+status = "verified"
+requires = ["gpio-mux", "delay", "test-runtime"]
+source_c = "fpga_delivery_28035/case_src/gpio/gpio_mux_basic/src/main.c"
+verification = "F28035 JTAG RAM: SAFE_HAL_CASE_TARGET_TEST=PASS; GPIO0 MUX phase1=1(EPWM1A) phase2=0(GPIO)"
+safe_hal_status = "verified-via-mir"
+safe_hal_verify = "tools/verify-safe-hal-case-ram.ps1 -Case gpio/gpio_mux_basic"
+build_route = "app registry -> crates/rust-api::rust_gpio0_mux_* -> rustc MIR -> backend/c28x-mir -> TI CGT RAM link"
+
+# Safe HAL MIR route: the application body is safe Rust (no unsafe, no direct
+# FFI).  GPIO0's MUX field is routed 0 (GPIO) -> 1 (EPWM1A) -> 0 (GPIO) via the
+# typed Gpio::set_mux.  Because a single call would only show the final 0, the
+# round trip is split into two linked mirror functions so the C harness can
+# snapshot GPAMUX1.GPIO0 in the middle (must be 1) and after the restore (must
+# be 0).  Verified through the true rustc -> c28x-mir -> TI assembler path over
+# RAM (flash untouched).
+[mir_template]
+app = "rust_gpio0_mux_to_epwm1a"
+probe = "XDS100v1"
+link = "RAM (SARAM, no flash)"
+observed = "called=1 phase1_mux=1 phase2_mux=0 PASS"
+hal = "rust-api (Gpio::set_mux typed MUX routing, split two-phase mirror)"

@@ -1,0 +1,6 @@
+pie_vector_table_rw_inline_u16_basic_CASE_CATEGORY := pie
+pie_vector_table_rw_inline_u16_basic_CASE_SRCS := src/main.c
+pie_vector_table_rw_inline_u16_basic_CASE_INCLUDES := include
+pie_vector_table_rw_inline_u16_basic_CASE_LINK_CMD := $(SDK_ROOT)/$(SRC_ROOT)/pie_vector_table_rw_inline_u16_basic/28035_RAM_lnk_pie_case.cmd
+pie_vector_table_rw_inline_u16_basic_EXPECTED_SYMBOLS := _main _pass _fail _exit
+pie_vector_table_rw_inline_u16_basic_SIM_APP_NAME := pie_vector_table_rw_inline_u16_basic

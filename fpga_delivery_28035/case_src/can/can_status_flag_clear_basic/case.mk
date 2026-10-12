@@ -1,0 +1,5 @@
+can_status_flag_clear_basic_CASE_CATEGORY := system
+can_status_flag_clear_basic_CASE_SRCS := src/main.c
+can_status_flag_clear_basic_CASE_INCLUDES := include
+can_status_flag_clear_basic_EXPECTED_SYMBOLS := _main _pass _fail _exit
+can_status_flag_clear_basic_SIM_APP_NAME := can_status_flag_clear_basic

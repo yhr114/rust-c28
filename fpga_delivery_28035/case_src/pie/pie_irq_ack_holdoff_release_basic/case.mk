@@ -1,0 +1,5 @@
+pie_irq_ack_holdoff_release_basic_CASE_CATEGORY := pie
+pie_irq_ack_holdoff_release_basic_CASE_SRCS := src/main.c
+pie_irq_ack_holdoff_release_basic_CASE_INCLUDES := include
+pie_irq_ack_holdoff_release_basic_EXPECTED_SYMBOLS := _main _pass _fail _exit
+pie_irq_ack_holdoff_release_basic_SIM_APP_NAME := pie_irq_ack_holdoff_release_basic

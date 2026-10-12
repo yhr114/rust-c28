@@ -1,0 +1,24 @@
+{
+  "scope": "Original main.c with replacement TI GPIO helpers; RAM execution",
+  "test_status": "0x1",
+  "test_fail_code": "0x0",
+  "toggle_count": "0x8",
+  "sample_count": "0x9",
+  "final_dat": "0x1d8b",
+  "final_dir": "0x4",
+  "final_mux": "0x0",
+  "pc": "0x81bc",
+  "samples": [
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0,
+    1,
+    0
+  ],
+  "outcome": "PASS",
+  "sequence_ok": true
+}

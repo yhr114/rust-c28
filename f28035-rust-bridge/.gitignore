@@ -1,0 +1,16 @@
+﻿build/
+_cleanup_trash/
+crates/rust-api/target/
+tools/rust-to-ti-c/target/
+crates/rust-targets/native-arithmetic/target/
+crates/rust-targets/c28x-memory-model/target/
+backend/c28x-mir/target/
+/f28035_bridge.asm
+/byte-probe.obj
+/compare_probe.obj
+/pointer-probe.obj
+/multiply-probe.obj
+/bitwise-probe.obj
+
+# SDK HAL host build cache
+sdk/f28035-safe-hal/target/

@@ -1,0 +1,22 @@
+name = "safe_hal_control_loop"
+category = "integration"
+entry = "src/main.rs"
+status = "verified"
+requires = ["adc", "epwm", "timer0", "gpio", "interrupt", "test-runtime"]
+source_c = ""
+verification = "F28035 JTAG RAM: SAFE_HAL_CASE_TARGET_TEST=PASS; ADC sample count > 0; EPWM1 TBPRD=4095 CMPA tracks ADC; Timer0 interrupts >=2; GPIO31 follows threshold"
+safe_hal_status = "verified-via-mir"
+safe_hal_verify = "tools/verify-safe-hal-case-ram.ps1 -Case integration/safe_hal_control_loop"
+build_route = "app registry -> crates/rust-api::rust_main -> rustc MIR -> backend/c28x-mir -> TI CGT RAM link"
+
+# Safe HAL integration template: ADC0 sample controls ePWM1 CMPA and GPIO31,
+# while Timer0 periodic interrupt toggles GPIO30 through the C ISR wrapper.
+# The app source is Safe Rust business/control logic; the target image is
+# verified through the true rustc -> c28x-mir -> TI assembler path over RAM
+# (flash untouched).
+[mir_template]
+app = "rust_main"
+probe = "XDS100v1"
+link = "RAM (SARAM, no flash)"
+observed = "MIR_CONTROL_LOOP_TARGET_TEST=PASS (ADC/PWM/Timer/GPIO)"
+hal = "rust-api (ADC sample, ePWM compare, Timer0 periodic, GPIO status output)"

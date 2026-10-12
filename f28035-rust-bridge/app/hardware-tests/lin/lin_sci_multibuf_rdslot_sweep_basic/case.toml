@@ -1,0 +1,11 @@
+name = "lin_sci_multibuf_rdslot_sweep_basic"
+category = "lin"
+entry = "src/main.rs"
+status = "compiled"`nsafe_hal_status = "verified-via-mir"
+requires = []
+
+source_c = "fpga_delivery_28035/case_src/lin/lin_sci_multibuf_rdslot_sweep_basic/src/main.c"
+verification = "F28035 build OK (LinaRegs symbol added); JTAG verify pending"
+
+[mir_verify]
+script = "tools/verify-mir-lin_sci_multibuf.ps1"

@@ -1,0 +1,24 @@
+name = "gpio2_3_low"
+category = "gpio"
+entry = "src/main.rs"
+status = "verified"
+requires = ["gpio", "delay", "test-runtime"]
+source_c = "fpga_delivery_28035/case_src/gpio/gpio2_3_low/src/main.c"
+verification = "F28035 JTAG RAM: SAFE_HAL_CASE_TARGET_TEST=PASS; called=1 MUX=0,0 DIR=1,1 DATA=0,0 (GPIO2/3)"
+safe_hal_status = "verified-via-mir"
+safe_hal_verify = "tools/verify-safe-hal-case-ram.ps1 -Case gpio/gpio2_3_low"
+build_route = "app registry -> crates/rust-api::rust_gpio2_3_low -> rustc MIR -> backend/c28x-mir -> TI CGT RAM link"
+
+# P1 vertical template (rust-bridge side): the application body is Safe HAL
+# code with no direct C ABI declarations and no unsafe block.  The Rust body
+# configures GPIO2 and GPIO3 as outputs through typed OutputPin handles and
+# drives both low; the C harness (gpio2_3_low_test.c) snapshots both pins'
+# MUX/DIR/DATA after the function returns, and the JTAG judge requires
+# MUX=0, DIR=1, DATA=0 for both pins.  Verified through the true
+# rustc -> c28x-mir -> TI assembler path over RAM (flash untouched).
+[mir_template]
+app = "rust_gpio2_3_low"
+probe = "XDS100v1"
+link = "RAM (SARAM, no flash)"
+observed = "called=1 MUX2=0 MUX3=0 DIR2=1 DIR3=1 DATA2=0 DATA3=0 PASS"
+hal = "rust-api (C-bridge exclusive pin mask == safe-hal used:u64)"

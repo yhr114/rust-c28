@@ -1,0 +1,8 @@
+name = "sys_lpm_reg_access_basic"
+category = "sys_clk"
+entry = "src/main.rs"
+status = "compiled"`nsafe_hal_status = "verified-via-mir"
+requires = []
+
+[mir_verify]
+script = "tools/verify-mir-sys_lpm_reg.ps1"

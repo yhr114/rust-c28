@@ -1,0 +1,17 @@
+name = "adc_sample_basic"
+category = "adc"
+entry = "src/main.rs"
+status = "verified"
+requires = ["adc", "delay", "test-runtime"]
+source_c = ""
+verification = "F28035 JTAG RAM: ADC_SAMPLE_BASIC_TARGET_TEST=PASS; sample=1347; ADC_SAMPLE_COUNT=1; ADC_TIMEOUT_COUNT=0"
+safe_hal_status = "verified-via-mir"
+safe_hal_verify = "tools/verify-safe-hal-case-ram.ps1 -Case adc/adc_sample_basic"
+build_route = "app registry -> crates/rust-api::rust_adc_sample_basic -> rustc MIR -> backend/c28x-mir -> TI CGT RAM link"
+
+[mir_template]
+app = "rust_adc_sample_basic"
+probe = "XDS100v1"
+link = "RAM (SARAM, no flash)"
+observed = "called=1 sample=1347 ADCRESULT0=1347 sample_count=1 timeout_count=0 PASS"
+hal = "rust-api ADC sample through Peripherals ownership"

@@ -1,0 +1,8 @@
+name = "hrcap_counter_overflow_matrix"
+category = "hrcap"
+entry = "src/main.rs"
+status = "compiled"`nsafe_hal_status = "verified-via-mir"
+requires = []
+
+[mir_verify]
+script = "tools/verify-mir-hrcap_counter_ovf.ps1"

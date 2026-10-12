@@ -1,0 +1,34 @@
+# Local Windows GNU bootstrap used for the C28x stage1 rustc build.
+profile = "compiler"
+change-id = 999999
+
+[build]
+build-dir = "D:/c28x-toolchain/rust-build-gcc14fix"
+build = "x86_64-pc-windows-gnu"
+host = ["x86_64-pc-windows-gnu"]
+target = ["x86_64-pc-windows-gnu"]
+rustc = "D:/c28x-toolchain/rustup-gnu/toolchains/nightly-2026-09-14-x86_64-pc-windows-gnu/bin/rustc.exe"
+cargo = "D:/c28x-toolchain/rustup-gnu/toolchains/nightly-2026-09-14-x86_64-pc-windows-gnu/bin/cargo.exe"
+submodules = false
+extended = false
+docs = false
+
+[llvm]
+targets = "X86"
+experimental-targets = "C28x"
+use-libcxx = true
+
+[rust]
+download-rustc = false
+lld = false
+llvm-tools = false
+debug = false
+codegen-units = 1
+deny-warnings = false
+
+[target.x86_64-pc-windows-gnu]
+cc = "D:/mingw64/bin/gcc.exe"
+cxx = "D:/c28x-toolchain/llvm-mingw/llvm-mingw-20260602-ucrt-x86_64/bin/clang++.exe"
+linker = "D:/c28x-toolchain/rustup-gnu/toolchains/nightly-2026-09-14-x86_64-pc-windows-gnu/lib/rustlib/x86_64-pc-windows-gnu/bin/self-contained/x86_64-w64-mingw32-gcc.exe"
+llvm-config = "D:/c28x-toolchain/build-c28x-clang/bin/llvm-config.exe"
+llvm-has-rust-patches = true

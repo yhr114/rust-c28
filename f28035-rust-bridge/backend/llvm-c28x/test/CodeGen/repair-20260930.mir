@@ -1,0 +1,79 @@
+# RUN: llc -mtriple=c28x-ti-none -run-pass=postrapseudos %s -o - | FileCheck %s
+# Exercises physical combinations that IR register allocation might not pick.
+---
+name: cmp_normal
+tracksRegLiveness: false
+body: |
+  bb.0:
+    CMP32_PSEUDO $acc, $xt, implicit-def $acc, implicit-def $st0
+    LRETR
+...
+# CHECK-LABEL: name: cmp_normal
+# CHECK-NOT: PUSH_ACC
+# CHECK: $acc = SUB32rr $acc, $xt
+# CHECK-NOT: POP_ACC
+# CHECK-NOT: SUBB_SP
+# CHECK: LRETR
+---
+name: cmp_same_xt
+tracksRegLiveness: false
+body: |
+  bb.0:
+    CMP32_PSEUDO $xt, $xt, implicit-def $acc, implicit-def $st0
+    LRETR
+...
+# CHECK-LABEL: name: cmp_same_xt
+# CHECK: $acc = MOV_ACC_rr $xt
+# CHECK-NEXT: {{.*}}$acc = SUB32rr $acc, $xt
+# CHECK-NOT: POP_ACC
+# CHECK: LRETR
+---
+name: add_reversed
+tracksRegLiveness: false
+body: |
+  bb.0:
+    $acc = ADD32_PSEUDO $xt, $acc
+    LRETR
+...
+# CHECK-LABEL: name: add_reversed
+# CHECK-NOT: PUSH_ACC
+# CHECK: $acc = ADD32rr $acc, $xt
+# CHECK-NOT: POP_ACC
+# CHECK: LRETR
+---
+name: copy_xt_low
+tracksRegLiveness: false
+body: |
+  bb.0:
+    $al = COPY $tl
+    LRETR
+...
+# CHECK-LABEL: name: copy_xt_low
+# CHECK: $xar7 = MOVL_XAR_ACC $xt
+# CHECK: $al = MOV16rr $ar7
+# CHECK: LRETR
+---
+name: copy_xt_high
+tracksRegLiveness: false
+body: |
+  bb.0:
+    $ar0 = COPY $t
+    LRETR
+...
+# CHECK-LABEL: name: copy_xt_high
+# CHECK: PUSH_ACC
+# CHECK: $acc = MOV_ACC_rr $xt
+# CHECK: $ar7 = MOV16rr $ah
+# CHECK: POP_ACC
+# CHECK: $ar0 = MOV16rr $ar7
+# CHECK: LRETR
+---
+name: zero_extend_xar
+tracksRegLiveness: false
+body: |
+  bb.0:
+    $xar0 = MOVL_XAR_AR $ar1
+    LRETR
+...
+# CHECK-LABEL: name: zero_extend_xar
+# CHECK: $xar0 = MOVL_XAR_AR $ar1

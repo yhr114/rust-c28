@@ -1,0 +1,11 @@
+name = "gpio_xint_falling_basic"
+category = "gpio"
+entry = "src/main.rs"
+status = "compiled"`nsafe_hal_status = "verified-via-mir"
+requires = ["gpio", "xint", "delay", "test-runtime"]
+source_c = "fpga_delivery_28035/case_src/gpio/gpio_xint_falling_basic/src/main.c"
+verification = "F28035 JTAG: status=2, fail_code=0x0901 (external jumper dependency)"
+note = "XINT1 falling-edge smoke. ISR + PIE vector hookup + wait loop sunk into C-ABI f28035_gpio_xint_falling_smoke. EXTERNAL-DEPENDENT: needs a GPIO30->GPIO0 jumper; without it no falling edge arrives and the case fails 0x0901 (matches source C FAIL_IRQ). Keep 'compiled' until the jumper is in place; re-verify after wiring."
+
+[mir_verify]
+script = "tools/verify-mir-gpio_xint_falling.ps1"

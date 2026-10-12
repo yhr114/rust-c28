@@ -1,0 +1,8 @@
+name = "sys_pll_bypass_basic"
+category = "sys_clk"
+entry = "src/main.rs"
+status = "compiled"`nsafe_hal_status = "compiled-only"
+requires = []
+
+[build_verify]
+script = "tools/build-mir-sys_pll_bypass.ps1"

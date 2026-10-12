@@ -1,0 +1,8 @@
+name = "adc_reset_semantics"
+category = "adc"
+entry = "src/main.rs"
+status = "compiled"`nsafe_hal_status = "verified-via-mir"
+requires = []
+
+[mir_verify]
+script = "tools/verify-mir-adc_reset.ps1"

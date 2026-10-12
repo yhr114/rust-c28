@@ -1,0 +1,16 @@
+{
+  "arch": "c28x",
+  "atomic-cas": false,
+  "crt-objects-fallback": "false",
+  "data-layout": "e-m:e-p:32:32-i32:32-i64:32-f32:32-f64:32-a:8:8-n8:16-S16",
+  "default-codegen-units": 1,
+  "eh-frame-header": false,
+  "emit-debug-gdb-scripts": false,
+  "llvm-target": "c28x-ti-none",
+  "max-atomic-width": 0,
+  "panic-strategy": "abort",
+  "relocation-model": "static",
+  "target-c-int-width": 16,
+  "target-pointer-width": 32,
+  "trap-unreachable": false
+}

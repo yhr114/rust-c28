@@ -1,0 +1,5 @@
+lin_top_mode_loopback_power_cross_basic_CASE_CATEGORY := peripheral
+lin_top_mode_loopback_power_cross_basic_CASE_SRCS := src/main.c
+lin_top_mode_loopback_power_cross_basic_CASE_INCLUDES := include ../../common/board
+lin_top_mode_loopback_power_cross_basic_EXPECTED_SYMBOLS := _main _pass _fail _exit
+lin_top_mode_loopback_power_cross_basic_SIM_APP_NAME := lin_tb_bitbang_header_diag_basic

@@ -1,0 +1,8 @@
+name = "watchdog_disable_test"
+category = "wdg_sys"
+entry = "src/main.rs"
+status = "compiled"`nsafe_hal_status = "verified-via-mir"
+requires = []
+
+[mir_verify]
+script = "tools/verify-mir-watchdog_disable.ps1"

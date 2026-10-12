@@ -1,0 +1,323 @@
+{
+  "scope": "Original main.c with replacement TI self-test helper layer",
+  "events": [
+    {
+      "label": "before_main",
+      "pc": "0x00008203",
+      "CANME": {
+        "address": "0x00006000",
+        "value": "0x00000000"
+      },
+      "CANMD": {
+        "address": "0x00006002",
+        "value": "0x00000000"
+      },
+      "CANMIM": {
+        "address": "0x00006024",
+        "value": "0x00000000"
+      },
+      "CANMIL": {
+        "address": "0x00006026",
+        "value": "0x00000000"
+      },
+      "CANTA": {
+        "address": "0x00006008",
+        "value": "0x00000000"
+      },
+      "CANRMP": {
+        "address": "0x0000600c",
+        "value": "0x00000000"
+      },
+      "CANTRS": {
+        "address": "0x00006004",
+        "value": "0x00000000"
+      },
+      "CANMC": {
+        "address": "0x00006014",
+        "value": "0x00000000"
+      },
+      "CANES": {
+        "address": "0x00006018",
+        "value": "0x00000000"
+      },
+      "CANGAM": {
+        "address": "0x00006012",
+        "value": "0x00000000"
+      }
+    },
+    {
+      "label": "after_first_write_group_before_line17",
+      "pc": "0x00008216",
+      "CANME": {
+        "address": "0x00006000",
+        "value": "0x00000001"
+      },
+      "CANMD": {
+        "address": "0x00006002",
+        "value": "0x00000000"
+      },
+      "CANMIM": {
+        "address": "0x00006024",
+        "value": "0x00000000"
+      },
+      "CANMIL": {
+        "address": "0x00006026",
+        "value": "0x00000000"
+      },
+      "CANTA": {
+        "address": "0x00006008",
+        "value": "0x00000000"
+      },
+      "CANRMP": {
+        "address": "0x0000600c",
+        "value": "0x00000000"
+      },
+      "CANTRS": {
+        "address": "0x00006004",
+        "value": "0x00000000"
+      },
+      "CANMC": {
+        "address": "0x00006014",
+        "value": "0x00002040"
+      },
+      "CANES": {
+        "address": "0x00006018",
+        "value": "0x00000020"
+      },
+      "CANGAM": {
+        "address": "0x00006012",
+        "value": "0x00000000"
+      }
+    },
+    {
+      "label": "after_case",
+      "pc": "0x0000806b",
+      "CANME": {
+        "address": "0x00006000",
+        "value": "0x00000001"
+      },
+      "CANMD": {
+        "address": "0x00006002",
+        "value": "0x00000000"
+      },
+      "CANMIM": {
+        "address": "0x00006024",
+        "value": "0x00000000"
+      },
+      "CANMIL": {
+        "address": "0x00006026",
+        "value": "0x00000000"
+      },
+      "CANTA": {
+        "address": "0x00006008",
+        "value": "0x00000000"
+      },
+      "CANRMP": {
+        "address": "0x0000600c",
+        "value": "0x00000001"
+      },
+      "CANTRS": {
+        "address": "0x00006004",
+        "value": "0x00000000"
+      },
+      "CANMC": {
+        "address": "0x00006014",
+        "value": "0x00002040"
+      },
+      "CANES": {
+        "address": "0x00006018",
+        "value": "0x00000020"
+      },
+      "CANGAM": {
+        "address": "0x00006012",
+        "value": "0x00000000"
+      }
+    }
+  ],
+  "baseline": false,
+  "status": 1,
+  "fail_code": "0x00000000",
+  "trace": [
+    {
+      "stage": "0x00000000",
+      "CANME": "0x00000000",
+      "CANMD": "0x00000000",
+      "CANMIM": "0x00000000",
+      "CANMIL": "0x00000000",
+      "CANTA": "0x00000000",
+      "CANRMP": "0x00000000",
+      "CANTRS": "0x00000000",
+      "CANMC": "0x00001000",
+      "CANES": "0x00400010",
+      "CANGAM": "0x00000000",
+      "LAM0": "0x00000000",
+      "MSGID0": "0x0ca80000",
+      "MSGCTRL0": "0x00000004",
+      "MDL0": "0x0a0b0c0d",
+      "MDH0": "0x00000000"
+    },
+    {
+      "stage": "0x00000001",
+      "CANME": "0x00000000",
+      "CANMD": "0x00000000",
+      "CANMIM": "0x00000000",
+      "CANMIL": "0x00000000",
+      "CANTA": "0x00000000",
+      "CANRMP": "0x00000000",
+      "CANTRS": "0x00000000",
+      "CANMC": "0x00001000",
+      "CANES": "0x00400010",
+      "CANGAM": "0x00000000",
+      "LAM0": "0x00000000",
+      "MSGID0": "0x0ca80000",
+      "MSGCTRL0": "0x00000004",
+      "MDL0": "0x0a0b0c0d",
+      "MDH0": "0x00000000"
+    },
+    {
+      "stage": "0x00000002",
+      "CANME": "0x00000000",
+      "CANMD": "0x00000000",
+      "CANMIM": "0x00000000",
+      "CANMIL": "0x00000000",
+      "CANTA": "0x00000000",
+      "CANRMP": "0x00000000",
+      "CANTRS": "0x00000000",
+      "CANMC": "0x00002040",
+      "CANES": "0x00000000",
+      "CANGAM": "0x00000000",
+      "LAM0": "0x00000000",
+      "MSGID0": "0x00000000",
+      "MSGCTRL0": "0x00000000",
+      "MDL0": "0x00000000",
+      "MDH0": "0x00000000"
+    },
+    {
+      "stage": "0x00000003",
+      "CANME": "0x00000003",
+      "CANMD": "0x00000002",
+      "CANMIM": "0x00000000",
+      "CANMIL": "0x00000002",
+      "CANTA": "0x00000000",
+      "CANRMP": "0x00000000",
+      "CANTRS": "0x00000000",
+      "CANMC": "0x00002040",
+      "CANES": "0x00000000",
+      "CANGAM": "0x00000000",
+      "LAM0": "0x00000000",
+      "MSGID0": "0x00000000",
+      "MSGCTRL0": "0x00000000",
+      "MDL0": "0x00000000",
+      "MDH0": "0x00000000"
+    },
+    {
+      "stage": "0x00000004",
+      "CANME": "0x00000000",
+      "CANMD": "0x00000000",
+      "CANMIM": "0x00000000",
+      "CANMIL": "0x00000000",
+      "CANTA": "0x00000000",
+      "CANRMP": "0x00000000",
+      "CANTRS": "0x00000000",
+      "CANMC": "0x00002040",
+      "CANES": "0x00000000",
+      "CANGAM": "0x00000000",
+      "LAM0": "0x00000000",
+      "MSGID0": "0x00000000",
+      "MSGCTRL0": "0x00000000",
+      "MDL0": "0x00000000",
+      "MDH0": "0x00000000"
+    },
+    {
+      "stage": "0x00000005",
+      "CANME": "0x00000001",
+      "CANMD": "0x00000000",
+      "CANMIM": "0x00000000",
+      "CANMIL": "0x00000000",
+      "CANTA": "0x00000000",
+      "CANRMP": "0x00000000",
+      "CANTRS": "0x00000000",
+      "CANMC": "0x00002040",
+      "CANES": "0x00000000",
+      "CANGAM": "0x00000000",
+      "LAM0": "0x00000000",
+      "MSGID0": "0x0ca80000",
+      "MSGCTRL0": "0x00000004",
+      "MDL0": "0x0a0b0c0d",
+      "MDH0": "0x00000000"
+    },
+    {
+      "stage": "0x00000006",
+      "CANME": "0x00000001",
+      "CANMD": "0x00000000",
+      "CANMIM": "0x00000000",
+      "CANMIL": "0x00000000",
+      "CANTA": "0x00000000",
+      "CANRMP": "0x00000000",
+      "CANTRS": "0x00000001",
+      "CANMC": "0x00002040",
+      "CANES": "0x00000000",
+      "CANGAM": "0x00000000",
+      "LAM0": "0x00000000",
+      "MSGID0": "0x0ca80000",
+      "MSGCTRL0": "0x00000004",
+      "MDL0": "0x0a0b0c0d",
+      "MDH0": "0x00000000"
+    },
+    {
+      "stage": "0x00000007",
+      "CANME": "0x00000001",
+      "CANMD": "0x00000000",
+      "CANMIM": "0x00000000",
+      "CANMIL": "0x00000000",
+      "CANTA": "0x00000001",
+      "CANRMP": "0x00000001",
+      "CANTRS": "0x00000000",
+      "CANMC": "0x00002040",
+      "CANES": "0x00000001",
+      "CANGAM": "0x00000000",
+      "LAM0": "0x00000000",
+      "MSGID0": "0x0ca80000",
+      "MSGCTRL0": "0x00000004",
+      "MDL0": "0x0a0b0c0d",
+      "MDH0": "0x00000000"
+    },
+    {
+      "stage": "0x00000008",
+      "CANME": "0x00000001",
+      "CANMD": "0x00000000",
+      "CANMIM": "0x00000000",
+      "CANMIL": "0x00000000",
+      "CANTA": "0x00000000",
+      "CANRMP": "0x00000001",
+      "CANTRS": "0x00000000",
+      "CANMC": "0x00002040",
+      "CANES": "0x00000000",
+      "CANGAM": "0x00000000",
+      "LAM0": "0x00000000",
+      "MSGID0": "0x0ca80000",
+      "MSGCTRL0": "0x00000004",
+      "MDL0": "0x0a0b0c0d",
+      "MDH0": "0x00000000"
+    },
+    {
+      "stage": "0x00000009",
+      "CANME": "0x00000001",
+      "CANMD": "0x00000000",
+      "CANMIM": "0x00000000",
+      "CANMIL": "0x00000000",
+      "CANTA": "0x00000000",
+      "CANRMP": "0x00000001",
+      "CANTRS": "0x00000000",
+      "CANMC": "0x00002040",
+      "CANES": "0x00000000",
+      "CANGAM": "0x00000000",
+      "LAM0": "0x00000000",
+      "MSGID0": "0x0ca80000",
+      "MSGCTRL0": "0x00000004",
+      "MDL0": "0x0a0b0c0d",
+      "MDH0": "0x00000000"
+    }
+  ],
+  "outcome": "PASS"
+}

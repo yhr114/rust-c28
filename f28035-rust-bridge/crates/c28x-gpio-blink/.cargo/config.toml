@@ -1,0 +1,22 @@
+# cargo config for the c28x-gpio-blink no_std binary.
+#
+# We use a hand-built core/compiler_builtins rlib set (built by
+# tools/build-core-rlib.ps1 / build-builtins-rlib.ps1) laid out as a
+# custom sysroot at build/c28x-sysroot/lib/rustlib/c28x-none-elf/lib/.
+# cargo itself is the system cargo; RUSTC_BOOTSTRAP=1 is exported by the
+# build wrapper so the -Z flags below are accepted.
+
+[build]
+target = "c28x-none-elf"
+rustc = "D:\\c28x-toolchain\\rust-build-gcc14fix\\host\\stage1\\bin\\rustc.exe"
+
+[target.c28x-none-elf]
+linker = "C:\\Users\\61987\\Desktop\\28035\\f28035-rust-bridge\\tools\\noop-link.cmd"
+rustflags = [
+    "--sysroot", "C:\\Users\\61987\\Desktop\\28035\\f28035-rust-bridge\\build\\c28x-sysroot",
+    "-Crelocation-model=static",
+    "-Cpanic=abort",
+    "-Cdebug-assertions=no",
+    "-Zforce-unstable-if-unmarked",
+    "-Awarnings",
+]

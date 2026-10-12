@@ -1,0 +1,8 @@
+name = "sys_lpm_idle_watchdog_basic"
+category = "wdg_sys"
+entry = "src/main.rs"
+status = "compiled"`nsafe_hal_status = "compiled-only"
+requires = []
+
+[build_verify]
+script = "tools/build-mir-sys_lpm_idle_wdg.ps1"

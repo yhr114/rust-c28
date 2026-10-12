@@ -1,0 +1,9 @@
+name = "epwm_deadband_smoke"
+category = "epwm"
+entry = "src/main.rs"
+status = "verified"
+safe_hal_status = "verified-via-mir"
+mir_verify = "tools/verify-mir-epwm-deadband.ps1"
+requires = ["gpio-mux", "epwm1-deadband", "delay", "test-runtime"]
+source_c = "fpga_delivery_28035/case_src/epwm/epwm_deadband_smoke/src/main.c"
+verification = "F28035 JTAG: status=1, fail_code=0"

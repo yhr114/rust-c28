@@ -1,0 +1,18 @@
+[package]
+name = "c28x-pac"
+version = "0.1.0"
+edition = "2021"
+description = "Peripheral Access Crate for TI F28035 (C28x), path2 LLVM backend"
+license = "MIT OR Apache-2.0"
+
+[lib]
+path = "src/lib.rs"
+
+[profile.dev]
+debug-assertions = false
+panic = "abort"
+
+[profile.release]
+debug-assertions = false
+panic = "abort"
+opt-level = "s"

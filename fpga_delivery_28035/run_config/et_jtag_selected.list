@@ -1,0 +1,21 @@
+# Selected ET/JTAG flows from s03_verify origin/et_jtag.
+# EDA usage requires TB_ET_JTAG=1. FPGA usage requires equivalent external JTAG operations.
+
+default app=et_jtag version=28035 boot=emu_ram mode=et_jtag_rg cpu=cpu seed=fixed timeout_ms=30000 wave=fail trace=off owner=wxu
+
+group et_jtag_basic category=et_jtag_basic
+group et_jtag_cmd category=et_jtag_cmd
+group et_jtag_mem category=et_jtag_mem
+group et_jtag_tap category=et_jtag_tap
+group et_jtag_emu category=et_jtag_emu
+
+case=et_jtag_example group=et_jtag_basic tags=et,jtag,example,basic args=+ET_JTAG_SEQ=example
+case=et_jtag_cmd_flow group=et_jtag_cmd tags=et,jtag,cmd,halt,run,step,rt args=+ET_JTAG_SEQ=cmd_flow
+case=et_jtag_reset_nbstep group=et_jtag_cmd tags=et,jtag,reset,nbstep args=+ET_JTAG_SEQ=reset_nbstep
+case=et_jtag_mem16_dbgstat group=et_jtag_mem tags=et,jtag,mem16,dbgstat args=+ET_JTAG_SEQ=mem16_dbgstat
+case=et_jtag_tap_dr_sweep group=et_jtag_tap tags=et,jtag,tap,dr,idcode,testmode args=+ET_JTAG_SEQ=tap_dr_sweep
+case=et_jtag_tap_highz_bscan group=et_jtag_tap tags=et,jtag,tap,highz,bscan,extest,preload args=+ET_JTAG_SEQ=tap_highz_bscan
+case=et_jtag_tap_pause group=et_jtag_tap tags=et,jtag,tap,pause,exit2,user_control args=+ET_JTAG_SEQ=tap_pause
+case=et_jtag_tap_reset group=et_jtag_tap tags=et,jtag,tap,trst,async_reset,user_control args=+ET_JTAG_SEQ=tap_reset
+case=et_jtag_emureg_sweep group=et_jtag_emu tags=et,jtag,emureg,sweep,decode args=+ET_JTAG_SEQ=emureg_sweep
+case=et_jtag_emureg_halfword group=et_jtag_emu tags=et,jtag,emureg,halfword,highhalf args=+ET_JTAG_SEQ=emureg_halfword

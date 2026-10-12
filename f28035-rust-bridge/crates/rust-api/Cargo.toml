@@ -1,0 +1,15 @@
+[package]
+name = "f28035-safe-hal"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+default = ["arithmetic"]
+arithmetic = []
+embedded-hal = []
+one-file-main = []
+
+[dependencies]

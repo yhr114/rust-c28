@@ -1,0 +1,12 @@
+[package]
+name = "c28x-memory-model"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(c28x_target)'] }

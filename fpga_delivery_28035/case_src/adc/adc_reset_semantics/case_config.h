@@ -1,0 +1,37 @@
+#ifndef S03_SDK_ADC_RESET_SEMANTICS_CASE_CONFIG_H
+#define S03_SDK_ADC_RESET_SEMANTICS_CASE_CONFIG_H
+
+#define ADC_RESET_FAIL_INT_TIMEOUT          0x1301U
+#define ADC_RESET_FAIL_RESET_BIT_STICKY     0x1302U
+#define ADC_RESET_FAIL_CFG_NOT_DEFAULT      0x1303U
+#define ADC_RESET_FAIL_INTFLAG_NOT_CLEARED  0x1304U
+#define ADC_RESET_FAIL_SOCFLAG_NOT_SET      0x1305U  /* reserved: SOC pending is a transient C-side observation */
+#define ADC_RESET_FAIL_SOCOVF_NOT_SET       0x1306U  /* reserved: overflow generation is covered by overflow cases */
+#define ADC_RESET_FAIL_SOCFLAG_NOT_CLEARED  0x1307U
+#define ADC_RESET_FAIL_SOCOVF_NOT_CLEARED   0x1308U
+
+#define ADC_RESET_POWERUP_DELAY_US          1000UL
+#define ADC_RESET_TIMEOUT_LOOPS             500000UL
+#define ADC_RESET_POST_RESET_DELAY_US       10UL
+
+#define ADC_RESET_SOC0_CHSEL                2U
+#define ADC_RESET_SOC0_ACQPS                6U
+#define ADC_RESET_SOC0_TRIGSEL              0U
+#define ADC_RESET_SOC1_CHSEL                3U
+#define ADC_RESET_LONG_ACQPS                63U
+#define ADC_RESET_SOC0_MASK                 0x0001U
+
+#define ADC_RESET_SOCPRICTL_VALUE           0x8002U
+#define ADC_RESET_SAMPLEMODE_VALUE          0x0011U
+#define ADC_RESET_INTSOCSEL1_VALUE          0x00A5U
+#define ADC_RESET_INTSOCSEL2_VALUE          0x005AU
+
+#define ADC_RESET_DEFAULT_ADCCTL1           0x4000U
+#define ADC_RESET_DEFAULT_ADCCTL2           0x0000U
+#define ADC_RESET_DEFAULT_SOCPRICTL         0x0400U
+#define ADC_RESET_DEFAULT_SAMPLEMODE        0x0000U
+#define ADC_RESET_DEFAULT_INTSOCSEL1        0x0000U
+#define ADC_RESET_DEFAULT_INTSOCSEL2        0x0000U
+#define ADC_RESET_DEFAULT_SOCCTL            0x0000U
+
+#endif

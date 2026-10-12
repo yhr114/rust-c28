@@ -1,0 +1,184 @@
+function branch
+Body {
+    basic_blocks: BasicBlocks {
+        basic_blocks: [
+            BasicBlockData {
+                statements: [
+                    _3 = Gt(copy _1, copy _2),
+                ],
+                after_last_stmt_debuginfos: StmtDebugInfos(
+                    None,
+                ),
+                terminator: Some(
+                    switchInt(move _3) -> [0: bb3, otherwise: bb1],
+                ),
+                is_cleanup: false,
+            },
+            BasicBlockData {
+                statements: [
+                    _4 = AddWithOverflow(copy _1, copy _2),
+                ],
+                after_last_stmt_debuginfos: StmtDebugInfos(
+                    None,
+                ),
+                terminator: Some(
+                    assert(!move (_4.1: bool), "attempt to compute `{} + {}`, which would overflow", copy _1, copy _2) -> [success: bb2, unwind terminate(abi)],
+                ),
+                is_cleanup: false,
+            },
+            BasicBlockData {
+                statements: [
+                    _0 = move (_4.0: u16),
+                ],
+                after_last_stmt_debuginfos: StmtDebugInfos(
+                    None,
+                ),
+                terminator: Some(
+                    return,
+                ),
+                is_cleanup: false,
+            },
+            BasicBlockData {
+                statements: [
+                    _5 = SubWithOverflow(copy _1, copy _2),
+                ],
+                after_last_stmt_debuginfos: StmtDebugInfos(
+                    None,
+                ),
+                terminator: Some(
+                    assert(!move (_5.1: bool), "attempt to compute `{} - {}`, which would overflow", copy _1, copy _2) -> [success: bb4, unwind terminate(abi)],
+                ),
+                is_cleanup: false,
+            },
+            BasicBlockData {
+                statements: [
+                    _0 = move (_5.0: u16),
+                ],
+                after_last_stmt_debuginfos: StmtDebugInfos(
+                    None,
+                ),
+                terminator: Some(
+                    return,
+                ),
+                is_cleanup: false,
+            },
+        ],
+        cache: Cache {
+            predecessors: OnceLock(
+                <uninit>,
+            ),
+            reverse_postorder: OnceLock(
+                <uninit>,
+            ),
+            dominators: OnceLock(
+                <uninit>,
+            ),
+        },
+    },
+    phase: Runtime(
+        Optimized,
+    ),
+    pass_count: 1,
+    source: MirSource {
+        instance: Item(
+            DefId(0:3 ~ supported_branch[c511]::branch),
+        ),
+        promoted: None,
+    },
+    source_scopes: [
+        SourceScopeData {
+            span: ..\..\tests\mir\supported_branch.rs:5:1: 11:2 (#0),
+            parent_scope: None,
+            inlined: None,
+            inlined_parent_scope: None,
+            local_data: Set(
+                SourceScopeLocalData {
+                    lint_root: HirId(DefId(0:3 ~ supported_branch[c511]::branch).0),
+                },
+            ),
+        },
+    ],
+    coroutine: None,
+    local_decls: [
+        LocalDecl {
+            mutability: Mut,
+            local_info: Clear,
+            ty: u16,
+            user_ty: None,
+            source_info: SourceInfo {
+                span: ..\..\tests\mir\supported_branch.rs:5:45: 5:48 (#0),
+                scope: scope[0],
+            },
+        },
+        LocalDecl {
+            mutability: Not,
+            local_info: Clear,
+            ty: u16,
+            user_ty: None,
+            source_info: SourceInfo {
+                span: ..\..\tests\mir\supported_branch.rs:5:26: 5:27 (#0),
+                scope: scope[0],
+            },
+        },
+        LocalDecl {
+            mutability: Not,
+            local_info: Clear,
+            ty: u16,
+            user_ty: None,
+            source_info: SourceInfo {
+                span: ..\..\tests\mir\supported_branch.rs:5:34: 5:35 (#0),
+                scope: scope[0],
+            },
+        },
+        LocalDecl {
+            mutability: Mut,
+            local_info: Clear,
+            ty: bool,
+            user_ty: None,
+            source_info: SourceInfo {
+                span: ..\..\tests\mir\supported_branch.rs:6:8: 6:13 (#0),
+                scope: scope[0],
+            },
+        },
+        LocalDecl {
+            mutability: Mut,
+            local_info: Clear,
+            ty: (u16, bool),
+            user_ty: None,
+            source_info: SourceInfo {
+                span: ..\..\tests\mir\supported_branch.rs:7:9: 7:14 (#0),
+                scope: scope[0],
+            },
+        },
+        LocalDecl {
+            mutability: Mut,
+            local_info: Clear,
+            ty: (u16, bool),
+            user_ty: None,
+            source_info: SourceInfo {
+                span: ..\..\tests\mir\supported_branch.rs:9:9: 9:14 (#0),
+                scope: scope[0],
+            },
+        },
+    ],
+    user_type_annotations: [],
+    arg_count: 2,
+    spread_arg: None,
+    var_debug_info: [
+        a => _1,
+        b => _2,
+    ],
+    span: ..\..\tests\mir\supported_branch.rs:5:1: 11:2 (#0),
+    required_consts: Some(
+        [],
+    ),
+    mentioned_items: Some(
+        [],
+    ),
+    is_polymorphic: false,
+    injection_phase: None,
+    tainted_by_errors: None,
+    coverage_early_info: None,
+    coverage_mir_info: None,
+}
+c28x-codegen: unsupported branch

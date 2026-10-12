@@ -1,0 +1,13 @@
+name = "i2c_master_read_1byte_basic"
+category = "i2c"
+entry = "src/main.rs"
+status = "verified"
+safe_hal_status = "verified-via-mir"
+mir_verify = "tools/verify-mir-i2c_read1.ps1"
+safe_hal_status = "verified-via-mir"
+mir_verify = "tools/verify-mir-i2c_read1.ps1"
+requires = []
+
+source_c = "fpga_delivery_28035/case_src/i2c/i2c_master_read_1byte_basic/src/main.c"
+verification = "F28035 build OK (I2caRegs symbol added); JTAG verify pending"
+

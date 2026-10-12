@@ -1,0 +1,9 @@
+[package]
+name = "c28x-mir"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+
+[lints.rust]
+internal_features = "allow"

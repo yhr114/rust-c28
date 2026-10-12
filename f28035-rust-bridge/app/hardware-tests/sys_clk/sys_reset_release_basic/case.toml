@@ -1,0 +1,8 @@
+name = "sys_reset_release_basic"
+category = "sys_clk"
+entry = "src/main.rs"
+status = "compiled"`nsafe_hal_status = "verified-via-mir"
+requires = []
+
+[mir_verify]
+script = "tools/verify-mir-sys_reset_release.ps1"

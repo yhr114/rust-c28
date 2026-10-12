@@ -1,0 +1,99 @@
+/* link.x.in — c28x-rt linker script template.
+ *
+ * Processed by build.rs into link.x (appends INCLUDE device.x when the
+ * "device" feature is on).  Includes memory.x for the device memory layout.
+ *
+ * Sections are arranged for a typical F28035 Flash boot:
+ *   .reset        -> RESET (0x3FFFC0)
+ *   .vector_table -> VECTORS (0x3FFFC2)
+ *   .text/.rodata -> FLASHA
+ *   .bss/.data    -> RAML2
+ */
+
+INCLUDE memory.x
+
+ENTRY(Reset);
+
+/* Reset vector: the Boot ROM jumps here on power-up. */
+EXTERN(__RESET_VECTOR);
+/* Device-specific interrupt vector table (supplied by PAC crate). */
+EXTERN(__INTERRUPTS);
+
+PROVIDE(PreInit = PreInit_);
+
+/* Must EXTERN DefaultHandler, otherwise the linker zeroes out unused
+ * interrupt slots instead of pointing them at DefaultHandler.  This
+ * exact line is called out in msp430-rt's link.x.in. */
+EXTERN(DefaultHandler);
+PROVIDE(DefaultHandler = DefaultHandler_);
+
+SECTIONS
+{
+    /* Reset vector at 0x3FFFC0 (Boot ROM jumps here on power-up). */
+    .reset ORIGIN(RESET) :
+    {
+        KEEP(*(.reset));
+        KEEP(*(.__RESET_VECTOR));
+    } > RESET
+
+    /* CPU interrupt vector table: 32 x 22-bit entries starting at 0x3FFFC2. */
+    .vector_table ORIGIN(VECTORS) :
+    {
+        KEEP(*(.vector_table.interrupts));
+    } > VECTORS
+
+    /* Application code and read-only data in Flash. */
+    .text ORIGIN(FLASHA) :
+    {
+        KEEP(*(.textreset));
+        *(.text .text.*);
+    } > FLASHA
+
+    .rodata :
+    {
+        *(.rodata .rodata.*);
+        . = ALIGN(2);
+    } > FLASHA
+
+    .econst : { *(.econst .econst.*); } > FLASHA
+
+    /* Uninitialized data in RAM. */
+    .bss :
+    {
+        . = ALIGN(2);
+        _sbss = .;
+        *(.bss .bss.*);
+        *(COMMON);
+        . = ALIGN(2);
+        _ebss = .;
+    } > RAML2
+
+    /* Initialized data: LMA in Flash, VMA in RAM. */
+    .data :
+    {
+        . = ALIGN(2);
+        _sdata = .;
+        *(.data .data.*);
+        . = ALIGN(2);
+        _edata = .;
+    } > RAML2 AT > FLASHA
+
+    _sidata = LOADADDR(.data);
+
+    /* Heap starts after both .bss and .data (not just .bss — otherwise
+     * the heap collides with .data). */
+    _sheap = _edata;
+
+    /* Sizes precomputed for the Reset handler's loops (asm.s). */
+    _bss_size = _ebss - _sbss;
+    _data_size = _edata - _sdata;
+}
+
+ASSERT(_ebss <= ORIGIN(RAML2) + LENGTH(RAML2),
+       "ERROR(c28x-rt): .bss overflowed RAML2");
+ASSERT(_edata <= ORIGIN(RAML2) + LENGTH(RAML2),
+       "ERROR(c28x-rt): .data overflowed RAML2");
+ASSERT(ADDR(.text) + SIZEOF(.text) + SIZEOF(.rodata) <= ORIGIN(FLASHA) + LENGTH(FLASHA),
+       "ERROR(c28x-rt): .text + .rodata overflowed FLASHA");
+ASSERT(SIZEOF(.vector_table) <= LENGTH(VECTORS),
+       "ERROR(c28x-rt): .vector_table overflowed VECTORS region");

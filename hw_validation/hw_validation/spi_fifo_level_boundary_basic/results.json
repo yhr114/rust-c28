@@ -1,0 +1,26 @@
+[
+  {
+    "mode": 0,
+    "pc": "0x804a",
+    "test_status": "0x2",
+    "test_fail_code": "0x533002",
+    "saved_spiccr": "0x0",
+    "saved_spictl": "0x0",
+    "saved_spists": "0x0",
+    "saved_spifftx": "0xe080",
+    "saved_spiffrx": "0x201f",
+    "saved_spidat": "0x11"
+  },
+  {
+    "mode": 1,
+    "pc": "0x804a",
+    "test_status": "0x2",
+    "test_fail_code": "0x533002",
+    "saved_spiccr": "0x9f",
+    "saved_spictl": "0x6",
+    "saved_spists": "0x0",
+    "saved_spifftx": "0xe080",
+    "saved_spiffrx": "0x2080",
+    "saved_spidat": "0x11"
+  }
+]

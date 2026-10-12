@@ -1,0 +1,23 @@
+# .cargo/config.toml — Build configuration for C28x target.
+#
+# Usage:
+#   cargo build --target c28x-none-elf -Zbuild-std=core
+
+[build]
+target = "c28x-none-elf.json"
+
+[unstable]
+# C28x has no precompiled libcore in rustup; build it from source.
+build-std = ["core"]
+
+[target.c28x-none-elf]
+# Linker: TI cl2000.  Use our c28x-rt linker script.
+linker = "cl2000"
+rustflags = [
+  # nightly >= 2026-09-14 对 .json target spec 增加 -Zjson-target-spec 门槛
+  "-Zjson-target-spec",
+  "-C", "link-arg=-nostartfiles",
+  "-C", "link-arg=-Tcrates/c28x-rt/link.x",
+  "-C", "panic=abort",
+  "-C", "relocation-model=static",
+]

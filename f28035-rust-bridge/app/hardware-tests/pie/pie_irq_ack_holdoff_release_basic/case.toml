@@ -1,0 +1,8 @@
+name = "pie_irq_ack_holdoff_release_basic"
+category = "pie"
+entry = "src/main.rs"
+status = "compiled"`nsafe_hal_status = "verified-via-mir"
+requires = []
+
+[mir_verify]
+script = "tools/verify-mir-pie_irq_ack.ps1"

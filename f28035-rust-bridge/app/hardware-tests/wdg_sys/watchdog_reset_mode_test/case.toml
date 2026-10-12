@@ -1,0 +1,8 @@
+name = "watchdog_reset_mode_test"
+category = "wdg_sys"
+entry = "src/main.rs"
+status = "compiled"`nsafe_hal_status = "compiled-only"
+requires = []
+
+[build_verify]
+script = "tools/build-mir-wdg_reset_mode.ps1"

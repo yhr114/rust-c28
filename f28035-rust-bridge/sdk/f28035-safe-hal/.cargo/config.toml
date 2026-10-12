@@ -1,0 +1,17 @@
+# sdk/f28035-safe-hal 的局部 cargo 配置。
+#
+# 工程根 .cargo/config.toml 面向 C28x 交叉编译（target=c28x-none-elf +
+# build-std=core），会导致本 crate 的宿主单元测试报 duplicate lang item。
+# 此文件在 sdk/f28035-safe-hal 内就近覆盖 target，恢复宿主构建。
+#
+# 用法（在 sdk/f28035-safe-hal 下）：
+#   cargo test
+#   cargo check --features embedded-hal
+
+[build]
+target = "x86_64-pc-windows-msvc"
+
+# 覆盖根 config 的 build-std=["core"]（它会让宿主构建也重编 core，
+# 与预装 core 冲突报 duplicate lang item）。子级数组配置直接覆盖父级。
+[unstable]
+build-std = []

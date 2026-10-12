@@ -1,0 +1,56 @@
+# ===== Rust / Cargo 构建产物 =====
+**/target/
+**/Cargo.lock
+
+# ===== TI C28x / FPGA 构建产物 =====
+**/build/
+**/Debug/
+**/Release/
+*.obj
+*.o
+*.out
+*.hex
+*.bin
+*.map
+*.rlib
+*.rmeta
+*.asm
+*.mir.txt
+*.err
+*.log
+
+# ===== IDE / 编辑器 =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== 工具临时目录 =====
+.workbuddy/
+_cleanup_trash/
+rmetaIbfUum/
+
+# ===== 归档目录 =====
+_archive/
+
+# ===== 系统文件 =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== 根目录构建产物 =====
+/cmp.asm
+/cmp.obj
+/indirect_main.obj
+/byte.asm
+/byte-probe.obj
+/compare_probe.obj
+/pointer-probe.obj
+/multiply-probe.obj
+/bitwise-probe.obj
+/f28035_bridge.asm
+/liblib.rlib
+
+# MinGit portable download
+MinGit.zip

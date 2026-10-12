@@ -1,0 +1,5 @@
+pie_regs_xint_readhit_mode_counter_basic_CASE_CATEGORY := pie
+pie_regs_xint_readhit_mode_counter_basic_CASE_SRCS := src/main.c
+pie_regs_xint_readhit_mode_counter_basic_CASE_INCLUDES := include
+pie_regs_xint_readhit_mode_counter_basic_EXPECTED_SYMBOLS := _main _pass _fail _exit
+pie_regs_xint_readhit_mode_counter_basic_SIM_APP_NAME := pie_regs_xint_readhit_mode_counter_basic

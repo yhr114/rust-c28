@@ -1,0 +1,10 @@
+name = "epwm_tz_external_tz1_ost"
+category = "epwm"
+entry = "src/main.rs"
+status = "compiled"`nsafe_hal_status = "compiled-only"
+requires = ["gpio15-tz1n-external-drive", "epwm1-tripzone", "delay", "test-runtime"]
+source_c = "fpga_delivery_28035/case_src/epwm/epwm_tz_external_tz1_ost/src/main.c"
+verification = "F28035 JTAG: failed with 0xEE03; requires external GPIO15/TZ1n low pulse"
+
+[build_verify]
+script = "tools/build-mir-epwm_tz_ext_simple.ps1"

@@ -1,0 +1,8 @@
+[package]
+name = "c28x-compiler-builtins"
+version = "0.1.0"
+edition = "2021"
+description = "Compiler-rt builtins for C28x (division, modulo, memcpy, memset)"
+
+[lib]
+path = "src/lib.rs"

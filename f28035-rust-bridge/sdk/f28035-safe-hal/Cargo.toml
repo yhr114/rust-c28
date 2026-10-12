@@ -1,0 +1,17 @@
+[package]
+name = "f28035-safe-hal"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+default = ["arithmetic"]
+arithmetic = []
+embedded-hal = ["dep:embedded-hal"]
+bare-mmio = []
+bare-mmio-negative = ["bare-mmio"]
+
+[dependencies]
+embedded-hal = { version = "1.0", optional = true }

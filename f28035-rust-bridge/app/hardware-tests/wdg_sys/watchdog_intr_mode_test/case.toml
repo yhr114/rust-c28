@@ -1,0 +1,8 @@
+name = "watchdog_intr_mode_test"
+category = "wdg_sys"
+entry = "src/main.rs"
+status = "compiled"`nsafe_hal_status = "verified-via-mir"
+requires = []
+
+[mir_verify]
+script = "tools/verify-mir-watchdog_intr_mode.ps1"

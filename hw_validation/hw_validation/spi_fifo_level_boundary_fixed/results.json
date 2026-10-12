@@ -1,0 +1,62 @@
+[
+  {
+    "mode": 0,
+    "pc": "0x814e",
+    "test_status": "0x1",
+    "test_fail_code": "0x0",
+    "saved_spiccr": "0x9f",
+    "saved_spictl": "0x6",
+    "saved_spists": "0x0",
+    "saved_spifftx": "0xe080",
+    "saved_spiffrx": "0x2084",
+    "saved_spidat": "0x1234",
+    "progress": 8,
+    "rx_levels": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      3,
+      2,
+      1,
+      0
+    ],
+    "received": [
+      "0x11",
+      "0xa55a",
+      "0x5aa5",
+      "0x1234"
+    ]
+  },
+  {
+    "mode": 1,
+    "pc": "0x814e",
+    "test_status": "0x1",
+    "test_fail_code": "0x0",
+    "saved_spiccr": "0x9f",
+    "saved_spictl": "0x6",
+    "saved_spists": "0x0",
+    "saved_spifftx": "0xe080",
+    "saved_spiffrx": "0x2084",
+    "saved_spidat": "0x1234",
+    "progress": 8,
+    "rx_levels": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      3,
+      2,
+      1,
+      0
+    ],
+    "received": [
+      "0x11",
+      "0xa55a",
+      "0x5aa5",
+      "0x1234"
+    ]
+  }
+]

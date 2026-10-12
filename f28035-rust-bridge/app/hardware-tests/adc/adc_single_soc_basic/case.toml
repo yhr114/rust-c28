@@ -1,0 +1,17 @@
+name = "adc_single_soc_basic"
+category = "adc"
+entry = "src/main.rs"
+status = "verified"
+safe_hal_status = "verified-via-mir"
+requires = ["adc-soc0", "delay", "test-runtime"]
+source_c = "fpga_delivery_28035/case_src/adc/adc_single_soc_basic/src/main.c"
+verification = "F28035 JTAG RAM (2026-09-23): adc_single_soc_TARGET_TEST=PASS; called=1 CLOCK=1 CTL1=1 INT1=1 CHANNEL=13 ACQPS=6 TRIGGER=0; CLKDIV2 informational"
+mir_verify = "tools/verify-mir-adc_single_soc.ps1"
+safe_hal_verify = "tools/verify-safe-hal-case-ram.ps1 -Case adc/adc_single_soc_basic"
+
+[mir_template]
+app = "rust_adc_single_soc_setup"
+probe = "XDS100v1"
+link = "RAM (SARAM, no flash)"
+observed = "called=1 CLOCK=1 CTL1=1 INT1=1 CHANNEL=13 ACQPS=6 TRIGGER=0 PASS; CLKDIV2 readback is silicon-version informational"
+hal = "rust-api Safe HAL ADC sample::<13>()"

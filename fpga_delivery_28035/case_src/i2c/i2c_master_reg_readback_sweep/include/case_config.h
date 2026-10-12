@@ -1,0 +1,11 @@
+#ifndef I2C_MASTER_REG_READBACK_SWEEP_CONFIG_H
+#define I2C_MASTER_REG_READBACK_SWEEP_CONFIG_H
+
+#define I2C_CASE_OWN_ADDR        0x30U
+#define I2C_CASE_PRESCALER       6U
+#define I2C_CASE_CLK_LOW         200U
+#define I2C_CASE_CLK_HIGH        160U
+#define I2C_CASE_SETTLE_US       0UL
+#define I2C_CASE_FAIL_BASE       0x7F00U
+
+#endif

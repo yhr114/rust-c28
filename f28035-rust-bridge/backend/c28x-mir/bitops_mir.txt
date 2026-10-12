@@ -1,0 +1,212 @@
+function bitand
+Body {
+    basic_blocks: BasicBlocks {
+        basic_blocks: [
+            BasicBlockData {
+                statements: [
+                    _0 = BitAnd(copy _1, copy _2),
+                ],
+                after_last_stmt_debuginfos: StmtDebugInfos(
+                    None,
+                ),
+                terminator: Some(
+                    return,
+                ),
+                is_cleanup: false,
+            },
+        ],
+        cache: Cache {
+            predecessors: OnceLock(
+                <uninit>,
+            ),
+            reverse_postorder: OnceLock(
+                <uninit>,
+            ),
+            dominators: OnceLock(
+                <uninit>,
+            ),
+        },
+    },
+    phase: Runtime(
+        Optimized,
+    ),
+    pass_count: 1,
+    source: MirSource {
+        instance: Item(
+            DefId(0:3 ~ supported_bitops[00ce]::bitand),
+        ),
+        promoted: None,
+    },
+    source_scopes: [
+        SourceScopeData {
+            span: ..\..\tests\mir\supported_bitops.rs:4:1: 6:2 (#0),
+            parent_scope: None,
+            inlined: None,
+            inlined_parent_scope: None,
+            local_data: Set(
+                SourceScopeLocalData {
+                    lint_root: HirId(DefId(0:3 ~ supported_bitops[00ce]::bitand).0),
+                },
+            ),
+        },
+    ],
+    coroutine: None,
+    local_decls: [
+        LocalDecl {
+            mutability: Mut,
+            local_info: Clear,
+            ty: u16,
+            user_ty: None,
+            source_info: SourceInfo {
+                span: ..\..\tests\mir\supported_bitops.rs:4:45: 4:48 (#0),
+                scope: scope[0],
+            },
+        },
+        LocalDecl {
+            mutability: Not,
+            local_info: Clear,
+            ty: u16,
+            user_ty: None,
+            source_info: SourceInfo {
+                span: ..\..\tests\mir\supported_bitops.rs:4:26: 4:27 (#0),
+                scope: scope[0],
+            },
+        },
+        LocalDecl {
+            mutability: Not,
+            local_info: Clear,
+            ty: u16,
+            user_ty: None,
+            source_info: SourceInfo {
+                span: ..\..\tests\mir\supported_bitops.rs:4:34: 4:35 (#0),
+                scope: scope[0],
+            },
+        },
+    ],
+    user_type_annotations: [],
+    arg_count: 2,
+    spread_arg: None,
+    var_debug_info: [
+        a => _1,
+        b => _2,
+    ],
+    span: ..\..\tests\mir\supported_bitops.rs:4:1: 6:2 (#0),
+    required_consts: Some(
+        [],
+    ),
+    mentioned_items: Some(
+        [],
+    ),
+    is_polymorphic: false,
+    injection_phase: None,
+    tainted_by_errors: None,
+    coverage_early_info: None,
+    coverage_mir_info: None,
+}
+c28x-codegen: unsupported bitand
+function bitor
+Body {
+    basic_blocks: BasicBlocks {
+        basic_blocks: [
+            BasicBlockData {
+                statements: [
+                    _0 = BitOr(copy _1, copy _2),
+                ],
+                after_last_stmt_debuginfos: StmtDebugInfos(
+                    None,
+                ),
+                terminator: Some(
+                    return,
+                ),
+                is_cleanup: false,
+            },
+        ],
+        cache: Cache {
+            predecessors: OnceLock(
+                <uninit>,
+            ),
+            reverse_postorder: OnceLock(
+                <uninit>,
+            ),
+            dominators: OnceLock(
+                <uninit>,
+            ),
+        },
+    },
+    phase: Runtime(
+        Optimized,
+    ),
+    pass_count: 1,
+    source: MirSource {
+        instance: Item(
+            DefId(0:4 ~ supported_bitops[00ce]::bitor),
+        ),
+        promoted: None,
+    },
+    source_scopes: [
+        SourceScopeData {
+            span: ..\..\tests\mir\supported_bitops.rs:9:1: 11:2 (#0),
+            parent_scope: None,
+            inlined: None,
+            inlined_parent_scope: None,
+            local_data: Set(
+                SourceScopeLocalData {
+                    lint_root: HirId(DefId(0:4 ~ supported_bitops[00ce]::bitor).0),
+                },
+            ),
+        },
+    ],
+    coroutine: None,
+    local_decls: [
+        LocalDecl {
+            mutability: Mut,
+            local_info: Clear,
+            ty: u16,
+            user_ty: None,
+            source_info: SourceInfo {
+                span: ..\..\tests\mir\supported_bitops.rs:9:44: 9:47 (#0),
+                scope: scope[0],
+            },
+        },
+        LocalDecl {
+            mutability: Not,
+            local_info: Clear,
+            ty: u16,
+            user_ty: None,
+            source_info: SourceInfo {
+                span: ..\..\tests\mir\supported_bitops.rs:9:25: 9:26 (#0),
+                scope: scope[0],
+            },
+        },
+        LocalDecl {
+            mutability: Not,
+            local_info: Clear,
+            ty: u16,
+            user_ty: None,
+            source_info: SourceInfo {
+                span: ..\..\tests\mir\supported_bitops.rs:9:33: 9:34 (#0),
+                scope: scope[0],
+            },
+        },
+    ],
+    user_type_annotations: [],
+    arg_count: 2,
+    spread_arg: None,
+    var_debug_info: [
+        a => _1,
+        b => _2,
+    ],
+    span: ..\..\tests\mir\supported_bitops.rs:9:1: 11:2 (#0),
+    required_consts: Some(
+        [],
+    ),
+    mentioned_items: Some(
+        [],
+    ),
+    is_polymorphic: false,
+    injection_phase: None,
+    tainted_by_errors: None,
+    coverage_early_info: None,
+    coverage_mir_info: None,
+}
+c28x-codegen: unsupported bitor

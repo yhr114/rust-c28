@@ -1,0 +1,22 @@
+name = "gpio_output_basic"
+category = "gpio"
+entry = "src/main.rs"
+status = "verified"
+requires = ["gpio", "delay", "test-runtime"]
+source_c = "fpga_delivery_28035/case_src/gpio/gpio_output_basic/src/main.c"
+verification = "F28035 JTAG RAM: SAFE_HAL_CASE_TARGET_TEST=PASS; GPIO34 MUX=0 DIR=1 DATA=0"
+safe_hal_status = "verified-via-mir"
+safe_hal_verify = "tools/verify-safe-hal-case-ram.ps1 -Case gpio/gpio_output_basic"
+build_route = "app registry -> crates/rust-api::rust_gpio34_output_basic -> rustc MIR -> backend/c28x-mir -> TI CGT RAM link"
+
+# P1 vertical template (rust-bridge side): the application body is Safe HAL
+# code with no direct C ABI declarations and no unsafe block.  It is verified
+# through the true rustc -> c28x-mir -> TI assembler path over RAM (flash
+# untouched).  The legacy build-case.ps1 Rust-to-C route is intentionally not
+# the safety evidence for this case.
+[mir_template]
+app = "rust_gpio34_output_basic"
+probe = "XDS100v1"
+link = "RAM (SARAM, no flash)"
+observed = "called=1 MUX=0 DIR=1 DATA=0 PASS"
+hal = "rust-api (C-bridge exclusive pin mask == safe-hal used:u64)"

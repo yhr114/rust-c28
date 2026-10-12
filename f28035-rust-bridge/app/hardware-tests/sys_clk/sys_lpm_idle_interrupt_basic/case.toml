@@ -1,0 +1,8 @@
+name = "sys_lpm_idle_interrupt_basic"
+category = "sys_clk"
+entry = "src/main.rs"
+status = "compiled"`nsafe_hal_status = "compiled-only"
+requires = []
+
+[build_verify]
+script = "tools/build-mir-sys_lpm_idle_int.ps1"

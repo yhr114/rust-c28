@@ -1,0 +1,17 @@
+name = "adc_clkdiv2en_basic"
+category = "adc"
+entry = "src/main.rs"
+status = "verified"
+safe_hal_status = "verified-via-mir"
+requires = ["adc", "test-runtime"]
+source_c = "fpga_delivery_28035/case_src/adc/adc_clkdiv2en_basic/src/main.c"
+verification = "F28035 JTAG: status=1, fail_code=0"
+mir_verify = "tools/verify-mir-adc_clkdiv2en.ps1"
+safe_hal_verify = "tools/verify-safe-hal-case-ram.ps1 -Case adc/adc_clkdiv2en_basic"
+
+[mir_template]
+app = "rust_adc_clkdiv2en_setup"
+probe = "XDS100v1"
+link = "RAM (SARAM, no flash)"
+observed = "called=1 TIMEOUTS=0 PASS"
+hal = "rust-api Safe HAL ADC sample::<0>()"

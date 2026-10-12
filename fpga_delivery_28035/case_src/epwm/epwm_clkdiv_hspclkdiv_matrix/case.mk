@@ -1,0 +1,5 @@
+epwm_clkdiv_hspclkdiv_matrix_CASE_CATEGORY := periph
+epwm_clkdiv_hspclkdiv_matrix_CASE_SRCS := src/main.c
+epwm_clkdiv_hspclkdiv_matrix_CASE_INCLUDES := include
+epwm_clkdiv_hspclkdiv_matrix_EXPECTED_SYMBOLS := _main _pass _fail _exit
+epwm_clkdiv_hspclkdiv_matrix_SIM_APP_NAME := epwm_clkdiv_hspclkdiv_matrix

@@ -1,0 +1,8 @@
+name = "adc_socctl_config_sweep"
+category = "adc"
+entry = "src/main.rs"
+status = "compiled"`nsafe_hal_status = "verified-via-mir"
+requires = []
+
+[mir_verify]
+script = "tools/verify-mir-adc_socctl_sweep.ps1"

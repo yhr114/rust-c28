@@ -1,0 +1,8 @@
+name = "can_interrupt_dual_line_basic"
+category = "can"
+entry = "src/main.rs"
+status = "compiled"`nsafe_hal_status = "verified-via-mir"
+requires = []
+
+[mir_verify]
+script = "tools/verify-mir-can_int_dual.ps1"

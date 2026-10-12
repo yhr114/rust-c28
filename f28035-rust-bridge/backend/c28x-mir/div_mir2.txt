@@ -1,0 +1,128 @@
+function unsupported_divide
+Body {
+    basic_blocks: BasicBlocks {
+        basic_blocks: [
+            BasicBlockData {
+                statements: [
+                    _3 = Eq(copy _2, const 0_u16),
+                ],
+                after_last_stmt_debuginfos: StmtDebugInfos(
+                    None,
+                ),
+                terminator: Some(
+                    assert(!move _3, "attempt to divide `{}` by zero", copy _1) -> [success: bb1, unwind terminate(abi)],
+                ),
+                is_cleanup: false,
+            },
+            BasicBlockData {
+                statements: [
+                    _0 = Div(copy _1, copy _2),
+                ],
+                after_last_stmt_debuginfos: StmtDebugInfos(
+                    None,
+                ),
+                terminator: Some(
+                    return,
+                ),
+                is_cleanup: false,
+            },
+        ],
+        cache: Cache {
+            predecessors: OnceLock(
+                <uninit>,
+            ),
+            reverse_postorder: OnceLock(
+                <uninit>,
+            ),
+            dominators: OnceLock(
+                <uninit>,
+            ),
+        },
+    },
+    phase: Runtime(
+        Optimized,
+    ),
+    pass_count: 1,
+    source: MirSource {
+        instance: Item(
+            DefId(0:3 ~ unsupported_export[e724]::unsupported_divide),
+        ),
+        promoted: None,
+    },
+    source_scopes: [
+        SourceScopeData {
+            span: ..\..\tests\mir\unsupported_export.rs:4:1: 6:2 (#0),
+            parent_scope: None,
+            inlined: None,
+            inlined_parent_scope: None,
+            local_data: Set(
+                SourceScopeLocalData {
+                    lint_root: HirId(DefId(0:3 ~ unsupported_export[e724]::unsupported_divide).0),
+                },
+            ),
+        },
+    ],
+    coroutine: None,
+    local_decls: [
+        LocalDecl {
+            mutability: Mut,
+            local_info: Clear,
+            ty: u16,
+            user_ty: None,
+            source_info: SourceInfo {
+                span: ..\..\tests\mir\unsupported_export.rs:4:57: 4:60 (#0),
+                scope: scope[0],
+            },
+        },
+        LocalDecl {
+            mutability: Not,
+            local_info: Clear,
+            ty: u16,
+            user_ty: None,
+            source_info: SourceInfo {
+                span: ..\..\tests\mir\unsupported_export.rs:4:38: 4:39 (#0),
+                scope: scope[0],
+            },
+        },
+        LocalDecl {
+            mutability: Not,
+            local_info: Clear,
+            ty: u16,
+            user_ty: None,
+            source_info: SourceInfo {
+                span: ..\..\tests\mir\unsupported_export.rs:4:46: 4:47 (#0),
+                scope: scope[0],
+            },
+        },
+        LocalDecl {
+            mutability: Mut,
+            local_info: Clear,
+            ty: bool,
+            user_ty: None,
+            source_info: SourceInfo {
+                span: ..\..\tests\mir\unsupported_export.rs:5:5: 5:10 (#0),
+                scope: scope[0],
+            },
+        },
+    ],
+    user_type_annotations: [],
+    arg_count: 2,
+    spread_arg: None,
+    var_debug_info: [
+        a => _1,
+        b => _2,
+    ],
+    span: ..\..\tests\mir\unsupported_export.rs:4:1: 6:2 (#0),
+    required_consts: Some(
+        [],
+    ),
+    mentioned_items: Some(
+        [],
+    ),
+    is_polymorphic: false,
+    injection_phase: None,
+    tainted_by_errors: None,
+    coverage_early_info: None,
+    coverage_mir_info: None,
+}
+c28x-codegen: emitted unsupported_divide

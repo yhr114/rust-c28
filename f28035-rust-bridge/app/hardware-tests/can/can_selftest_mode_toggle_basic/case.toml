@@ -1,0 +1,8 @@
+name = "can_selftest_mode_toggle_basic"
+category = "can"
+entry = "src/main.rs"
+status = "compiled"`nsafe_hal_status = "verified-via-mir"
+requires = []
+
+[mir_verify]
+script = "tools/verify-mir-can_selftest.ps1"

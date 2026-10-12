@@ -1,0 +1,9 @@
+name = "epwm_up_aq_smoke"
+category = "epwm"
+entry = "src/main.rs"
+status = "verified"
+safe_hal_status = "verified-via-mir"
+requires = ["gpio-mux", "epwm1", "delay", "test-runtime"]
+source_c = "fpga_delivery_28035/case_src/epwm/epwm_up_aq_smoke/src/main.c"
+verification = "F28035 JTAG: status=1, fail_code=0"
+mir_verify = "tools/verify-mir-epwm-up-aq.ps1"

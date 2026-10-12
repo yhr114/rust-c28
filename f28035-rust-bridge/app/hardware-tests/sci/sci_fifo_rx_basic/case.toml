@@ -1,0 +1,11 @@
+name = "sci_fifo_rx_basic"
+category = "sci"
+entry = "src/main.rs"
+status = "compiled"`nsafe_hal_status = "verified-via-mir"
+requires = []
+
+source_c = "fpga_delivery_28035/case_src/sci/sci_fifo_rx_basic/src/main.c"
+verification = "F28035 build OK (SciaRegs symbol added); JTAG verify pending"
+
+[mir_verify]
+script = "tools/verify-mir-sci_fifo_rx.ps1"

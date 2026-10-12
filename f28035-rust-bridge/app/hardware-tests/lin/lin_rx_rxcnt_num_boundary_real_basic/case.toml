@@ -1,0 +1,12 @@
+name = "lin_rx_rxcnt_num_boundary_real_basic"
+category = "lin"
+entry = "src/main.rs"
+status = "compiled"
+safe_hal_status = "verified-via-mir"
+requires = []
+
+source_c = "fpga_delivery_28035/case_src/lin/lin_rx_rxcnt_num_boundary_real_basic/src/main.c"
+verification = "F28035 build OK (LinaRegs symbol added); JTAG verify pending"
+
+[mir_verify]
+script = "tools/verify-mir-lin_rx_rxcnt.ps1"

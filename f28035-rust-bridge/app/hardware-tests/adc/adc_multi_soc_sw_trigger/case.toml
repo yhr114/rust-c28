@@ -1,0 +1,10 @@
+name = "adc_multi_soc_sw_trigger"
+category = "adc"
+entry = "src/main.rs"
+status = "compiled"`nsafe_hal_status = "verified-via-mir"
+requires = ["adc-multi-soc", "delay", "test-runtime"]
+source_c = "fpga_delivery_28035/case_src/adc/adc_multi_soc_sw_trigger/src/main.c"
+verification = "F28035 JTAG: status=1, fail_code=0"
+
+[mir_verify]
+script = "tools/verify-mir-adc_multi_soc.ps1"

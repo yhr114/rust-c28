@@ -1,0 +1,8 @@
+name = "pie_soc_direct_cpu_irq_nmi_timer_basic"
+category = "pie"
+entry = "src/main.rs"
+status = "compiled"`nsafe_hal_status = "verified-via-mir"
+requires = []
+
+[mir_verify]
+script = "tools/verify-mir-pie_soc_nmi.ps1"

@@ -1,0 +1,115 @@
+# =========================================================
+# ET JTAG regression list
+# Work dir : verify/uvm_sim
+# Enable   : run with TB_ET_JTAG=1
+# Coverage : EXTRA_SIMV_OPTS is auto-hashed into COV_TAG/CASE_COV_DB
+# =========================================================
+
+# Use emu_ram boot for the ET/JTAG C loop image.  Keep wave=fail for rg speed.
+default app=et_jtag version=28035 boot=emu_ram mode=et_jtag_rg cpu=cpu seed=fixed timeout_ms=30000 wave=fail trace=off owner=wxu
+
+group et_jtag_basic category=et_jtag_basic
+group et_jtag_cmd   category=et_jtag_cmd
+group et_jtag_mem   category=et_jtag_mem
+group et_jtag_tap   category=et_jtag_tap
+group et_jtag_emu   category=et_jtag_emu
+group et_jtag_au    category=et_jtag_au
+group et_jtag_cla   category=et_jtag_cla
+group et_jtag_all   category=et_jtag_all
+
+# Default example sequence: boot wait, halt/run, five steps, memory access, PC/AU0 breakpoint flow.
+case=et_jtag_example       group=et_jtag_basic tags=et,jtag,example,basic args=+ET_JTAG_SEQ=example
+
+# Command-oriented flows: rude/polite halt/run/step, FreeRun, RT enable/disable, DBGSTAT read.
+case=et_jtag_cmd_flow      group=et_jtag_cmd   tags=et,jtag,cmd,halt,run,step,rt args=+ET_JTAG_SEQ=cmd_flow
+
+# Reset and non-breakable step related flows: set_reset, CPU_Reset, nb_step/clr_step.
+case=et_jtag_reset_nbstep  group=et_jtag_cmd   tags=et,jtag,reset,nbstep args=+ET_JTAG_SEQ=reset_nbstep
+
+# Memory and debug status flows: DBGSTAT, READA16/WRITEA16 plus basic halt context.
+case=et_jtag_mem16_dbgstat group=et_jtag_mem   tags=et,jtag,mem16,dbgstat args=+ET_JTAG_SEQ=mem16_dbgstat
+
+# TAP DR state/path sweep: BYPASS/IDCODE/TESTMODE/DC_STRBS/DIR DR scans.
+case=et_jtag_tap_dr_sweep group=et_jtag_tap   tags=et,jtag,tap,dr,idcode,testmode args=+ET_JTAG_SEQ=tap_dr_sweep
+
+# TAP BSCAN/HIGHZ path sweep: EXTEST/PRELOAD/HIGHZ select and DR shift.
+case=et_jtag_tap_highz_bscan group=et_jtag_tap tags=et,jtag,tap,highz,bscan,extest,preload args=+ET_JTAG_SEQ=tap_highz_bscan
+
+# TAP low-level pause/exit2 sweep using SVT USER_CONTROL TMS patterns.
+case=et_jtag_tap_pause    group=et_jtag_tap   tags=et,jtag,tap,pause,exit2,user_control args=+ET_JTAG_SEQ=tap_pause
+
+# TAP async reset sweep: pulse TRSTn from capture/exit/pause DR/IR states.
+case=et_jtag_tap_reset    group=et_jtag_tap   tags=et,jtag,tap,trst,async_reset,user_control args=+ET_JTAG_SEQ=tap_reset
+
+# EMU_REG decode sweep: common ET status, AU, DMA/data-log/INT/device registers.
+case=et_jtag_emureg_sweep group=et_jtag_emu   tags=et,jtag,emureg,sweep,decode args=+ET_JTAG_SEQ=emureg_sweep
+
+# EMU_REG halfword/high-half decode sweep.
+case=et_jtag_emureg_halfword group=et_jtag_emu tags=et,jtag,emureg,halfword,highhalf args=+ET_JTAG_SEQ=emureg_halfword
+
+# EMU_REG direct JTAG access matrix: writable/readable register windows and restore side-effect registers.
+case=et_jtag_emureg_direct group=et_jtag_emu tags=et,jtag,emureg,direct,register args=+ET_JTAG_SEQ=emureg_direct
+
+# EMU_REG WRITEA16 sizing check: low-half update with high-half preservation.
+case=et_jtag_emureg_write16_check group=et_jtag_emu tags=et,jtag,emureg,write16,size,lowhalf args=+ET_JTAG_SEQ=emureg_write16_check
+
+# CLA PF0 debug registers through ET/JTAG memory access: EALLOW-bypassed DBGSTAT/MPC/DBGCONFG/SWBPMASK/DBGRESTORE writes.
+case=et_jtag_cla_dbgreg_mem group=et_jtag_cla app=et_jtag_cla tags=et,jtag,cla,dbgstat,mpc,dbgconfg,swbpmask,dbgrestore,eallow args=+ET_JTAG_SEQ=cla_dbgreg_mem
+
+# CLA PF0 debug-register corner sweep: DBGRESET direct/high-half, DBGCONFG[1], DBGRESTORE high bits, ACTIVE/TASKMODE.
+case=et_jtag_cla_dbgreg_corner group=et_jtag_cla app=et_jtag_cla tags=et,jtag,cla,dbgreg,corner,dbgreset,dbgconfg,dbgrestore,active,taskmode timeout_ms=50000 args=+ET_JTAG_SEQ=cla_dbgreg_corner
+
+# CLA DBGSTAT command decode: connect, halt, step latch/cmd, run cmd and DBGACK/debugstate probes.
+case=et_jtag_cla_dbg_halt_step_run group=et_jtag_cla app=et_jtag_cla tags=et,jtag,cla,dbgstat,halt,step,run,debugstate timeout_ms=50000 args=+ET_JTAG_SEQ=cla_dbg_halt_step_run
+
+# CLA MPC debug write: write MPC while debug_state is active to hit et_mpc_wt and pipeline flush/readback paths.
+case=et_jtag_cla_mpc_debug_write group=et_jtag_cla app=et_jtag_cla tags=et,jtag,cla,mpc,debug,flush,pc timeout_ms=50000 args=+ET_JTAG_SEQ=cla_mpc_debug_write
+
+# CLA software-breakpoint register/config sweep with run/halt probe for bp_stall/bp_pend/e_swbp paths.
+case=et_jtag_cla_swbp_sweep group=et_jtag_cla app=et_jtag_cla tags=et,jtag,cla,swbp,dbgconfg,swbpmask,debugstop timeout_ms=50000 args=+ET_JTAG_SEQ=cla_swbp_sweep
+
+# CLA debug PC/readback register sweep: ACTIVE/TASKMODE/PCE/PCR2/PCR1/PCD2 read and high-half write paths.
+case=et_jtag_cla_pc_readback group=et_jtag_cla app=et_jtag_cla tags=et,jtag,cla,pc,active,taskmode,pce,pcr,pcd timeout_ms=50000 args=+ET_JTAG_SEQ=cla_pc_readback
+
+# CLA-focused aggregate flow for coverage triage.
+case=et_jtag_cla_all       group=et_jtag_cla app=et_jtag_cla tags=et,jtag,cla,all,coverage timeout_ms=80000 args=+ET_JTAG_SEQ=cla_all
+
+# PSA/CRC register read sweep for EMU_REG.I_PSA_CRC40.
+case=et_jtag_psa_crc      group=et_jtag_emu   tags=et,jtag,emureg,psa,crc args=+ET_JTAG_SEQ=psa_crc
+
+# PSA/CRC active path: seed/enable PSA, trigger ET memory read data pulses, then read CRC back.
+case=et_jtag_psa_active   group=et_jtag_emu   tags=et,jtag,emureg,psa,crc,data_valid,memread args=+ET_JTAG_SEQ=psa_active
+
+# Analysis-unit register sweep: AU0/AU1/AU2 claim/config/disable paths.
+case=et_jtag_au_sweep     group=et_jtag_au    tags=et,jtag,au0,au1,au2,sweep args=+ET_JTAG_SEQ=au_sweep
+
+# AU0 HB/WP/RTOSINT mode sweep from RTL control-code decode.
+case=et_jtag_au0_watchpoint group=et_jtag_au  tags=et,jtag,au0,watchpoint,hwbp,rtosint args=+ET_JTAG_SEQ=au0_watchpoint
+
+# Analysis-unit watchpoint modes driven around the C loop variable.
+case=et_jtag_au_watchpoint group=et_jtag_au    tags=et,jtag,au1,watchpoint,skip,args args=+ET_JTAG_SEQ=au_watchpoint
+
+# AU2 skip/event/DA counter mode sweep.
+case=et_jtag_au2_counter group=et_jtag_au      tags=et,jtag,au2,counter,skip,event,da args=+ET_JTAG_SEQ=au2_counter
+
+# DMA/data-log register and JTAG DMA write/read-command paths.
+case=et_jtag_dma_datalog group=et_jtag_emu    tags=et,jtag,dma,datalog,fifo args=+ET_JTAG_SEQ=dma_datalog
+
+# CPU/PF0-claimed DMA read path plus JTAG data-log FIFO pop.
+case=et_jtag_dma_cpu     group=et_jtag_emu    app=et_jtag_dma_cpu tags=et,jtag,dma,cpu_claim,dma_read,fifo timeout_ms=40000 args=+ET_JTAG_SEQ=dma_cpu
+
+# JTAG-driven DMA/data-log FIFO stress: continuous push/pop for full/empty/wrap paths.
+case=et_jtag_dma_fifo_stress group=et_jtag_emu tags=et,jtag,dma,fifo,stress,wrap timeout_ms=50000 args=+ET_JTAG_SEQ=dma_fifo_stress
+
+# RT alternate opcode and reset/step corner flow.
+case=et_jtag_rt_reset_corner group=et_jtag_cmd tags=et,jtag,rt,reset,corner args=+ET_JTAG_SEQ=rt_reset_corner
+
+# Broad flow sweep. ESTOP wait is skipped unless +ET_JTAG_RUN_ESTOP_FLOW is added with a matching ESTOP C image.
+case=et_jtag_all_flow      group=et_jtag_all   tags=et,jtag,all,coverage args=+ET_JTAG_SEQ=all_flow
+
+# ESTOP-specific flows with a dedicated C image selected by JTAG-written magic.
+case=et_jtag_estop_wait    group=et_jtag_cmd   app=et_jtag_estop tags=et,jtag,estop,dbgstat,flush timeout_ms=40000 args=+ET_JTAG_SEQ=estop_wait
+case=et_jtag_estop1_wait   group=et_jtag_cmd   app=et_jtag_estop tags=et,jtag,estop1,dbgstat,flush timeout_ms=40000 args=+ET_JTAG_SEQ=estop1_wait
+
+# CPU/PF0 EALLOW writer for EMU_REG 0x900-0x904, DBGSTAT probe and BOR_CFG.
+case=et_jtag_emureg_cpu_pf0_write group=et_jtag_emu app=et_jtag_emureg_cpu tags=et,jtag,emureg,cpu,pf0,eallow,bor timeout_ms=50000 args=+ET_JTAG_SEQ=emureg_cpu_pf0_write

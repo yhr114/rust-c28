@@ -1,0 +1,8 @@
+name = "pie_soc_gpio_xint123_basic"
+category = "pie"
+entry = "src/main.rs"
+status = "compiled"`nsafe_hal_status = "verified-via-mir"
+requires = []
+
+[mir_verify]
+script = "tools/verify-mir-pie_soc_xint.ps1"

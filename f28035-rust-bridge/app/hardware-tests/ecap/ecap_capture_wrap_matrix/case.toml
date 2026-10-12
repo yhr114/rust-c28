@@ -1,0 +1,12 @@
+name = "ecap_capture_wrap_matrix"
+category = "ecap"
+entry = "src/main.rs"
+status = "compiled"
+safe_hal_status = "verified-via-mir"
+requires = []
+
+source_c = "fpga_delivery_28035/case_src/ecap/ecap_capture_wrap_matrix/src/main.c"
+verification = "F28035 build OK (ECap1Regs symbol added); JTAG verify pending"
+
+[mir_verify]
+script = "tools/verify-mir-ecap_capture_wrap.ps1"

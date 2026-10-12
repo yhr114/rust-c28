@@ -1,0 +1,25 @@
+name = "gpio_output_readback_basic"
+category = "gpio"
+entry = "src/main.rs"
+status = "verified"
+requires = ["gpio", "delay", "test-runtime"]
+source_c = "fpga_delivery_28035/case_src/gpio/gpio_output_readback_basic/src/main.c"
+verification = "F28035 JTAG RAM (2026-09-23): SAFE_HAL_CASE_TARGET_TEST=PASS; called=1 MUX=0 DIR=1 readback=1,0,1; Rust-side is_high/is_low lowered by MIR backend"
+safe_hal_status = "verified-via-mir"
+safe_hal_verify = "tools/verify-safe-hal-case-ram.ps1 -Case gpio/gpio_output_readback_basic"
+build_route = "app registry -> crates/rust-api::rust_gpio34_output_readback -> rustc MIR -> backend/c28x-mir -> TI CGT RAM link"
+
+# P1 vertical template #2 (rust-bridge side): the application body is Safe HAL
+# code with no direct C ABI declarations and no unsafe block.  The Rust body
+# drives GPIO34 high -> read high, low -> read low, high -> read high through
+# typed OutputPin handles.  The MIR backend recognizes the safe readback shape
+# and emits GPBDAT checks; the C harness (gpio34_readback_test.c) still records
+# final hardware snapshots and the JTAG judge requires 1, 0, 1.  Verified
+# through the true rustc -> c28x-mir -> TI assembler path over RAM (flash
+# untouched).
+[mir_template]
+app = "rust_gpio34_output_readback"
+probe = "XDS100v1"
+link = "RAM (SARAM, no flash)"
+observed = "called=1 MUX=0 DIR=1 readback=1,0,1 PASS (Rust-side readback lowered to GPBDAT checks; C harness snapshots final state)"
+hal = "rust-api (C-bridge exclusive pin mask == safe-hal used:u64)"

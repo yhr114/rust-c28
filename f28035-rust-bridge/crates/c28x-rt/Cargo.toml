@@ -1,0 +1,25 @@
+[package]
+name = "c28x-rt"
+version = "0.1.0"
+edition = "2021"
+description = "Minimal runtime / startup for TI C2000 (C28x) microcontrollers, modeled after msp430-rt"
+license = "MIT OR Apache-2.0"
+
+[features]
+default = ["device"]
+device = []
+c28x-target = []
+
+[dependencies]
+c28x-rt-macros = { path = "../c28x-rt-macros", version = "0.1" }
+panic-c28x = { path = "../panic-c28x", version = "0.1", optional = true }
+
+[build-dependencies]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_arch, values("c28x"))'] }
+
+[[example]]
+name = "blinky"
+required-features = ["c28x-target"]
+test = false

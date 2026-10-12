@@ -1,0 +1,8 @@
+#ifndef S03_SDK_PIE_VECTOR_TABLE_FILL_U16_BASIC_CONFIG_H
+#define S03_SDK_PIE_VECTOR_TABLE_FILL_U16_BASIC_CONFIG_H
+
+#define PIE_VECT_BASE_WORD_ADDR    0x000D00UL
+#define PIE_VECT_LAST_WORD_ADDR    0x000DFFUL
+
+/* fail_code is the failing word/low-word addr. */
+#endif

@@ -1,0 +1,13 @@
+name = "spi_reg_if_rw_basic"
+category = "spi"
+entry = "src/main.rs"
+status = "verified"
+safe_hal_status = "verified-via-mir"
+mir_verify = "tools/verify-mir-spi_reg_rw.ps1"
+safe_hal_status = "verified-via-mir"
+mir_verify = "tools/verify-mir-spi_reg_rw.ps1"
+requires = []
+
+source_c = "fpga_delivery_28035/case_src/spi/spi_reg_if_rw_basic/src/main.c"
+verification = "F28035 build OK (SpibRegs symbol added); JTAG verify pending"
+

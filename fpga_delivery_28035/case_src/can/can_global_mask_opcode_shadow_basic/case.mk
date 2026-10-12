@@ -1,0 +1,5 @@
+can_global_mask_opcode_shadow_basic_CASE_CATEGORY := system
+can_global_mask_opcode_shadow_basic_CASE_SRCS := src/main.c
+can_global_mask_opcode_shadow_basic_CASE_INCLUDES := include
+can_global_mask_opcode_shadow_basic_EXPECTED_SYMBOLS := _main _pass _fail _exit
+can_global_mask_opcode_shadow_basic_SIM_APP_NAME := can_global_mask_opcode_shadow_basic

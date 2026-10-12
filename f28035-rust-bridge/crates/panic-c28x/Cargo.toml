@@ -1,0 +1,11 @@
+[package]
+name = "panic-c28x"
+version = "0.1.0"
+edition = "2021"
+description = "Panic handler for TI C2000 (C28x) microcontrollers"
+license = "MIT OR Apache-2.0"
+
+[features]
+default = []
+
+[dependencies]

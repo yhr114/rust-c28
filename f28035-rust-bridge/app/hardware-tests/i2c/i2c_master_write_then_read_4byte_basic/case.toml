@@ -1,0 +1,12 @@
+name = "i2c_master_write_then_read_4byte_basic"
+category = "i2c"
+entry = "src/main.rs"
+status = "compiled"
+safe_hal_status = "verified-via-mir"
+requires = []
+
+source_c = "fpga_delivery_28035/case_src/i2c/i2c_master_write_then_read_4byte_basic/src/main.c"
+verification = "F28035 build OK (I2caRegs symbol added); JTAG verify pending"
+
+[mir_verify]
+script = "tools/verify-mir-i2c_write_then_read.ps1"

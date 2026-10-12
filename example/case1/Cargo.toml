@@ -1,0 +1,11 @@
+[package]
+name = "case1"
+version = "0.1.0"
+edition = "2024"
+autobins = false
+
+[lib]
+path = "src/main.rs"
+
+[dependencies]
+f28035-safe-hal = { path = "../../f28035-rust-bridge/sdk/f28035-safe-hal", default-features = false }

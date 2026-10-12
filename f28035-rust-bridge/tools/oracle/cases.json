@@ -1,0 +1,97 @@
+﻿{
+  "cases": [
+    {
+      "id": "mir-control-loop",
+      "kind": "mir",
+      "src": "crates/rust-api/src/lib.rs",
+      "golden": "golden/control-loop.asm",
+      "checks": ["eallow", "edis", "movl xar4", "piectrlregs||)+1, #1", "lretr"],
+      "note": "PATH A 真机验证产物（XDS100v2 + TI DSS）；golden 为已复验基线（build/mir/control-loop.asm 13:57 版），源/驱动变更后须真机复验才能重新 blessed"
+    },
+    {
+      "id": "llvm-hello",
+      "kind": "ll",
+      "src": "backend/llvm-c28x/test/CodeGen/hello.ll",
+      "golden": "golden/hello.ll.s",
+      "checks": ["add", "lretr"],
+      "note": "asm 冒烟：ADD16rr 文本输出"
+    },
+    {
+      "id": "llvm-const3",
+      "kind": "ll",
+      "src": "backend/llvm-c28x/test/CodeGen/const3.ll",
+      "golden": "golden/const3.ll.s",
+      "checks": ["mov al, #3", "lretr"],
+      "objbytes": "039a0600",
+      "note": "MC 层对象字节回归（MOVB AL,#3 = word 9A03; LRETR = word 0006）。字节序为小端（低字节在前），与 TI cl2000/asm2000 输出一致"
+    },
+    {
+      "id": "llvm-const255",
+      "kind": "ll",
+      "src": "backend/llvm-c28x/test/CodeGen/const255.ll",
+      "golden": "golden/const255.ll.s",
+      "checks": ["mov al, #255", "lretr"],
+      "objbytes": "ff9a0600",
+      "note": "imm8 边界（MOVB AX,#8bit 为无符号字节，不得符号扩展到操作码）"
+    },
+    {
+      "id": "llvm-addsub",
+      "kind": "ll",
+      "src": "backend/llvm-c28x/test/CodeGen/addsub.ll",
+      "checks": ["add al, ar0", "sub al, ar0", "lretr"],
+      "objbytes": "a0940600a09e0600",
+      "note": "ADD/SUB AL,@AR0 对象字节（word 94A0/9EA0 + LRETR 0006，小端存储）"
+    },
+    {
+      "id": "llvm-logic",
+      "kind": "ll",
+      "src": "backend/llvm-c28x/test/CodeGen/logic.ll",
+      "checks": ["and al, ar0", "or al, ar0", "xor al, ar0", "lretr"],
+      "objbytes": "a0ce0600a0ca0600a0700600",
+      "note": "AND/OR/XOR AL,@AR0 对象字节（word CEA0/CAA0/70A0 + LRETR 0006，小端存储）"
+    },
+    {
+      "id": "llvm-mmio-const",
+      "kind": "ll",
+      "src": "backend/llvm-c28x/test/CodeGen/mmio-const.ll",
+      "checks": ["movl xar0, #4160", "mov al, *xar0", "mov *xar0, al", "lretr"],
+      "objbytes": "008d4010c0920600008d4010c0960600",
+      "note": "裸常量地址（MMIO，无重定位）：inttoptr(i32 4160) → MOVL XAR0,#0x1040 + MOV AL,*XAR0 + LRETR；store 版走 MOV_ind_store(96C0)。需要 (i32 imm22) → MOVL_XAR_imm 模式，否则报 Cannot select: Constant<4160>。22 位打包（XAR2,#0x10000→8D81、XAR3,#0x3FFFFF→8DFF）与间接寻址 0xC0|n 均由 asm2000/dis2000 实证。越界地址的负向守卫在 verify-llvm-c28x.ps1（mmio-oor.ll）"
+    },
+    {
+      "id": "contract-eallow-store",
+      "kind": "contract",
+      "src": "ll/eallow-store.ll",
+      "checks": ["eallow", "edis", "movw dp"],
+      "note": "契约型：EALLOW/EDIS 指令落地后启用；对标 control-loop.asm:37-46"
+    },
+    {
+      "id": "contract-xar-indirect",
+      "kind": "contract",
+      "src": "ll/xar-indirect.ll",
+      "checks": ["movl xar4, #0x6800", "mov *xar4, al"],
+      "note": "契约型：对标 control-loop.asm:199-201"
+    },
+    {
+      "id": "contract-pie-ack",
+      "kind": "contract",
+      "src": "ll/pie-ack.ll",
+      "checks": ["movl xar4, #0x0ce1", "mov *xar4, al"],
+      "note": "契约型：对标 control-loop.asm:264-266"
+    },
+    {
+      "id": "contract-byte-rmw",
+      "kind": "contract",
+      "src": "ll/byte-rmw.ll",
+      "checks": ["mov al, *xar4", "and acc", "or acc", "mov *xar4, al"],
+      "note": "契约型：打包字节/字 RMW；对标 control-loop.asm:242-247"
+    },
+    {
+      "id": "contract-isr-pieack",
+      "kind": "contract",
+      "src": "ll/isr-pieack.ll",
+      "checks": ["0x0ce1", "lretr"],
+      "note": "契约型：ISR + PIEACK + LRETR；对标 control-loop.asm:186-194"
+    }
+  ]
+}

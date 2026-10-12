@@ -1,0 +1,12 @@
+name = "ecap_capture_continuous_wrap"
+category = "ecap"
+entry = "src/main.rs"
+status = "compiled"
+safe_hal_status = "verified-via-mir"
+requires = []
+
+source_c = "fpga_delivery_28035/case_src/ecap/ecap_capture_continuous_wrap/src/main.c"
+verification = "F28035 build OK (ECap1Regs symbol added); JTAG verify pending"
+
+[mir_verify]
+script = "tools/verify-mir-ecap_capture_continuous.ps1"

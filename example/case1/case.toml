@@ -1,0 +1,7 @@
+name = "case1"
+category = "external"
+entry = "src/main.rs"
+status = "verified"
+requires = ["gpio", "adc"]
+build_route = "SDK type check -> rust-to-ti-c -> TI CGT -> RAM/JTAG"
+verification = "2026-09-29 XDS100v1 RAM/JTAG PASS after HAL safety changes: GPIO34 MUX=0 DIR=0 DATA=1; GPIO39 MUX=0 DIR=1 DATA=0; ADC0=2423; ADC sample count=2; peripherals taken=1. ADC threshold branch not independently stimulated."

@@ -1,0 +1,98 @@
+{
+  "scope": "Original main.c with replacement TI self-test helper layer",
+  "events": [
+    {
+      "label": "before_main",
+      "pc": "0x00008203",
+      "CANME": {
+        "address": "0x00006000",
+        "value": "0x00000000"
+      },
+      "CANMD": {
+        "address": "0x00006002",
+        "value": "0x00000000"
+      },
+      "CANMIM": {
+        "address": "0x00006024",
+        "value": "0x00000000"
+      },
+      "CANMIL": {
+        "address": "0x00006026",
+        "value": "0x00000000"
+      },
+      "CANTA": {
+        "address": "0x00006008",
+        "value": "0x00000000"
+      },
+      "CANRMP": {
+        "address": "0x0000600c",
+        "value": "0x00000000"
+      },
+      "CANTRS": {
+        "address": "0x00006004",
+        "value": "0x00000000"
+      },
+      "CANMC": {
+        "address": "0x00006014",
+        "value": "0x00000000"
+      },
+      "CANES": {
+        "address": "0x00006018",
+        "value": "0x00000000"
+      },
+      "CANGAM": {
+        "address": "0x00006012",
+        "value": "0x00000000"
+      }
+    },
+    {
+      "label": "after_case",
+      "pc": "0x0000806b",
+      "CANME": {
+        "address": "0x00006000",
+        "value": "0x00000001"
+      },
+      "CANMD": {
+        "address": "0x00006002",
+        "value": "0x00000000"
+      },
+      "CANMIM": {
+        "address": "0x00006024",
+        "value": "0x00000000"
+      },
+      "CANMIL": {
+        "address": "0x00006026",
+        "value": "0x00000000"
+      },
+      "CANTA": {
+        "address": "0x00006008",
+        "value": "0x00000000"
+      },
+      "CANRMP": {
+        "address": "0x0000600c",
+        "value": "0x00000001"
+      },
+      "CANTRS": {
+        "address": "0x00006004",
+        "value": "0x00000000"
+      },
+      "CANMC": {
+        "address": "0x00006014",
+        "value": "0x00002040"
+      },
+      "CANES": {
+        "address": "0x00006018",
+        "value": "0x00000020"
+      },
+      "CANGAM": {
+        "address": "0x00006012",
+        "value": "0x00000000"
+      }
+    }
+  ],
+  "baseline": true,
+  "status": 1,
+  "fail_code": "0x00000000",
+  "trace": [],
+  "outcome": "PASS"
+}

@@ -1,0 +1,147 @@
+"Category","Name","Status","Verification"
+"adc","adc_clkdiv2en_basic","verified","F28035 JTAG: status=1, fail_code=0"
+"adc","adc_eoc_irq_basic","verified","F28035 JTAG: status=1, fail_code=0"
+"adc","adc_int_continuous_mode","scaffold",
+"adc","adc_int_noncont_overflow","scaffold",
+"adc","adc_multi_soc_sw_trigger","verified","F28035 JTAG: status=1, fail_code=0"
+"adc","adc_reg_rw_smoke","scaffold",
+"adc","adc_reset_semantics","scaffold",
+"adc","adc_sample_basic","verified","F28035 JTAG RAM: ADC_SAMPLE_BASIC_TARGET_TEST=PASS; sample=1347; ADC_SAMPLE_COUNT=1; ADC_TIMEOUT_COUNT=0"
+"adc","adc_single_soc_basic","verified","F28035 JTAG: status=1, fail_code=0"
+"adc","adc_socctl_config_sweep","scaffold",
+"adc","adc_trig_timer0_basic","verified","F28035 JTAG: status=1, fail_code=0"
+"can","can_extid_filter_basic","scaffold",
+"can","can_global_mask_opcode_shadow_basic","scaffold",
+"can","can_interrupt_dual_line_basic","scaffold",
+"can","can_mailbox32_shadow_sweep_basic","scaffold",
+"can","can_pin_mux_basic","verified","F28035 JTAG: status=1, fail_code=0"
+"can","can_reset_default_state_basic","verified","F28035 JTAG: status=1, fail_code=0"
+"can","can_rx_extid_dlc_sweep_basic","scaffold",
+"can","can_selftest_mode_toggle_basic","scaffold",
+"can","can_status_flag_clear_basic","scaffold",
+"ecap","ecap_apwm_matrix","compiled","F28035 build OK (ECap1Regs symbol added); JTAG verify pending"
+"ecap","ecap_capture_continuous_wrap","compiled","F28035 build OK (ECap1Regs symbol added); JTAG verify pending"
+"ecap","ecap_capture_counter_reset","compiled","F28035 build OK (ECap1Regs symbol added); JTAG verify pending"
+"ecap","ecap_capture_dual_edge","compiled","F28035 build OK (ECap1Regs symbol added); JTAG verify pending"
+"ecap","ecap_capture_prescale_div2","compiled","F28035 build OK (ECap1Regs symbol added); JTAG verify pending"
+"ecap","ecap_capture_quad_edge","compiled","F28035 build OK (ECap1Regs symbol added); JTAG verify pending"
+"ecap","ecap_capture_single_edge","compiled","F28035 build OK (ECap1Regs symbol added); JTAG verify pending"
+"ecap","ecap_capture_wrap_matrix","compiled","F28035 build OK (ECap1Regs symbol added); JTAG verify pending"
+"ecap","ecap_interrupt_integration","compiled","F28035 build OK (ECap1Regs symbol added); JTAG verify pending"
+"ecap","ecap_reg_rw_smoke","compiled","F28035 build OK (ECap1Regs symbol added); JTAG verify pending"
+"epwm","epwm_clkdiv_hspclkdiv_matrix","verified","F28035 JTAG: status=1, fail_code=0"
+"epwm","epwm_cmp_basic","verified","F28035 JTAG RAM: EPWM_CMP_BASIC_TARGET_TEST=PASS; GPIO0 MUX=1; TBPRD=4095; CMPA=2048"
+"epwm","epwm_cmp_boundary_matrix","verified","F28035 JTAG: status=1, fail_code=0"
+"epwm","epwm_deadband_smoke","verified","F28035 JTAG: status=1, fail_code=0"
+"epwm","epwm_event_int_soca_smoke","verified","F28035 JTAG: status=1, fail_code=0"
+"epwm","epwm_event_socb_smoke","verified","F28035 JTAG: status=1, fail_code=0"
+"epwm","epwm_reg_rw_smoke","verified","F28035 JTAG: status=1, fail_code=0"
+"epwm","epwm_tripzone_swforce_ost_smoke","verified","F28035 JTAG: status=1, fail_code=0; EALLOW fix confirmed"
+"epwm","epwm_tz_external_tz1_ost","compiled","F28035 JTAG: failed with 0xEE03; requires external GPIO15/TZ1n low pulse"
+"epwm","epwm_up_aq_smoke","verified","F28035 JTAG: status=1, fail_code=0"
+"epwm","epwm_updown_aq_smoke","verified","F28035 JTAG: status=1, fail_code=0"
+"eqep","eqep_compare_output_pulse","scaffold",
+"eqep","eqep_count_basic","scaffold",
+"eqep","eqep_interrupt_gate","scaffold",
+"eqep","eqep_mode_test","scaffold",
+"eqep","eqep_polarity_test","scaffold",
+"eqep","eqep_register_wr","scaffold",
+"eqep","eqep_reset_fsm_matrix","scaffold",
+"eqep","eqep_unit_timeout_test","scaffold",
+"eqep","eqep_unit_timer","scaffold",
+"eqep","eqep_watchdog_timeout_test","scaffold",
+"gpio","gpio_direction_switch_basic","verified","F28035 JTAG RAM: SAFE_HAL_CASE_TARGET_TEST=PASS; GPIO34 MUX=0 DIR=1 DATA=0 QSEL=Sync PUD=enabled"
+"gpio","gpio_input_basic","compiled","F28035 JTAG: failed with 0x0402; requires GPIO30-to-GPIO0 loopback"
+"gpio","gpio_mux_basic","verified","F28035 JTAG RAM: SAFE_HAL_CASE_TARGET_TEST=PASS; GPIO0 MUX phase1=1(EPWM1A) phase2=0(GPIO)"
+"gpio","gpio_mux_dynamic_switch_basic","verified","F28035 JTAG RAM: SAFE_HAL_CASE_TARGET_TEST=PASS; GPIO0 MUX phase1=1(EPWM1A) phase2=0(GPIO)"
+"gpio","gpio_output_basic","verified","F28035 JTAG RAM: SAFE_HAL_CASE_TARGET_TEST=PASS; GPIO34 MUX=0 DIR=1 DATA=0"
+"gpio","gpio_output_readback_basic","verified","F28035 JTAG RAM (2026-09-22): SAFE_HAL_CASE_TARGET_TEST=PASS; called=1 MUX=0 DIR=1 readback=1,0,1"
+"gpio","gpio_pin_walk_basic","verified","F28035 JTAG: status=1, fail_code=0"
+"gpio","gpio_toggle_basic","verified","F28035 JTAG RAM (2026-09-22): SAFE_HAL_CASE_TARGET_TEST=PASS; called=1 MUX=0 DIR=1 final=0 toggle=1,0"
+"gpio","gpio_xint_falling_basic","compiled","F28035 JTAG: status=2, fail_code=0x0901 (external jumper dependency)"
+"gpio","gpio_xint_rising_basic","compiled","F28035 JTAG: status=2, fail_code=0x0801 (external jumper dependency)"
+"gpio","gpio2_3_low","verified","F28035 JTAG RAM: SAFE_HAL_CASE_TARGET_TEST=PASS; called=1 MUX=0,0 DIR=1,1 DATA=0,0 (GPIO2/3)"
+"gpio","gpio30_low","verified","F28035 JTAG RAM: SAFE_HAL_CASE_TARGET_TEST=PASS; called=1 MUX=0 DIR=1 DATA=0"
+"hrcap","hrcap_capture_fifo_matrix","scaffold",
+"hrcap","hrcap_clock_softreset_matrix","scaffold",
+"hrcap","hrcap_counter_overflow_matrix","scaffold",
+"hrcap","hrcap_dual_instance_gpio_matrix","scaffold",
+"hrcap","hrcap_hr_capture_fall","scaffold",
+"hrcap","hrcap_hr_capture_rise","scaffold",
+"hrcap","hrcap_interrupt_enable_clear_matrix","scaffold",
+"hrcap","hrcap_normal_capture_fall","scaffold",
+"hrcap","hrcap_normal_capture_rise","scaffold",
+"hrcap","hrcap_reg_rw_smoke","scaffold",
+"i2c","i2c_master_addr_nack_stop_basic","compiled","F28035 build OK (I2caRegs symbol added); JTAG verify pending"
+"i2c","i2c_master_read_1byte_basic","compiled","F28035 build OK (I2caRegs symbol added); JTAG verify pending"
+"i2c","i2c_master_read_8byte_basic","compiled","F28035 build OK (I2caRegs symbol added); JTAG verify pending"
+"i2c","i2c_master_read_back_to_back_basic","compiled","F28035 build OK (I2caRegs symbol added); JTAG verify pending"
+"i2c","i2c_master_reg_readback_sweep","compiled","F28035 build OK (I2caRegs symbol added); JTAG verify pending"
+"i2c","i2c_master_repeated_start_write_then_read_4byte_basic","compiled","F28035 build OK (I2caRegs symbol added); JTAG verify pending"
+"i2c","i2c_master_write_1byte_basic","compiled","F28035 build OK (I2caRegs symbol added); JTAG verify pending"
+"i2c","i2c_master_write_8byte_pattern","compiled","F28035 build OK (I2caRegs symbol added); JTAG verify pending"
+"i2c","i2c_master_write_back_to_back","compiled","F28035 build OK (I2caRegs symbol added); JTAG verify pending"
+"i2c","i2c_master_write_then_read_4byte_basic","compiled","F28035 build OK (I2caRegs symbol added); JTAG verify pending"
+"integration","safe_hal_control_loop","verified","F28035 JTAG RAM: SAFE_HAL_CASE_TARGET_TEST=PASS; ADC sample count > 0; EPWM1 TBPRD=4095 CMPA tracks ADC; Timer0 interrupts >=2; GPIO31 follows threshold"
+"jtag","et_jtag","scaffold",
+"lin","lin_baud_program_basic","compiled","F28035 build OK (LinaRegs symbol added); JTAG verify pending"
+"lin","lin_header_break_sync_master_basic","compiled","F28035 build OK (LinaRegs symbol added); JTAG verify pending"
+"lin","lin_iodft_loopback_basic","compiled","F28035 build OK (LinaRegs symbol added); JTAG verify pending"
+"lin","lin_reg_if_rw_basic","compiled","F28035 build OK (LinaRegs symbol added); JTAG verify pending"
+"lin","lin_rx_checksum_length_real_basic","compiled","F28035 build OK (LinaRegs symbol added); JTAG verify pending"
+"lin","lin_rx_rxcnt_num_boundary_real_basic","compiled","F28035 build OK (LinaRegs symbol added); JTAG verify pending"
+"lin","lin_sci_multibuf_rdslot_sweep_basic","compiled","F28035 build OK (LinaRegs symbol added); JTAG verify pending"
+"lin","lin_top_mode_loopback_power_cross_basic","compiled","F28035 build OK (LinaRegs symbol added); JTAG verify pending"
+"lin","lin_tx_checksum_ext_real_basic","compiled","F28035 build OK (LinaRegs symbol added); JTAG verify pending"
+"lin","lin_wakeup_break_flag_route_basic","compiled","F28035 build OK (LinaRegs symbol added); JTAG verify pending"
+"pie","pie_irq_ack_holdoff_release_basic","scaffold",
+"pie","pie_irq_single_source","scaffold",
+"pie","pie_mask_ack_basic","scaffold",
+"pie","pie_regs_xint_readhit_mode_counter_basic","scaffold",
+"pie","pie_soc_direct_cpu_irq_nmi_timer_basic","scaffold",
+"pie","pie_soc_gpio_xint123_basic","scaffold",
+"pie","pie_vector_table_fill_u16_basic","scaffold",
+"pie","pie_vector_table_fill_u32_basic","scaffold",
+"pie","pie_vector_table_rw_inline_u16_basic","scaffold",
+"pie","pie_xint_counter_readmux_basic","scaffold",
+"sci","sci_baud_program_basic","compiled","F28035 build OK (SciaRegs symbol added); JTAG verify pending"
+"sci","sci_fifo_reset_then_loopback_basic","compiled","F28035 build OK (SciaRegs symbol added); JTAG verify pending"
+"sci","sci_fifo_rx_basic","compiled","F28035 build OK (SciaRegs symbol added); JTAG verify pending"
+"sci","sci_internal_loopback_basic","compiled","F28035 build OK (SciaRegs symbol added); JTAG verify pending"
+"sci","sci_loopback_data_pattern_basic","compiled","F28035 build OK (SciaRegs symbol added); JTAG verify pending"
+"sci","sci_reg_if_rw_basic","compiled","F28035 build OK (SciaRegs symbol added); JTAG verify pending"
+"sci","sci_rxrdy_clear_on_read_basic","compiled","F28035 build OK (SciaRegs symbol added); JTAG verify pending"
+"sci","sci_sciccr_charlen_sweep_basic","compiled","F28035 build OK (SciaRegs symbol added); JTAG verify pending"
+"sci","sci_stop2_parity_charlen_sweep_basic","compiled","F28035 build OK (SciaRegs symbol added); JTAG verify pending"
+"sci","sci_txrdy_int_nonfifo_basic","compiled","F28035 build OK (SciaRegs symbol added); JTAG verify pending"
+"spi","spi_charlen_sweep_basic","compiled","F28035 build OK (SpibRegs symbol added); JTAG verify pending"
+"spi","spi_fifo_level_boundary_basic","compiled","F28035 build OK (SpibRegs symbol added); JTAG verify pending"
+"spi","spi_fifo_rx_boundary_basic","compiled","F28035 build OK (SpibRegs symbol added); JTAG verify pending"
+"spi","spi_fifo_tx_boundary_basic","compiled","F28035 build OK (SpibRegs symbol added); JTAG verify pending"
+"spi","spi_internal_loopback_basic","compiled","F28035 build OK (SpibRegs symbol added); JTAG verify pending"
+"spi","spi_loopback_mode_matrix_basic","compiled","F28035 build OK (SpibRegs symbol added); JTAG verify pending"
+"spi","spi_multiple_frame_loopback_basic","compiled","F28035 build OK (SpibRegs symbol added); JTAG verify pending"
+"spi","spi_nonfifo_intflag_irq_basic","compiled","F28035 build OK (SpibRegs symbol added); JTAG verify pending"
+"spi","spi_reg_if_rw_basic","compiled","F28035 build OK (SpibRegs symbol added); JTAG verify pending"
+"spi","spi_triwire_loopback_basic","compiled","F28035 build OK (SpibRegs symbol added); JTAG verify pending"
+"sys_clk","sys_divsel_roundtrip_basic","scaffold",
+"sys_clk","sys_intosc2_pll_basic","scaffold",
+"sys_clk","sys_lpm_idle_interrupt_basic","scaffold",
+"sys_clk","sys_lpm_reg_access_basic","scaffold",
+"sys_clk","sys_osc1_osc2_roundtrip_basic","scaffold",
+"sys_clk","sys_pll_bypass_basic","scaffold",
+"sys_clk","sys_pll_lock_basic","scaffold",
+"sys_clk","sys_reset_release_basic","scaffold",
+"sys_clk","sys_xclkout_div_basic","scaffold",
+"sys_clk","sys_xrs_runtime_window_basic","scaffold",
+"timer","timer0_periodic_basic","verified","F28035 JTAG RAM: TIMER0_PERIODIC_BASIC_TARGET_TEST=PASS; GPIO30 MUX=0 DIR=1; interrupt_count=8; TIE=1; PIE INTx7=1"
+"wdg_sys","sys_lpm_idle_watchdog_basic","scaffold",
+"wdg_sys","sys_watchdog_timeout_basic","scaffold",
+"wdg_sys","sys_watchdog_timeout_reset","scaffold",
+"wdg_sys","sys_wdg_wdchk_wrong_key","scaffold",
+"wdg_sys","watchdog_disable_test","scaffold",
+"wdg_sys","watchdog_intr_mode_test","scaffold",
+"wdg_sys","watchdog_key_sequence_test","scaffold",
+"wdg_sys","watchdog_prescaler_test","scaffold",
+"wdg_sys","watchdog_reset_mode_test","scaffold",
+"wdg_sys","watchdog_wdflag_test","scaffold",

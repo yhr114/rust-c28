@@ -1,0 +1,140 @@
+diff --git a/llvm/CMakeLists.txt b/llvm/CMakeLists.txt
+index 000000000000..000000000000 100644
+--- a/llvm/CMakeLists.txt
++++ b/llvm/CMakeLists.txt
+@@ -613,6 +613,7 @@ set(LLVM_ALL_TARGETS
+ 
+ set(LLVM_ALL_EXPERIMENTAL_TARGETS
+   ARC
++  C28x
+   CSKY
+   DirectX
+   M68k
+diff --git a/llvm/include/llvm/TargetParser/Triple.h b/llvm/include/llvm/TargetParser/Triple.h
+index 000000000000..000000000000 100644
+--- a/llvm/include/llvm/TargetParser/Triple.h
++++ b/llvm/include/llvm/TargetParser/Triple.h
+@@ -55,7 +55,8 @@ public:
+     avr,         // AVR: Atmel AVR microcontroller
+     bpfel,       // eBPF or extended BPF or 64-bit BPF (little endian)
+     bpfeb,       // eBPF or extended BPF or 64-bit BPF (big endian)
+     csky,        // CSKY: csky
++    c28x,        // C28x: Texas Instruments C2000 C28x
+     dxil,        // DXIL 32-bit DirectX bytecode
+     hexagon,     // Hexagon: hexagon
+     loongarch32, // LoongArch (32-bit): loongarch32
+@@ -927,6 +928,9 @@ public:
+   // Tests whether the target is CSKY
+   bool isCSKY() const { return getArch() == Triple::csky; }
+ 
++  /// Tests whether the target is TI C2000 C28x.
++  bool isC28x() const { return getArch() == Triple::c28x; }
++
+   /// Tests whether the target is the Apple "arm64e" AArch64 subarch.
+   bool isArm64e() const {
+     return getArch() == Triple::aarch64 &&
+diff --git a/llvm/lib/TargetParser/TargetDataLayout.cpp b/llvm/lib/TargetParser/TargetDataLayout.cpp
+index 000000000000..000000000000 100644
+--- a/llvm/lib/TargetParser/TargetDataLayout.cpp
++++ b/llvm/lib/TargetParser/TargetDataLayout.cpp
+@@ -573,6 +573,8 @@ std::string Triple::computeDataLayout(StringRef ABIName) const {
+     return computeBPFDataLayout(*this);
+   case Triple::csky:
+     return computeCSKYDataLayout(*this);
++  case Triple::c28x:
++    return "e-m:e-p:32:32-i32:32-i64:32-f32:32-f64:32-a:8:8-n8:16-S16";
+   case Triple::dxil:
+     return "e-m:e-ve-p:32:32-i1:32-i8:8-i16:16-i32:32-i64:64-f16:16-"
+            "f32:32-f64:64-n8:16:32:64";
+diff --git a/llvm/lib/TargetParser/Triple.cpp b/llvm/lib/TargetParser/Triple.cpp
+index 000000000000..000000000000 100644
+--- a/llvm/lib/TargetParser/Triple.cpp
++++ b/llvm/lib/TargetParser/Triple.cpp
+@@ -66,6 +66,8 @@ StringRef Triple::getArchTypeName(ArchType Kind) {
+     return "bpfel";
+   case csky:
+     return "csky";
++  case c28x:
++    return "c28x";
+   case dxil:
+     return "dxil";
+   case hexagon:
+@@ -407,6 +409,8 @@ StringRef Triple::getArchTypePrefix(ArchType Kind) {
+     return "ve";
+   case csky:
+     return "csky";
++  case c28x:
++    return "c28x";
+ 
+   case loongarch32:
+   case loongarch64:
+@@ -567,6 +571,7 @@ Triple::ArchType Triple::getArchTypeForLLVMName(StringRef Name) {
+       .Case("renderscript64", renderscript64)
+       .Case("ve", ve)
+       .Case("csky", csky)
++      .Case("c28x", c28x)
+       .Case("loongarch32", loongarch32)
+       .Case("loongarch64", loongarch64)
+       .Case("dxil", dxil)
+@@ -719,6 +724,7 @@ static Triple::ArchType parseArch(StringRef ArchName) {
+           .Case("wasm32", Triple::wasm32)
+           .Case("wasm64", Triple::wasm64)
+           .Case("csky", Triple::csky)
++          .Case("c28x", Triple::c28x)
+           .Case("loongarch32", Triple::loongarch32)
+           .Case("loongarch64", Triple::loongarch64)
+           .Cases({"dxil", "dxilv1.0", "dxilv1.1", "dxilv1.2", "dxilv1.3",
+@@ -1016,6 +1022,7 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
+   case Triple::bpfeb:
+   case Triple::bpfel:
+   case Triple::csky:
++  case Triple::c28x:
+   case Triple::hexagon:
+   case Triple::hsail64:
+   case Triple::hsail:
+@@ -1789,6 +1796,7 @@ unsigned Triple::getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
+   case llvm::Triple::arc:
+   case llvm::Triple::arm:
+   case llvm::Triple::armeb:
++  case llvm::Triple::c28x:
+   case llvm::Triple::csky:
+   case llvm::Triple::dxil:
+   case llvm::Triple::hexagon:
+@@ -1901,6 +1909,7 @@ Triple Triple::get32BitArchVariant() const {
+   case Triple::arc:
+   case Triple::arm:
+   case Triple::armeb:
++  case Triple::c28x:
+   case Triple::csky:
+   case Triple::dxil:
+   case Triple::hexagon:
+@@ -2003,6 +2012,7 @@ Triple Triple::get64BitArchVariant() const {
+   case Triple::UnknownArch:
+   case Triple::arc:
+   case Triple::avr:
++  case Triple::c28x:
+   case Triple::csky:
+   case Triple::dxil:
+   case Triple::hexagon:
+@@ -2129,5 +2139,6 @@ Triple Triple::getBigEndianArchVariant() const {
+   case Triple::amdil:
+   case Triple::avr:
++  case Triple::c28x:
+   case Triple::dxil:
+   case Triple::hexagon:
+   case Triple::hsail64:
+@@ -2267,6 +2278,7 @@ Triple Triple::getLittleEndianArchVariant() const {
+   case Triple::arm:
+   case Triple::avr:
+   case Triple::bpfel:
++  case Triple::c28x:
+   case Triple::csky:
+   case Triple::dxil:
+   case Triple::hexagon:
+@@ -2547,5 +2559,6 @@ ExceptionHandling Triple::getDefaultExceptionHandling() const {
+   switch (getArch()) {
+   case Triple::arc:
++  case Triple::c28x:
+   case Triple::csky:
+   case Triple::hexagon:
+   case Triple::lanai:

@@ -1,0 +1,8 @@
+name = "adc_int_noncont_overflow"
+category = "adc"
+entry = "src/main.rs"
+status = "compiled"`nsafe_hal_status = "verified-via-mir"
+requires = []
+
+[mir_verify]
+script = "tools/verify-mir-adc_int_overflow.ps1"

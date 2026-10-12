@@ -1,0 +1,108 @@
+From: Rust on C28x
+Subject: [PATCH] Add C28x target (c28x-none-elf)
+
+Add TI C2000 C28x support to rustc 1.100 (nightly-2026-09-14).
+FROZEN ABI: 32-bit logical byte pointers (see ABI_FREEZE.md).
+
+Changes:
+  compiler/rustc_llvm/build.rs                            |  1 +
+  compiler/rustc_llvm/src/lib.rs                          |  7 +
+  compiler/rustc_target/src/callconv/mod.rs               |  2 +
+  compiler/rustc_target/src/spec/targets/c28x_none_elf.rs | 47 +++++++++++
+  compiler/rustc_target/src/spec/mod.rs                   |  1 +
+  5 files changed, 58 insertions(+)
+
+diff --git a/compiler/rustc_llvm/build.rs b/compiler/rustc_llvm/build.rs
+--- a/compiler/rustc_llvm/build.rs
++++ b/compiler/rustc_llvm/build.rs
+@@ -11,3 +11,4 @@
+ const OPTIONAL_COMPONENTS: &[&str] = &[
++    "c28x",
+     "x86",
+     "arm",
+diff --git a/compiler/rustc_llvm/src/lib.rs b/compiler/rustc_llvm/src/lib.rs
+--- a/compiler/rustc_llvm/src/lib.rs
++++ b/compiler/rustc_llvm/src/lib.rs
+@@ -97,3 +97,10 @@
+         LLVMInitializeX86AsmParser
+     );
++    init_target!(
++        llvm_component = "c28x",
++        LLVMInitializeC28xTargetInfo,
++        LLVMInitializeC28xTarget,
++        LLVMInitializeC28xTargetMC,
++        LLVMInitializeC28xAsmPrinter
++    );
+     init_target!(
+diff --git a/compiler/rustc_target/src/callconv/mod.rs b/compiler/rustc_target/src/callconv/mod.rs
+--- a/compiler/rustc_target/src/callconv/mod.rs
++++ b/compiler/rustc_target/src/callconv/mod.rs
+@@ -724,6 +724,8 @@
+             Arch::RiscV32 | Arch::RiscV64 => riscv::compute_abi_info(cx, self),
+             Arch::Wasm32 | Arch::Wasm64 => wasm::compute_abi_info(cx, self),
+             Arch::Bpf => bpf::compute_abi_info(cx, self),
++            // C28x currently exposes only scalar C ABI calls through the backend.
++            Arch::Other(name) if name.as_ref() == "c28x" => {},
+             arch @ (Arch::SpirV | Arch::Other(_)) => {
+                 panic!("no lowering implemented for {arch}")
+             }
+diff --git a/compiler/rustc_target/src/spec/targets/c28x_none_elf.rs b/compiler/rustc_target/src/spec/targets/c28x_none_elf.rs
+new file mode 100644
+--- /dev/null
++++ b/compiler/rustc_target/src/spec/targets/c28x_none_elf.rs
+@@ -0,0 +1,47 @@
++//===-- c28x_none_elf.rs - rustc target spec for TI C2000 C28x ----------===//
++//
++// FROZEN ABI (see ABI_FREEZE.md): 32-bit logical byte pointers.
++//   logical_byte = word * 2 + lane   (verified on hardware via PATH A)
++// u16 = one C28x word; u32/i32/f32 and pointers = two words aligned to 4
++// logical bytes. 16-bit pointers (p:16:16) would address only 64Ki logical
++// bytes (32K words) - smaller than the F28035's 128Ki flash, hence frozen
++// to p:32.
++//
++//===----------------------------------------------------------------------===//
++
++use crate::spec::{
++    Arch, Cc, LinkerFlavor, PanicStrategy, RelocModel, Target, TargetMetadata,
++    TargetOptions,
++};
++
++pub(crate) fn target() -> Target {
++    Target {
++        llvm_target: "c28x-ti-none".into(),
++        metadata: TargetMetadata {
++            description: Some("TI C2000 C28x bare-metal targets".into()),
++            tier: Some(3),
++            host_tools: Some(false),
++            std: Some(false),
++        },
++        pointer_width: 32,
++        data_layout:
++            "e-m:e-p:32:32-i32:32-i64:32-f32:32-f64:32-a:8:8-n8:16-S16".into(),
++        arch: Arch::Other("c28x".into()),
++        options: TargetOptions {
++            c_int_width: 16,
++            cpu: "c28x".into(),
++            linker: None,
++            linker_flavor: LinkerFlavor::Unix(Cc::No),
++            max_atomic_width: Some(0),
++            atomic_cas: false,
++            panic_strategy: PanicStrategy::Abort,
++            relocation_model: RelocModel::Static,
++            default_codegen_units: Some(1),
++            trap_unreachable: false,
++            emit_debug_gdb_scripts: false,
++            eh_frame_header: false,
++            singlethread: true,
++            ..Default::default()
++        },
++    }
++}
+diff --git a/compiler/rustc_target/src/spec/mod.rs b/compiler/rustc_target/src/spec/mod.rs
+--- a/compiler/rustc_target/src/spec/mod.rs
++++ b/compiler/rustc_target/src/spec/mod.rs
+@@ -1533,3 +1533,4 @@
+     ("msp430-none-elf", msp430_none_elf),
++    ("c28x-none-elf", c28x_none_elf),
+ 
+     ("aarch64_be-unknown-hermit", aarch64_be_unknown_hermit),

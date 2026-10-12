@@ -1,0 +1,5 @@
+can_reset_default_state_basic_CASE_CATEGORY := system
+can_reset_default_state_basic_CASE_SRCS := src/main.c
+can_reset_default_state_basic_CASE_INCLUDES := include
+can_reset_default_state_basic_EXPECTED_SYMBOLS := _main _pass _fail _exit
+can_reset_default_state_basic_SIM_APP_NAME := can_reset_default_state_basic

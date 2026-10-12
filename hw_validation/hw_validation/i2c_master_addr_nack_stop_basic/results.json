@@ -1,0 +1,59 @@
+[
+  {
+    "run": "continuous",
+    "events": [],
+    "test_status": "0x1",
+    "test_fail_code": "0x0",
+    "init_str": "0x410",
+    "init_mdr": "0x4020",
+    "init_gpio": "0xfffff000",
+    "final_str": "0x400",
+    "final_mdr": "0x4e20",
+    "final_cnt": "0x1",
+    "final_sar": "0x36",
+    "final_gpio": "0xfffff000",
+    "outcome": "PASS",
+    "stop_cleared": false,
+    "bus_idle": true,
+    "live_mdr": "0x4220",
+    "live_str": "0x400",
+    "settled_idle": true
+  },
+  {
+    "run": "nack_breakpoint",
+    "events": [
+      {
+        "label": "NACK branch before clearing flag",
+        "pc": "0x8221",
+        "I2CSTR.all": "0x1406",
+        "I2CMDR.all": "0x4620",
+        "I2CCNT": "0x1",
+        "I2CSAR": "0x36"
+      },
+      {
+        "label": "SCD success branch before clearing STOP event",
+        "pc": "0x81e4",
+        "I2CSTR.all": "0x420",
+        "I2CMDR.all": "0x4220",
+        "I2CCNT": "0x1"
+      }
+    ],
+    "nack_observed": true,
+    "test_status": "0x1",
+    "test_fail_code": "0x0",
+    "init_str": "0x410",
+    "init_mdr": "0x4020",
+    "init_gpio": "0xffffffff",
+    "final_str": "0x400",
+    "final_mdr": "0x4220",
+    "final_cnt": "0x1",
+    "final_sar": "0x36",
+    "final_gpio": "0xfffff000",
+    "outcome": "PASS",
+    "stop_cleared": true,
+    "bus_idle": true,
+    "live_mdr": "0x4220",
+    "live_str": "0x400",
+    "settled_idle": true
+  }
+]

@@ -1,0 +1,10 @@
+name = "can_reset_default_state_basic"
+category = "can"
+entry = "src/main.rs"
+status = "compiled"`nsafe_hal_status = "verified-via-mir"
+requires = ["gpio-mux", "test-runtime"]
+source_c = "fpga_delivery_28035/case_src/can/can_reset_default_state_basic/src/main.c"
+verification = "F28035 JTAG: status=1, fail_code=0"
+
+[mir_verify]
+script = "tools/verify-mir-can_reset.ps1"

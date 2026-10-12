@@ -1,0 +1,20 @@
+name = "gpio_mux_dynamic_switch_basic"
+category = "gpio"
+entry = "src/main.rs"
+status = "verified"
+requires = ["gpio-mux", "test-runtime"]
+source_c = "fpga_delivery_28035/case_src/gpio/gpio_mux_dynamic_switch_basic/src/main.c"
+verification = "F28035 JTAG RAM: SAFE_HAL_CASE_TARGET_TEST=PASS; GPIO0 MUX phase1=1(EPWM1A) phase2=0(GPIO)"
+safe_hal_status = "verified-via-mir"
+safe_hal_verify = "tools/verify-safe-hal-case-ram.ps1 -Case gpio/gpio_mux_dynamic_switch_basic"
+build_route = "app registry -> crates/rust-api::rust_gpio0_mux_* -> rustc MIR -> backend/c28x-mir -> TI CGT RAM link"
+
+# Safe HAL MIR route: same capability as gpio_mux_basic (0->1->0 round trip,
+# split into two linked mirror functions for mid-phase snapshot).  Reuses the
+# gpio0-mux C harness, build script, RAM verify script and dss judge.
+[mir_template]
+app = "rust_gpio0_mux_to_epwm1a"
+probe = "XDS100v1"
+link = "RAM (SARAM, no flash)"
+observed = "called=1 phase1_mux=1 phase2_mux=0 PASS"
+hal = "rust-api (Gpio::set_mux typed MUX routing, split two-phase mirror)"

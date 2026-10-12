@@ -1,0 +1,17 @@
+name = "timer0_periodic_basic"
+category = "timer"
+entry = "src/main.rs"
+status = "verified"
+requires = ["timer0", "gpio", "delay", "test-runtime"]
+source_c = ""
+verification = "F28035 JTAG RAM: TIMER0_PERIODIC_BASIC_TARGET_TEST=PASS; GPIO30 MUX=0 DIR=1; interrupt_count=8; TIE=1; PIE INTx7=1"
+safe_hal_status = "verified-via-mir"
+safe_hal_verify = "tools/verify-safe-hal-case-ram.ps1 -Case timer/timer0_periodic_basic"
+build_route = "app registry -> crates/rust-api::rust_timer0_periodic_basic -> rustc MIR -> backend/c28x-mir -> TI CGT RAM link"
+
+[mir_template]
+app = "rust_timer0_periodic_basic"
+probe = "XDS100v1"
+link = "RAM (SARAM, no flash)"
+observed = "called=1 GPIO30_MUX=0 GPIO30_DIR=1 interrupt_count=8 TSS=0 TIE=1 PIE_INTX7=1 vector_match PASS"
+hal = "rust-api Timer0 start_periodic through Peripherals ownership"
