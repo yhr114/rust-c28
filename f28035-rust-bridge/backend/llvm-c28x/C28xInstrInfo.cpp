@@ -239,6 +239,14 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MBB.erase(MI);
     return true;
   }
+  case C28x::IRET: {
+    // Interrupt return. IRET restores full hardware context from stack.
+    // Note: C28x hardware keeps INTM=1 after IRET (saved ST1 has INTM=1).
+    // Re-enable interrupts via enable_int() in the main loop.
+    BuildMI(MBB, MI, DL, get(C28x::IRET_Real));
+    MBB.erase(MI);
+    return true;
+  }
   case C28x::ZEXT16_32_CORE: {
     // Build zero-extended value in ACC: MOV AL, src; MOV AH, #0.
     Register Src = MI.getOperand(1).getReg();
@@ -919,15 +927,15 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     default:                  Op16 = C28x::XOR16rr; break;
     }
 
-    // Every GR16 (AL/AH/AR0-7/SP) is directly loc16-addressable, so read RHS
-    // in place unless it would be clobbered before the OP; only then park it
-    // in the reserved XAR7 scratch.
+    // RHS staging policy: always stage AL/AH RHS through reserved XAR7 so
+    // the emitted 16-bit ALU op uses an ARn loc16 (0xA0-0xA7) rather than
+    // the AH/AL register-direct encodings (0xA8/0xA9) that disassemble as
+    // "@AH"/"@AL" and are easily confused with direct memory addressing.
+    // Also stage when RHS == Dst (DstIsAcc): the "MOV Dst, Lhs" before the
+    // OP would clobber RHS before it is read.
     bool DstIsAcc = (Dst == C28x::AL || Dst == C28x::AH);
-    bool NeedStage;
-    if (DstIsAcc)
-      NeedStage = (Rhs == Dst);                 // MOV Dst,Lhs would overwrite Rhs
-    else
-      NeedStage = (Rhs == C28x::AL || Rhs == C28x::AH); // AL/AH is our temp below
+    bool NeedStage =
+        (Rhs == C28x::AL || Rhs == C28x::AH) || (DstIsAcc && Rhs == Dst);
     Register RhsReg = Rhs;
     if (NeedStage) {
       BuildMI(MBB, MI, DL, get(C28x::MOVL_XAR_AR), C28x::XAR7).addReg(Rhs);

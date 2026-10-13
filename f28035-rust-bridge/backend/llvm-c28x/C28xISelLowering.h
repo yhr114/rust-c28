@@ -1,4 +1,4 @@
-//===-- C28xISelLowering.h - C28x DAG Lowering Interface ---------------===//
+﻿//===-- C28xISelLowering.h - C28x DAG Lowering Interface ---------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,10 +15,19 @@ namespace llvm {
 
 class C28xSubtarget;
 
+/// C28x-specific calling convention IDs.
+/// LLVM reserves 64..95 (FirstTargetCC..FirstTargetCC+31) for targets.
+namespace C28xCC {
+enum : unsigned {
+  Interrupt = 92, // FirstTargetCC+28, avoids X86_StdCall=64 overlap
+};
+} // namespace C28xCC
+
 namespace C28xISD {
 enum NodeType : unsigned {
   FIRST_NUMBER = ISD::BUILTIN_OP_END,
   RET_GLUE,
+  IRET_GLUE, // interrupt return: restores full hardware context (IRET)
   CMP,
   BRCOND,
   SELECT_CC,

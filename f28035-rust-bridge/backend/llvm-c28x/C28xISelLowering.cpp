@@ -1,4 +1,4 @@
-//===-- C28xISelLowering.cpp - C28x DAG Lowering Implementation ---------===//
+﻿//===-- C28xISelLowering.cpp - C28x DAG Lowering Implementation ---------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -84,7 +84,7 @@ C28xTargetLowering::C28xTargetLowering(const TargetMachine &TM,
   // by br).  Expand to an i8 load + generic extension.
   setLoadExtAction(ISD::ZEXTLOAD, MVT::i32, MVT::i1, Expand);
   setLoadExtAction(ISD::ZEXTLOAD, MVT::i16, MVT::i1, Expand);
-  // NOTE: EXTLOAD (anyext) must stay Legal — LLVM asserts it is never expanded.
+  // NOTE: EXTLOAD (anyext) must stay Legal 鈥?LLVM asserts it is never expanded.
   // i1 loads rely on the data layout treating i1 as byte-sized (see
   // C28xTargetMachine / -mtriple=c28x-ti-none), which folds them into i8 loads.
 
@@ -236,6 +236,7 @@ C28xTargetLowering::C28xTargetLowering(const TargetMachine &TM,
 const char *C28xTargetLowering::getTargetNodeName(unsigned Opcode) const {
   switch (Opcode) {
   case C28xISD::RET_GLUE:    return "C28xISD::RET_GLUE";
+  case C28xISD::IRET_GLUE:   return "C28xISD::IRET_GLUE";
   case C28xISD::CMP:         return "C28xISD::CMP";
   case C28xISD::BRCOND:      return "C28xISD::BRCOND";
   case C28xISD::SELECT_CC:   return "C28xISD::SELECT_CC";
@@ -251,12 +252,12 @@ MVT C28xTargetLowering::getTypeForExtLoad(EVT VT) const {
   return VT.getSimpleVT();
 }
 
-// Emit a CMP node; returns glue flag (no chain — ordered via glue).
+// Emit a CMP node; returns glue flag (no chain 鈥?ordered via glue).
 SDValue C28xTargetLowering::EmitCMP(SDValue LHS, SDValue RHS,
                                     ISD::CondCode CC, const SDLoc &DL,
                                     SelectionDAG &DAG) const {
   // i16 compares truncate to i16 (CMP16_PSEUDO path).
-  // i32 compares stay i32 — CMP32_PSEUDO uses SUBL which sets flags on the
+  // i32 compares stay i32 鈥?CMP32_PSEUDO uses SUBL which sets flags on the
   // full 32-bit value.  Truncating i32 to i16 here would silently compare only
   // the low half, producing wrong results for values > 65535.
   if (LHS.getValueType() != MVT::i16 && LHS.getValueType() != MVT::i32)
@@ -769,6 +770,89 @@ void C28xTargetLowering::ReplaceNodeResults(SDNode *N,
   }
 }
 
+
+//===----------------------------------------------------------------------===//
+// Custom C28x argument calling convention.
+//
+// The TI C28x EABI (verified against cl2000 -v28 --abi=eabi disassembly) uses a
+// packed 16-bit slot model with a special rule for 32-bit arguments:
+//
+//   Slots:   0=AL   1=AH   2=AR4   3=AR5
+//   i32 arg: occupies ACC (slots 0-1) -- the ONLY 32-bit register.
+//
+// The critical rule (confirmed by oracle): whenever the argument list contains
+// ANY 32-bit argument, the first 32-bit argument takes ACC, and ALL 16-bit
+// arguments skip slots 0-1 (AL/AH) entirely, starting at AR4.  This prevents a
+// 16-bit argument from stealing AL/AH and overlapping ACC.
+//
+//   (i16 a, i32 b)          -> a=AR4, b=ACC
+//   (i32 a, i16 b)          -> a=ACC, b=AR4
+//   (i16 a, i16 b, i32 c)   -> a=AR4, b=AR5, c=ACC
+//   (i32 a, i16 b, i16 c)   -> a=ACC, b=AR4, c=AR5
+//   (i16 a, i32 b, i16 c)   -> a=AR4, b=ACC, c=AR5
+//
+// If the list has NO 32-bit argument, 16-bit args fill AL, AH, AR4, AR5.
+// The second 32-bit argument (and beyond) goes on the stack (4 bytes).
+//
+// The generated CC_C28x from C28xCallingConv.td uses independent CCIfType
+// lists, so a leading i16 allocates AL (marking ACC as an alias), which then
+// blocks the later i32 from ACC and wrongly pushes it to the stack.  This
+// custom function implements the correct slot model.
+//===----------------------------------------------------------------------===//
+
+namespace {
+struct C28xCCAllocState {
+  bool HasI32Arg = false;  // pre-scanned: does the arg list contain i32?
+  bool ACCTaken = false;   // has ACC been handed to the first i32 arg?
+  unsigned Next16Slot = 0;  // index into the 16-bit slot table (0..3, then stack)
+};
+static thread_local C28xCCAllocState C28xCCState;
+} // namespace
+
+// 16-bit argument slots in allocation order.  When HasI32Arg is true, the
+// counter starts at slot 2 (AR4) so AL/AH stay reserved for ACC.
+static const MCPhysReg C28x16Slots[] = {
+  C28x::AL, C28x::AH, C28x::AR4, C28x::AR5
+};
+
+static bool CC_C28x_Custom(unsigned ValNo, MVT ValVT, MVT LocVT,
+                           CCValAssign::LocInfo LocInfo,
+                           ISD::ArgFlagsTy ArgFlags, Type *OrigTy,
+                           CCState &State) {
+  if (LocVT == MVT::i32) {
+    if (!C28xCCState.ACCTaken) {
+      C28xCCState.ACCTaken = true;
+      State.AllocateReg(C28x::ACC); // marks ACC + aliases AL/AH
+      State.addLoc(
+          CCValAssign::getReg(ValNo, ValVT, C28x::ACC, LocVT, LocInfo));
+      return false;
+    }
+    // Second+ 32-bit argument -> stack (4 bytes, 2-byte aligned).
+    int64_t Off = State.AllocateStack(4, Align(2));
+    State.addLoc(CCValAssign::getMem(ValNo, ValVT, Off, LocVT, LocInfo));
+    return false;
+  }
+
+  if (LocVT == MVT::i16) {
+    // If there's an i32 argument, AL/AH are reserved for ACC; start at AR4.
+    if (C28xCCState.HasI32Arg && C28xCCState.Next16Slot < 2)
+      C28xCCState.Next16Slot = 2;
+    if (C28xCCState.Next16Slot < 4) {
+      MCPhysReg Reg = C28x16Slots[C28xCCState.Next16Slot++];
+      State.AllocateReg(Reg); // marks Reg + aliases
+      State.addLoc(
+          CCValAssign::getReg(ValNo, ValVT, Reg, LocVT, LocInfo));
+      return false;
+    }
+    // Out of 16-bit registers -> stack (2 bytes).
+    int64_t Off = State.AllocateStack(2, Align(2));
+    State.addLoc(CCValAssign::getMem(ValNo, ValVT, Off, LocVT, LocInfo));
+    return false;
+  }
+
+  return true; // unhandled type
+}
+
 SDValue C28xTargetLowering::LowerCall(CallLoweringInfo &CLI,
                                       SmallVectorImpl<SDValue> &InVals) const {
   SelectionDAG &DAG = CLI.DAG;
@@ -790,7 +874,12 @@ SDValue C28xTargetLowering::LowerCall(CallLoweringInfo &CLI,
   MachineFunction &MF = DAG.getMachineFunction();
   SmallVector<CCValAssign, 16> ArgLocs;
   CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
-  CCInfo.AnalyzeCallOperands(Outs, CC_C28x);
+  // Pre-scan: if any outgoing argument is i32, reserve AL/AH for ACC.
+  C28xCCState = C28xCCAllocState();
+  for (const ISD::OutputArg &Out : Outs)
+    if (Out.VT == MVT::i32)
+      C28xCCState.HasI32Arg = true;
+  CCInfo.AnalyzeCallOperands(Outs, CC_C28x_Custom);
 
   // Compute total outgoing stack area (bytes).
   unsigned StackBytes = 0;
@@ -889,7 +978,12 @@ SDValue C28xTargetLowering::LowerFormalArguments(
   MachineRegisterInfo &MRI = MF.getRegInfo();
   SmallVector<CCValAssign, 8> ArgLocs;
   CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
-  CCInfo.AnalyzeFormalArguments(Ins, CC_C28x);
+  // Pre-scan: if any formal argument is i32, reserve AL/AH for ACC.
+  C28xCCState = C28xCCAllocState();
+  for (const ISD::InputArg &In : Ins)
+    if (In.VT == MVT::i32)
+      C28xCCState.HasI32Arg = true;
+  CCInfo.AnalyzeFormalArguments(Ins, CC_C28x_Custom);
 
   for (const CCValAssign &VA : ArgLocs) {
     EVT LocVT = VA.getLocVT();
@@ -942,7 +1036,15 @@ SDValue C28xTargetLowering::LowerReturn(
     RetOps.push_back(DAG.getRegister(VA.getLocReg(), VA.getLocVT()));
   }
   if (Glue) RetOps.push_back(Glue);
-  return DAG.getNode(C28xISD::RET_GLUE, DL, MVT::Other, RetOps);
+  // Interrupt handlers return with IRET (restores full hardware context:
+  // ACC/P/XT/XAR0-7/ST0/ST1/DP/SP/PC) instead of LRETR (pops PC only).
+  // Triggered by the c28x-interrupt calling convention (CC 64) or the
+  // LLVM "interrupt" function attribute.
+  bool IsInterrupt =
+      static_cast<unsigned>(CallConv) == C28xCC::Interrupt ||
+      MF.getFunction().hasFnAttribute("interrupt");
+  unsigned RetNode = IsInterrupt ? C28xISD::IRET_GLUE : C28xISD::RET_GLUE;
+  return DAG.getNode(RetNode, DL, MVT::Other, RetOps);
 }
 
 MachineBasicBlock *C28xTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,

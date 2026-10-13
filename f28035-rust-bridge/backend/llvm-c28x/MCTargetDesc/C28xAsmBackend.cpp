@@ -55,6 +55,9 @@ public:
         Twine("C28x: unsupported fixup kind for object emission (kind=") +
         Twine(Fixup.getKind()) + ")");
   }
+
+  // C28x is 16-bit word-addressed: ELF r_offset must be in words, not bytes.
+  unsigned getRelocationOffsetDivisor() const override { return 2; }
 };
 
 class C28xAsmBackend : public MCAsmBackend {

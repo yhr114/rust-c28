@@ -1,0 +1,52 @@
+
+Disassembly of C:\Users\61987\Desktop\28035\f28035-rust-bridge\backend\llvm-c28x\test\CodeGen\oracle\mixed.obj:
+
+TEXT Section .text (Little Endian), 0x2b words at 0x00000000 
+00000000        f_i16_i32:
+00000000   fe04   ADDB         SP, #4
+00000001   1e42   MOVL         *-SP[2], ACC
+00000002   7c43   MOV          *-SP[3], AR4
+00000003   9242   MOV          AL, *-SP[2]
+00000004   9443   ADD          AL, *-SP[3]
+00000005   fe84   SUBB         SP, #4
+00000006   0006   LRETR        
+00000007        f_i32_i16:
+00000007   fe04   ADDB         SP, #4
+00000008   7c43   MOV          *-SP[3], AR4
+00000009   1e42   MOVL         *-SP[2], ACC
+0000000a   3b01   SETC         SXM
+0000000b   8543   MOV          ACC, *-SP[3]
+0000000c   0742   ADDL         ACC, *-SP[2]
+0000000d   fe84   SUBB         SP, #4
+0000000e   0006   LRETR        
+0000000f        f_i16_i16_i32:
+0000000f   fe04   ADDB         SP, #4
+00000010   1e42   MOVL         *-SP[2], ACC
+00000011   7d44   MOV          *-SP[4], AR5
+00000012   7c43   MOV          *-SP[3], AR4
+00000013   9244   MOV          AL, *-SP[4]
+00000014   9443   ADD          AL, *-SP[3]
+00000015   9442   ADD          AL, *-SP[2]
+00000016   fe84   SUBB         SP, #4
+00000017   0006   LRETR        
+00000018        f_i32_i16_i16:
+00000018   fe04   ADDB         SP, #4
+00000019   7d44   MOV          *-SP[4], AR5
+0000001a   7c43   MOV          *-SP[3], AR4
+0000001b   1e42   MOVL         *-SP[2], ACC
+0000001c   3b01   SETC         SXM
+0000001d   8543   MOV          ACC, *-SP[3]
+0000001e   0742   ADDL         ACC, *-SP[2]
+0000001f   8144   ADD          ACC, *-SP[4]
+00000020   fe84   SUBB         SP, #4
+00000021   0006   LRETR        
+00000022        f_i16_i32_i16:
+00000022   fe04   ADDB         SP, #4
+00000023   7d44   MOV          *-SP[4], AR5
+00000024   1e42   MOVL         *-SP[2], ACC
+00000025   7c43   MOV          *-SP[3], AR4
+00000026   9242   MOV          AL, *-SP[2]
+00000027   9443   ADD          AL, *-SP[3]
+00000028   9444   ADD          AL, *-SP[4]
+00000029   fe84   SUBB         SP, #4
+0000002a   0006   LRETR        

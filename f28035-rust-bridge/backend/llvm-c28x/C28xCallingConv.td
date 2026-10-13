@@ -52,9 +52,14 @@ def CC_C28x_Stack : CallingConv<[
 // i32 args consume ACC (slots 0-1).  There is NO second 32-bit register;
 // the second 32-bit arg goes on the stack.
 //
-// NOTE: The independent CCIfType lists mean mixed (i16, i32) and (i32, i16)
-// pairs may overlap on AL/ACC.  In practice Rust extern "C" functions use
-// either all-i16 or all-i32 signatures; the common cases are correct.
+// MIXED-TYPE RULE (verified against cl2000 -v28 --abi=eabi disassembly):
+//   Whenever the arg list contains ANY i32 argument, the first i32 takes ACC
+//   and ALL i16 arguments skip AL/AH, starting at AR4.  This prevents a leading
+//   i16 from stealing AL and overlapping ACC.  The generated CC_C28x below
+//   cannot express this (independent CCIfType lists cause AL/AH overlap), so
+//   the real argument lowering uses the C++ function CC_C28x_Custom in
+//   C28xISelLowering.cpp.  This .td def is retained for reference and for
+//   library-call fallbacks; it is NOT used by LowerCall/LowerFormalArguments.
 def CC_C28x : CallingConv<[
   CCIfType<[i16], CCAssignToReg<[AL, AH, AR4, AR5]>>,
   CCIfType<[i32], CCAssignToReg<[ACC]>>,

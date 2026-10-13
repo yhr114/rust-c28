@@ -13,6 +13,12 @@
 def C28xretglue : SDNode<"C28xISD::RET_GLUE", SDTNone,
                           [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 
+// Interrupt return: identical DAG shape to RET_GLUE but selects IRET
+// (restores the full hardware context saved on interrupt entry) instead
+// of LRETR (pops PC only).
+def C28xiretglue : SDNode<"C28xISD::IRET_GLUE", SDTNone,
+                           [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
+
 // Compare: (chain, lhs, rhs) with out-glue carrying flags.
 def SDT_C28xCmp : SDTypeProfile<0, 2, [SDTCisSameAs<0, 1>]>;
 def C28xcmp : SDNode<"C28xISD::CMP", SDT_C28xCmp,
@@ -240,13 +246,13 @@ def SUB16_PSEUDO : C28xPseudo<(outs GR16:$dst), (ins GR16:$lhs, GR16:$rhs),
 // No DAG pattern: normal i32 values live in the wide GPR32 class; the wide
 // ADD32_PSEUDO below is selected and pre-RA inserts the required ACC copies.
 def ADD32rr : C28xInst<(outs ACCOnly:$dst), (ins ACCOnly:$lhs, ACC32:$rhs),
-  "add acc, $rhs", []> {
+  "addl acc, $rhs", []> {
   let isCodeGenOnly = 1;
   let Constraints = "$dst = $lhs";
 }
 
 def SUB32rr : C28xInst<(outs ACCOnly:$dst), (ins ACCOnly:$lhs, ACC32:$rhs),
-  "sub acc, $rhs", []> {
+  "subl acc, $rhs", []> {
   let isCodeGenOnly = 1;
   let Constraints = "$dst = $lhs";
   let Defs = [ST0];
@@ -646,6 +652,29 @@ def LCR_IND_REAL : C28xInst<(outs), (ins GR32:$dst),
 
 let isReturn = 1, isTerminator = 1, isBarrier = 1 in
 def LRETR : C28xInst<(outs), (ins), "lretr", [(C28xretglue)]>;
+
+// Interrupt return pseudo.  Selected for C28xiretglue (the
+// c28x-interrupt calling convention or the "interrupt" function attribute).
+// Expanded post-RA (C28xInstrInfo::expandPostRAPseudo) to clear INTM (bit 11)
+// in the ST1 word the hardware auto-saved at [SP] on interrupt entry, then
+// executed as IRET_Real.  On interrupt entry the hardware auto-sets INTM=1
+// and pushes ST1 (with INTM=1) onto the stack; IRET restores that saved ST1
+// verbatim, leaving INTM=1 so the interrupt would fire only once.  Clearing
+// the bit in the saved copy makes IRET return with INTM=0.
+def IRET : C28xPseudo<(outs), (ins), [(C28xiretglue)]> {
+  let isReturn = 1;
+  let isTerminator = 1;
+  let isBarrier = 1;
+}
+
+// Real hardware IRET: pops the full auto-saved hardware context
+// (ACC/P/XT/XAR0-7/ST0/ST1/DP/SP/PC).  Never selected directly; only emitted
+// by the IRET pseudo expander after the saved-ST1 INTM bit has been cleared.
+def IRET_Real : C28xInst<(outs), (ins), "iret", []> {
+  let isReturn = 1;
+  let isTerminator = 1;
+  let isBarrier = 1;
+}
 
 //===----------------------------------------------------------------------===//
 // PUSH / POP

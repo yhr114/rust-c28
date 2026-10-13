@@ -331,6 +331,12 @@ public:
       // Verified: asm2000/dis2000 and cl2000 -> 0006, memory "06 00".
       Word = 0x0006;
       break;
+    case C28x::IRET_Real:
+      // IRET = 0111 0110 0000 0010 (SPRU430F "IRET"). Restores full hardware
+      // context (ACC/P/XT/XAR0-7/ST0/ST1/DP/SP/PC) saved on interrupt entry.
+      // Verified: asm2000 -v28 / dis2000 -> 7602, memory "02 76".
+      Word = 0x7602;
+      break;
     case C28x::MOV16_imm: {
       // Constant materialisation; the assembler picks the same encoding.
       //   MOVB AX,#8bit    = 1001 101A CCCC CCCC   (AX = AL/AH, imm 0..255)
@@ -684,6 +690,7 @@ public:
         // Symbol reference: placeholder word0 (high 6 bits = 0), word1 = 0.
         // Patched by FK_C28x_ABS22 (R_C28X_ABS22_BR).
         emit16(CB, uint16_t(xarOpcode(Dst, XAR_OP_MOVL_IMM, "MOVL_XAR_imm")));
+        // Fixup offset = 0 (opcode word), same convention as LCR.
         Fixups.push_back(MCFixup::create(/*Offset=*/0, SrcOp.getExpr(),
                                          MCFixupKind(C28x::FK_C28x_ABS22),
                                          /*PCRel=*/false));
@@ -900,6 +907,12 @@ public:
         emit16(CB, uint16_t(Addr & 0xFFFF));
       } else if (Dst.isExpr()) {
         emit16(CB, 0x7640);
+        // Fixup offset = 0 (LCR opcode word).  The ELF r_offset for C28x is in
+        // 16-bit words and points to the LCR opcode word (word 0 of the two-word
+        // instruction); the linker patches word 0 OR'd with addr[21:16] and
+        // writes addr[15:0] into word 1.  Verified: cl2000 records r_offset at
+        // the LCR opcode word (e.g. offset 2 when the LCR follows a 2-word
+        // prologue), not at word 1.
         Fixups.push_back(MCFixup::create(/*Offset=*/0, Dst.getExpr(),
                                          MCFixupKind(C28x::FK_C28x_ABS22),
                                          /*PCRel=*/false));

@@ -132,7 +132,7 @@ def ACC32NoACC : RegisterClass<"C28x", [i32], 32, (add XT)>;
 // to move a value between an XAR register and ACC.  This relieves the
 // 2-register (ACC,XT) i32 bottleneck that exhausted registers around calls.
 def GPR32 : RegisterClass<"C28x", [i32], 32,
-  (add ACC, XT, XAR0, XAR1, XAR2, XAR3, XAR4, XAR5, XAR6, XAR7)>;
+  (add ACC, XT)>;
 
 // Remap ptr_rc (used by StandardPseudoInstruction) to GR32.
 defm : RemapAllTargetPseudoPointerOperands<GR32>;

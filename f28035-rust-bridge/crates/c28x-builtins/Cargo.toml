@@ -1,0 +1,14 @@
+[package]
+name = "c28x-builtins"
+version = "0.1.0"
+edition = "2021"
+description = "Compiler builtins for C28x (division, etc.) — replaces TI rts library"
+license = "MIT OR Apache-2.0"
+
+[lib]
+path = "src/lib.rs"
+
+[profile.release]
+panic = "abort"
+opt-level = "s"
+debug-assertions = false

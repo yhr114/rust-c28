@@ -22,6 +22,7 @@ PAGE 1:    /* Data Memory */
    BOOT_RSVD   : origin = 0x000000, length = 0x000050  /* Part of M0, boot ROM stack */
    RAMM0       : origin = 0x000050, length = 0x0003B0  /* on-chip RAM block M0 (stack) */
    RAMM1       : origin = 0x000400, length = 0x000400  /* on-chip RAM block M1 */
+   PIEVECT     : origin = 0x000D00, length = 0x000100  /* PIE vector table RAM */
 }
 
 SECTIONS

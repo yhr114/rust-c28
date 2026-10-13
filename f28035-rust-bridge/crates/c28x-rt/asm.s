@@ -7,6 +7,8 @@
         .def Reset
         .def code_start
         .def _pie_table
+        .def eallow_inst
+        .def edis_inst
         .ref main
         .ref _sbss
         .ref _ebss
@@ -89,5 +91,16 @@ _pie_table:
         .loop 111
         .field 0, 32
         .endloop
+
+; EALLOW / EDIS leaf functions for the Rust PAC.
+; EALLOW = opcode 0x7622, EDIS = opcode 0x761A (single-word instructions).
+        .text
+eallow_inst:
+        EALLOW
+        LRETR
+
+edis_inst:
+        EDIS
+        LRETR
 
         .end
