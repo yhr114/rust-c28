@@ -273,10 +273,8 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     // so a provably-dead ACC short-circuits to "no save".
     if (AccProvablyDead())
       return false;
-    // ACC must actually hold a value at MI (a block live-in or defined earlier
-    // in the block).  Otherwise there is nothing to save even if a later use
-    // exists -- that later use is itself undefined, which is exactly the
-    // "undefined ACC" the machine verifier rejects.
+    // ACC must hold a value at MI; only skip on a definite Dead (a missed save
+    // is silent wrong code, the remaining spurious save is benign).
     if (MBB.computeRegisterLiveness(&RI, C28x::ACC, MI, 200) ==
         MachineBasicBlock::LQR_Dead) {
       bool HasDef = false;
@@ -634,10 +632,6 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       }
     }
 
-    // Save ACC only when it actually survives this expansion.  Saving
-    // unconditionally emitted PUSH_ACC on a dead ACC (e.g. an AR-destination
-    // `xar4 = xar4 + imm`), which reads an undefined physical register and the
-    // machine verifier rejects.
     bool Save = Dst != C28x::ACC && AccLiveThrough();
     // Fast path: constant fits the real accumulator immediate instruction
     // (-32768..65535).  Stage Lhs into ACC, run add/sub acc,#Val, route result.
@@ -1275,11 +1269,6 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
         MBB.erase(MI);
         return true;
       }
-      // General path: preserve ACC only when a value survives this expansion.
-      // The old unconditional PUSH_ACC read an undefined ACC for a first
-      // sret-pointer access.  AccLiveThrough now also requires ACC to hold a
-      // value at MI; pass Dst so uses of the loaded value are not mistaken for
-      // an old ACC that needs saving.
       bool SaveACC = AccLiveThrough(Dst);
       if (SaveACC)
         BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));

@@ -1488,7 +1488,36 @@ SAFE_HAL_LONG_RUN=PASS
 - 修复后 **4/5 通过**；仅剩 `stack-args-stress.ll`（`LOAD8_ZEXT32`，Dst=xar7：验证器认为 ACC 未定义，
   后端 liveness 却判 live）——该边界仍待定位。
 - `mmio-oor.ll` 是**预期负向测试**（常量指针超 22 位），不计失败。
+- **额外发现**：`test/CodeGen` 的**字节 oracle（FileCheck）已过期**——即便回退后端改动，4 个用例仍失败
+  （`-filetype=obj | llvm-objdump -s -j .text | FileCheck`）。这些 oracle 相对当前（未提交的）后端已漂移，
+  需重新生成后才能作为功能门禁；因此本轮只能以机器验证器为 undefined-ACC 判据。
 
 **注意**：该修复已在 `llc` 后端源码验证，但**尚未进入 active rustc bundle**（rustc 内嵌后端，需重建 bundle +
 发布 + 回归）。因此当前仍**不能宣布编译器全面正确**。
+
+### Cargo O0 检查探针：同条件重验（2026-11-02）
+`verify-cargo-codegen.ps1` 新增 `-Checked`（`-Cdebug-assertions=yes -Coverflow-checks=yes`），在 O0 用
+"检查全开"重跑探针：
+- **结果：仍然异常**——DSS `Target.run()` 15 s 超时（探针挂在 panic handler）。
+- **定位**：读 PC=`0x947f`（panic handler，`codegen_done=0x9482`），且 `HW_CODEGEN_RESULT[0..1]=0`
+  → **探针在任何结果写入前就 panic 了**，不是时序问题。
+- 探针算术本身几乎都用 `wrapping_add`（无显式溢出），故更可能是**后端对"检查/断言路径"的代码生成**在
+  O0 下出错（把正常路径误判进 panic），而非探针真溢出——需进一步定位（这属于后端 check-path 深水区）。
+- 结论：该历史问题**已重验、确认仍存在**，未关闭；发布门禁仍用 checks-off 策略规避。
+
+---
+
+## 避免下载到旧映像：绑定实际 Cargo 产物（2026-11-02）
+
+**问题**：`verify-cargo-direct-hw.ps1` 原先按固定名字加载
+`<target>/c28x-none-elf/release/control.out`。当 features 切换再切回、Cargo 复用缓存产物（fresh）时，
+链接器（写 `.out` 副本）不重跑，`control.out` 可能是上一组 features 的旧映像 → **下载/验证了旧映像**。
+
+**修复**：改为 `cargo build --message-format=json`，从 `compiler-artifact.executable` 取**实际产物路径**，
+直接加载该产物并记录 SHA-256（`C28X_CARGO_ARTIFACT=… SHA256=…`），不再按固定名字判断。
+（Cargo 进度走 stderr、JSON 走 stdout；脚本临时放宽 `$ErrorActionPreference` 并把错误记录转字符串后过滤 JSON 行。）
+
+**验证**：`verify-cargo-direct-hw.ps1 -Project control` →
+`C28X_CARGO_ARTIFACT=…/build/cargo/20261102-122629-…/c28x-none-elf/release/c28x-cargo-app SHA256=7487E09E…`，
+`C28X_CARGO_DIRECT_HW=PASS`。
 
