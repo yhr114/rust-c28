@@ -23,6 +23,7 @@ public:
   StringRef getPassName() const override { return "C28x Assembly Printer"; }
 
   void emitInstruction(const MachineInstr *MI) override;
+  void emitGlobalVariable(const GlobalVariable *GV) override;
 };
 
 } // namespace llvm

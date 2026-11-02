@@ -43,6 +43,16 @@ pub fn target() -> Target {
             vendor: "ti".into(),
             linker: Some("cl2000".into()),
             linker_flavor: "ti".into(),
+            // Host proc-macro dylibs are named per the HOST convention (.dll
+            // on windows-gnu hosts).  With os="none" the defaults are
+            // lib/"lib*.so", which makes rustc's proc-macro locator reject
+            // the .dll that cargo passes for `extern crate` proc-macro
+            // dependencies ("file name should be lib*.rlib or lib*.so").
+            // c28x never produces target-side dylibs, so adopting the host
+            // naming is side-effect-free (2026-10-27, Rust entry/interrupt
+            // closed-loop acceptance).
+            dll_prefix: "".into(),
+            dll_suffix: ".dll".into(),
             singlethread: true,
             disable_redzone: true,
             eh_frame_header: false,

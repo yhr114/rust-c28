@@ -137,6 +137,16 @@ impl Reg32 {
         unsafe { self.write(f(v)) };
     }
 
+    #[inline(always)]
+    pub unsafe fn set_bits32(&self, bits: u32) {
+        self.modify(|v| v | bits)
+    }
+
+    #[inline(always)]
+    pub unsafe fn clear_bits32(&self, bits: u32) {
+        self.modify(|v| v & !bits)
+    }
+
     /// Read a single bit. `bit` is 0..31.
     #[inline(always)]
     pub unsafe fn read_bit(&self, bit: u32) -> bool {
@@ -273,6 +283,75 @@ impl ProtectedReg {
     }
 }
 
+/// A 32-bit memory-mapped register whose *write* side is EALLOW-protected.
+///
+/// Needed for GPIO control registers that TI models as `Uint32`
+/// (GPACTRL/GPADIR/GPAPUD/GPBCTRL/GPBDIR/GPBPUD in DSP2803x_Gpio.h):
+/// a 16-bit write cannot reach GPIO16-31 in GPADIR.
+#[derive(Clone, Copy)]
+pub struct ProtectedReg32 {
+    inner: Reg32,
+}
+
+impl ProtectedReg32 {
+    #[inline(always)]
+    pub const fn at(word_addr: u16) -> Self {
+        Self { inner: Reg32::at(word_addr) }
+    }
+
+    // ---- reads (no token needed) ----
+
+    #[inline(always)]
+    pub unsafe fn read(&self) -> u32 {
+        unsafe { self.inner.read() }
+    }
+
+    #[inline(always)]
+    pub unsafe fn read_bit(&self, bit: u32) -> bool {
+        unsafe { self.inner.read_bit(bit) }
+    }
+
+    #[inline(always)]
+    pub unsafe fn read_field(&self, shift: u32, mask: u32) -> u32 {
+        unsafe { self.inner.read_field(shift, mask) }
+    }
+
+    // ---- writes (require &EallowToken) ----
+
+    #[inline(always)]
+    pub unsafe fn write(&self, value: u32, _ea: &EallowToken) {
+        unsafe { self.inner.write(value) }
+    }
+
+    #[inline(always)]
+    pub unsafe fn modify<F>(&self, f: F, _ea: &EallowToken)
+    where
+        F: FnOnce(u32) -> u32,
+    {
+        unsafe { self.inner.modify(f) }
+    }
+
+    #[inline(always)]
+    pub unsafe fn set_bits(&self, bits: u32, _ea: &EallowToken) {
+        unsafe { self.inner.set_bits32(bits) }
+    }
+
+    #[inline(always)]
+    pub unsafe fn clear_bits(&self, bits: u32, _ea: &EallowToken) {
+        unsafe { self.inner.clear_bits32(bits) }
+    }
+
+    #[inline(always)]
+    pub unsafe fn write_bit(&self, bit: u32, value: bool, _ea: &EallowToken) {
+        unsafe { self.inner.write_bit(bit, value) }
+    }
+
+    #[inline(always)]
+    pub unsafe fn write_field(&self, shift: u32, mask: u32, value: u32, _ea: &EallowToken) {
+        unsafe { self.inner.write_field(shift, mask, value) }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // System Control (base 0x7010)
 // ---------------------------------------------------------------------------
@@ -405,10 +484,12 @@ impl CpuTimer {
         }
     }
 
-    /// Clear timer interrupt flag (TCR bit4 TIF is w1c on F28035).
+    /// Clear timer interrupt flag.  TIF is TCR **bit15** and is write-1-to-
+    /// clear (DSP2803x_Cpu_Timers.h TCR_BITS).  bit4 is TSS — writing it
+    /// *stops* the timer, which was the old (wrong) behaviour.
     #[inline(always)]
     pub unsafe fn clear_flag(&self) {
-        unsafe { self.tcr.set_bits(1 << 4) }
+        unsafe { self.tcr.set_bits(1 << 15) }
     }
 }
 
@@ -655,11 +736,12 @@ impl Sci {
         }
     }
 
-    /// Read a byte (poll RX ready).
+    /// Read a byte (poll RX ready).  RXRDY is SCIRXST **bit6**
+    /// (DSP2803x_Sci.h SCIRXST_BITS); bit0 is reserved.
     #[inline(always)]
     pub unsafe fn read_byte(&self) -> u16 {
         unsafe {
-            while self.scirxst.read() & 1 == 0 {} // RXRDY
+            while self.scirxst.read() & (1 << 6) == 0 {} // RXRDY
             self.scirxbuf.read()
         }
     }
@@ -677,10 +759,13 @@ impl Sci {
             let brr = (lsplclk / (baud * 8) - 1) as u16;
             self.scilbaud.write(brr & 0xFF);
             self.scihbaud.write((brr >> 8) & 0xFF);
-            // Enable TX/RX, release reset
-            self.scictl1.write((1 << 5) | (1 << 4) | (1 << 3)); // SW RESET=1, TXENA=1, RXENA=1
-            self.scictl2.write((1 << 7) | (1 << 6)); // TX/RX FIFO reset
-            self.scictl2.write(0); // FIFO normal mode
+            // Enable TX/RX, release reset.  SCICTL1 bits per DSP2803x_Sci.h:
+            // RXENA=bit0, TXENA=bit1, SWRESET=bit5 (bit3 is TXWAKE, bit4 is
+            // reserved — the old value (1<<5)|(1<<4)|(1<<3) enabled neither
+            // direction).  SCICTL2 holds only the TXRDY/TXEMPTY *read-only*
+            // status flags (bits 7/6) plus two interrupt enables; leave it 0.
+            self.scictl1.write((1 << 5) | (1 << 1) | (1 << 0)); // SWRESET=1, TXENA=1, RXENA=1
+            self.scictl2.write(0);
         }
     }
 
@@ -895,19 +980,24 @@ impl Adc {
     }
 
     /// Initialize ADC: power up, set sampling mode, configure SOC0 for software trigger.
+    /// Field positions per C2000Ware DSP2803x_Adc.h ADCCTL1_BITS:
+    /// ADCREFPWD=bit5, ADCBGPWD=bit6, ADCPWDN=bit7 (1 = power up),
+    /// ADCENABLE=bit14.
     #[inline(always)]
     pub unsafe fn init(&self) {
         unsafe {
-            // Power up ADC bandgap and reference
-            self.adcctl1.modify(|v| (v & !(3 << 6)) | (1 << 6)); // ADCBGPWD=1
-            self.adcctl1.modify(|v| (v & !(3 << 4)) | (1 << 4)); // ADCPWMD=1
+            // Power up ADC bandgap, reference buffer and analog core
+            self.adcctl1.set_bits(1 << 6); // ADCBGPWD
+            self.adcctl1.set_bits(1 << 5); // ADCREFPWD
+            self.adcctl1.set_bits(1 << 7); // ADCPWDN
             // Wait for power up (approx 1ms at 60MHz)
             let mut i = 0u16;
             while i < 1000 { i += 1; }
-            // Set SOC0 trigger = software (no trigger), channel = ADCINA0
-            self.adcsoc0ctl.write(0); // CHSEL=0 (ADCINA0), TRIGSEL=0 (software)
-            // Sample window = 16 cycles
-            self.adcsoc0ctl.modify(|v| (v & !(0xFF << 8)) | (16 << 8));
+            // Enable the ADC
+            self.adcctl1.set_bits(1 << 14); // ADCENABLE
+            // SOC0: TRIGSEL=0 (software), CHSEL=0 (ADCINA0) at bits 9:6,
+            // ACQPS (bits 5:0) = 16-cycle sample window.
+            self.adcsoc0ctl.write(16); // ACQPS=16, CHSEL=0, TRIGSEL=0
         }
     }
 
@@ -916,10 +1006,10 @@ impl Adc {
     #[inline(always)]
     pub unsafe fn read_channel(&self, channel: u16) -> u16 {
         unsafe {
-            // Configure SOC0 channel
-            self.adcsoc0ctl.modify(|v| (v & !(0xF << 0)) | (channel & 0xF));
-            // Clear ADCINT1 flag
-            self.adcintflg.write(1);
+            // Configure SOC0 channel (CHSEL field, bits 9:6 per DSP2803x_Adc.h)
+            self.adcsoc0ctl.modify(|v| (v & !(0xF << 6)) | ((channel & 0xF) << 6));
+            // Clear ADCINT1 via the write-1-to-clear register (ADCINTFLGCLR)
+            self.adcintflgclr.write(1);
             // Force SOC0
             self.adcsocfrc1.write(1);
             // Wait for ADCINT1 (conversion complete)
@@ -963,12 +1053,14 @@ impl AdcResult {
 pub struct EPwm {
     pub tbctl: Reg,       // 0  Time Base Control
     pub tbsts: Reg,       // 1  Time Base Status
-    pub tbphs: Reg32,     // 2-3 Time Base Phase (32-bit)
+    pub tbphshr: Reg,     // 2  Time Base Phase HR (HRPWM extension, low word)
+    pub tbphs: Reg,       // 3  Time Base Phase (high word of the TI union)
     pub tbctr: Reg,       // 4  Time Base Counter
     pub tbprd: Reg,       // 5  Time Base Period
     pub tbprdhr: Reg,     // 6  Time Base Period High-Res
     pub cmpctl: Reg,      // 7  Compare Control
-    pub cmpa: Reg32,      // 8-9 Compare A (32-bit)
+    pub cmpahr: Reg,      // 8  Compare A HR (HRPWM extension, low word)
+    pub cmpa: Reg,        // 9  Compare A (high word of the TI union)
     pub cmpb: Reg,        // 10 Compare B
     pub aqctla: Reg,      // 11 Action Qualifier Output A
     pub aqctlb: Reg,      // 12 Action Qualifier Output B
@@ -1015,12 +1107,14 @@ impl EPwm {
         Self {
             tbctl: Reg::at(base + 0),
             tbsts: Reg::at(base + 1),
-            tbphs: Reg32::at(base + 2),
+            tbphshr: Reg::at(base + 2),
+            tbphs: Reg::at(base + 3),
             tbctr: Reg::at(base + 4),
             tbprd: Reg::at(base + 5),
             tbprdhr: Reg::at(base + 6),
             cmpctl: Reg::at(base + 7),
-            cmpa: Reg32::at(base + 8),
+            cmpahr: Reg::at(base + 8),
+            cmpa: Reg::at(base + 9),
             cmpb: Reg::at(base + 10),
             aqctla: Reg::at(base + 11),
             aqctlb: Reg::at(base + 12),
@@ -1080,9 +1174,10 @@ impl EPwm {
             self.tbctl.write(0); // CTRMODE=00 (up-count)
             // Compare A: duty = period * duty_percent / 100
             let cmp = (period as u32 * duty_percent as u32 / 100) as u16;
-            self.cmpa.write(cmp as u32);
-            // Action qualifier: set on CMPA up, clear on period
-            self.aqctla.write((2 << 4) | (1 << 0)); // CAU=set(2), PRD=clear(1)
+            self.cmpa.write(cmp);
+            // Action qualifier: high from Zero to CMPA-up (duty = cmp/period).
+            // AQ encoding: 1=clear, 2=set.  CAU=clear, ZRO=set.
+            self.aqctla.write((1 << 4) | (2 << 0));
             // Enable output
             self.aqcsfrc.write(0);
         }
@@ -1094,7 +1189,7 @@ impl EPwm {
         unsafe {
             let period = self.tbprd.read() as u32;
             let cmp = (period * duty_percent as u32 / 100) as u16;
-            self.cmpa.write(cmp as u32);
+            self.cmpa.write(cmp);
         }
     }
 }
@@ -1213,21 +1308,27 @@ impl EQep {
 
 pub struct Gpio {
     // --- Port A Control (0x6F80) — all EALLOW-protected ---
-    pub gpacontrol: ProtectedReg,   // 0x6F80
+    // Widths per DSP2803x_Gpio.h: GPACTRL/GPADIR/GPAPUD are Uint32,
+    // GPAQSEL1/2 and GPAMUX1/2 are Uint16.
+    pub gpacontrol: ProtectedReg32, // 0x6F80-81 GPACTRL (32-bit)
     pub gpaqsel1: ProtectedReg,     // 0x6F82
     pub gpaqsel2: ProtectedReg,     // 0x6F84
     pub gpamux1: ProtectedReg,      // 0x6F86
     pub gpamux2: ProtectedReg,      // 0x6F88
-    pub gpadir: ProtectedReg,       // 0x6F8A
-    pub gpapud: ProtectedReg,       // 0x6F8C
+    pub gpadir: ProtectedReg32,     // 0x6F8A-8B GPADIR (32-bit, GPIO0-31)
+    pub gpapud: ProtectedReg32,     // 0x6F8C-8D GPAPUD (32-bit)
+    pub rsvd1: Reg32,               // 0x6F8E-8F reserved
     // --- Port B Control — all EALLOW-protected ---
-    pub gpbcontrol: ProtectedReg,   // 0x6F90
+    // NOTE: F2803x has NO GPBQSEL2 / GPBMUX2 — after GPBQSEL1 (0x6F92) come
+    // two reserved 32-bit words, then GPBMUX1 at 0x6F96 (the old struct
+    // exposed those reserved addresses as phantom registers).
+    pub gpbcontrol: ProtectedReg32, // 0x6F90-91 GPBCTRL (32-bit)
     pub gpbqsel1: ProtectedReg,     // 0x6F92
-    pub gpbqsel2: ProtectedReg,     // 0x6F94
+    pub rsvd2: Reg32,               // 0x6F94-95 reserved
     pub gpbmux1: ProtectedReg,      // 0x6F96
-    pub gpbmux2: ProtectedReg,      // 0x6F98
-    pub gpbdir: ProtectedReg,       // 0x6F9A
-    pub gpbpud: ProtectedReg,       // 0x6F9C
+    pub rsvd3: Reg32,               // 0x6F98-99 reserved
+    pub gpbdir: ProtectedReg32,     // 0x6F9A-9B GPBDIR (32-bit, GPIO32-34)
+    pub gpbpud: ProtectedReg32,     // 0x6F9C-9D GPBPUD (32-bit)
     // --- Port A Data (0x6FC0) — NOT EALLOW-protected ---
     pub gpadat: Reg32,       // 0x6FC0
     pub gpaset: Reg32,       // 0x6FC2
@@ -1244,20 +1345,21 @@ impl Gpio {
     #[inline(always)]
     const fn new() -> Self {
         Self {
-            gpacontrol: ProtectedReg::at(0x6F80),
+            gpacontrol: ProtectedReg32::at(0x6F80),
             gpaqsel1: ProtectedReg::at(0x6F82),
             gpaqsel2: ProtectedReg::at(0x6F84),
             gpamux1: ProtectedReg::at(0x6F86),
             gpamux2: ProtectedReg::at(0x6F88),
-            gpadir: ProtectedReg::at(0x6F8A),
-            gpapud: ProtectedReg::at(0x6F8C),
-            gpbcontrol: ProtectedReg::at(0x6F90),
+            gpadir: ProtectedReg32::at(0x6F8A),
+            gpapud: ProtectedReg32::at(0x6F8C),
+            rsvd1: Reg32::at(0x6F8E),
+            gpbcontrol: ProtectedReg32::at(0x6F90),
             gpbqsel1: ProtectedReg::at(0x6F92),
-            gpbqsel2: ProtectedReg::at(0x6F94),
+            rsvd2: Reg32::at(0x6F94),
             gpbmux1: ProtectedReg::at(0x6F96),
-            gpbmux2: ProtectedReg::at(0x6F98),
-            gpbdir: ProtectedReg::at(0x6F9A),
-            gpbpud: ProtectedReg::at(0x6F9C),
+            rsvd3: Reg32::at(0x6F98),
+            gpbdir: ProtectedReg32::at(0x6F9A),
+            gpbpud: ProtectedReg32::at(0x6F9C),
             gpadat: Reg32::at(0x6FC0),
             gpaset: Reg32::at(0x6FC2),
             gpaclear: Reg32::at(0x6FC4),

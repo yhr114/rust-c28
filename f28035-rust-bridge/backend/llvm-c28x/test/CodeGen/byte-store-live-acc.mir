@@ -1,0 +1,85 @@
+# RUN: llc -mtriple=c28x-ti-none -run-pass=postrapseudos %s -o - | FileCheck %s
+# Stores have no result: all live AL/AH aliases must survive source staging.
+--- |
+  @byte_flag = global i8 0
+  define void @global_live_al() { ret void }
+  define void @global_load_ah() { ret void }
+  define void @global_load_al() { ret void }
+  define void @global_live_ah() { ret void }
+  define void @indirect_live_al() { ret void }
+...
+---
+name: global_live_al
+tracksRegLiveness: false
+body: |
+  bb.0:
+    STORE8_GLOBAL_PSEUDO @byte_flag, 0, $ar1, implicit-def $xar0
+    $ar2 = MOV16rr $al
+    LRETR
+...
+# CHECK-LABEL: name: global_live_al
+# CHECK: PUSH_ACC
+# CHECK-NEXT: $al = MOV16rr $ar1
+# CHECK: MOVB_ind_store_index_AL
+# CHECK: POP_ACC
+# CHECK-NEXT: $ar2 = MOV16rr $al
+---
+name: global_load_ah
+tracksRegLiveness: false
+body: |
+  bb.0:
+    $ah = LOAD8_GLOBAL_PSEUDO @byte_flag, 0, implicit-def $xar0
+    $ar2 = MOV16rr $al
+    $ar3 = MOV16rr $ah
+    LRETR
+...
+# CHECK-LABEL: name: global_load_ah
+# CHECK: PUSH_ACC
+# CHECK: $ar7 = MOV16rr $al
+# CHECK: POP_ACC
+# CHECK-NEXT: $ah = MOV16rr $ar7
+---
+name: global_load_al
+tracksRegLiveness: false
+body: |
+  bb.0:
+    $al = LOAD8_GLOBAL_PSEUDO @byte_flag, 1, implicit-def $xar0
+    $ar2 = MOV16rr $ah
+    LRETR
+...
+# CHECK-LABEL: name: global_load_al
+# CHECK: PUSH_ACC
+# CHECK: $ar7 = MOV16rr $al
+# CHECK: POP_ACC
+# CHECK-NEXT: $al = MOV16rr $ar7
+---
+name: global_live_ah
+tracksRegLiveness: false
+body: |
+  bb.0:
+    STORE8_GLOBAL_PSEUDO @byte_flag, 1, $ah, implicit-def $xar0
+    $ar2 = MOV16rr $al
+    $ar3 = MOV16rr $ah
+    LRETR
+...
+# CHECK-LABEL: name: global_live_ah
+# CHECK: PUSH_ACC
+# CHECK-NEXT: $al = MOV16rr $ah
+# CHECK: MOVB_ind_store_index_AL
+# CHECK: POP_ACC
+# CHECK-NEXT: $ar2 = MOV16rr $al
+---
+name: indirect_live_al
+tracksRegLiveness: false
+body: |
+  bb.0:
+    STORE8_PSEUDO $xar4, $ar1, implicit-def $xar0
+    $ar2 = MOV16rr $al
+    LRETR
+...
+# CHECK-LABEL: name: indirect_live_al
+# CHECK: PUSH_ACC
+# CHECK-NEXT: $al = MOV16rr $ar1
+# CHECK: MOVB_ind_store_index_AL
+# CHECK: POP_ACC
+# CHECK-NEXT: $ar2 = MOV16rr $al

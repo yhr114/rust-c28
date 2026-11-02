@@ -1,0 +1,17 @@
+# A branch across sections cannot resolve its PC-relative offset in MC. This
+# exercises the fail-closed guard with valid machine basic block operands.
+# RUN: not llc -mtriple=c28x-ti-none -mcpu=c28x -start-after=stack-frame-layout -basic-block-sections=all -filetype=obj %s -o %t 2>&1 | FileCheck %s
+# CHECK: C28x: BRANCH to unresolved target
+--- |
+  target triple = "c28x-ti-none"
+  define void @branch_unresolved() { ret void }
+...
+---
+name: branch_unresolved
+body: |
+  bb.0 (bbsections 0):
+    successors: %bb.1
+    B_JMP %bb.1, implicit $st0
+  bb.1 (bbsections 1):
+    LRETR
+...

@@ -14,6 +14,9 @@ C28xMCAsmInfo::C28xMCAsmInfo(const Triple &TT, const MCTargetOptions &Options)
     : MCAsmInfo(Options) {
   // TI cl2000 assembly syntax.
   CommentString = ";";
+  // ELF temporary symbols must not collide with exported names such as
+  // LOCAL_VALUE. MCAsmInfo's generic "L" default misclassifies those globals.
+  InternalSymbolPrefix = ".L";
   SupportsDebugInformation = false;
   MinInstAlignment = 1;
   MaxInstLength = 4;

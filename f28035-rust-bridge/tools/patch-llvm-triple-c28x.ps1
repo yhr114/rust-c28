@@ -1,7 +1,7 @@
 ﻿# patch-llvm-triple-c28x.ps1 — 给 LLVM 树打 C28x Triple 补丁（幂等）
 # 实证来源：LLVM 23.1.1 本机构建（2026-09-16，llc 实跑通过）。
 # 作用：让 llvm::Triple 认识 c28x 架构——打印/解析/LLVM 名映射/
-#       对象格式 ELF/指针位宽 32（FROZEN ABI，见 docs/ABI_FREEZE.md）。
+#       对象格式 ELF/指针位宽 32（FROZEN ABI，见 docs/PATH_B.md）。
 # 用法:  powershell -File tools\patch-llvm-triple-c28x.ps1 [-LlvmRoot <llvm-project 根>]
 param(
     [string]$LlvmRoot = ''

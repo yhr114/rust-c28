@@ -1,0 +1,3505 @@
+{
+  "meta": {
+    "generatedBy": "tools/_internal/gen-mir-manifest.py",
+    "toolsDir": "C:\\Users\\61987\\Desktop\\28035\\f28035-rust-bridge\\tools",
+    "buildScriptCount": 142,
+    "verifyScriptCount": 143,
+    "caseCount": 142,
+    "customCount": 15,
+    "onlyExportCount": 37
+  },
+  "cases": {
+    "adc-eoc-irq": {
+      "key": "adc-eoc-irq",
+      "build": {
+        "outputDir": "build\\mir-adc_eoc_irq",
+        "mirFile": "adc_eoc_irq.mir.txt",
+        "asmFile": "adc_eoc_irq.asm",
+        "rustObj": "rust_adc_eoc_irq.obj",
+        "harnessObj": "adc_eoc_irq_switch_test.obj",
+        "firmwareOut": "adc_eoc_irq_mir.out",
+        "harnessSrc": "platform\\firmware\\adc_eoc_irq_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-adc-eoc-irq.js",
+        "passMarker": "ADC_EOC_IRQ_TARGET_TEST=PASS",
+        "ramOut": "adc_eoc_irq_ram.out",
+        "ramMap": "adc_eoc_irq_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-adc-eoc-irq.ps1",
+      "legacyVerify": "verify-mir-adc-eoc-irq.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "adc_clkdiv2en": {
+      "key": "adc_clkdiv2en",
+      "build": {
+        "outputDir": "build\\mir-adc_clkdiv2en",
+        "mirFile": "adc_clkdiv2en.mir.txt",
+        "asmFile": "adc_clkdiv2en.asm",
+        "rustObj": "rust_adc_clkdiv2en.obj",
+        "harnessObj": "adc_clkdiv2en_switch_test.obj",
+        "firmwareOut": "adc_clkdiv2en_mir.out",
+        "harnessSrc": "platform\\firmware\\adc_clkdiv2en_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-adc_clkdiv2en.js",
+        "passMarker": "adc_clkdiv2en_TARGET_TEST=PASS",
+        "ramOut": "adc_clkdiv2en_ram.out",
+        "ramMap": "adc_clkdiv2en_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-adc_clkdiv2en.ps1",
+      "legacyVerify": "verify-mir-adc_clkdiv2en.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "adc_int_cont": {
+      "key": "adc_int_cont",
+      "build": {
+        "outputDir": "build\\mir-gpio0-adc_int_cont",
+        "mirFile": "adc_int_cont.mir.txt",
+        "asmFile": "adc_int_cont.asm",
+        "rustObj": "rust_adc_int_cont.obj",
+        "harnessObj": "adc_int_cont_test.obj",
+        "firmwareOut": "adc_int_cont_mir.out",
+        "harnessSrc": "platform\\firmware\\adc_int_cont_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "adc_int_cont_ram.out",
+        "ramMap": "adc_int_cont_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-adc_int_cont.ps1",
+      "legacyVerify": "verify-mir-adc_int_cont.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "adc_int_overflow": {
+      "key": "adc_int_overflow",
+      "build": {
+        "outputDir": "build\\mir-gpio0-adc_int_overflow",
+        "mirFile": "adc_int_overflow.mir.txt",
+        "asmFile": "adc_int_overflow.asm",
+        "rustObj": "rust_adc_int_overflow.obj",
+        "harnessObj": "adc_int_overflow_test.obj",
+        "firmwareOut": "adc_int_overflow_mir.out",
+        "harnessSrc": "platform\\firmware\\adc_int_overflow_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "adc_int_overflow_ram.out",
+        "ramMap": "adc_int_overflow_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-adc_int_overflow.ps1",
+      "legacyVerify": "verify-mir-adc_int_overflow.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "adc_multi_soc": {
+      "key": "adc_multi_soc",
+      "build": {
+        "outputDir": "build\\mir-gpio0-adc_multi_soc",
+        "mirFile": "adc_multi_soc.mir.txt",
+        "asmFile": "adc_multi_soc.asm",
+        "rustObj": "rust_adc_multi_soc.obj",
+        "harnessObj": "adc_multi_soc_test.obj",
+        "firmwareOut": "adc_multi_soc_mir.out",
+        "harnessSrc": "platform\\firmware\\adc_multi_soc_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "adc_multi_soc_ram.out",
+        "ramMap": "adc_multi_soc_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-adc_multi_soc.ps1",
+      "legacyVerify": "verify-mir-adc_multi_soc.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "adc_reg_rw": {
+      "key": "adc_reg_rw",
+      "build": {
+        "outputDir": "build\\mir-gpio0-adc_reg_rw",
+        "mirFile": "adc_reg_rw.mir.txt",
+        "asmFile": "adc_reg_rw.asm",
+        "rustObj": "rust_adc_reg_rw.obj",
+        "harnessObj": "adc_reg_rw_test.obj",
+        "firmwareOut": "adc_reg_rw_mir.out",
+        "harnessSrc": "platform\\firmware\\adc_reg_rw_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "adc_reg_rw_ram.out",
+        "ramMap": "adc_reg_rw_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-adc_reg_rw.ps1",
+      "legacyVerify": "verify-mir-adc_reg_rw.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "adc_reset": {
+      "key": "adc_reset",
+      "build": {
+        "outputDir": "build\\mir-gpio0-adc_reset",
+        "mirFile": "adc_reset.mir.txt",
+        "asmFile": "adc_reset.asm",
+        "rustObj": "rust_adc_reset.obj",
+        "harnessObj": "adc_reset_test.obj",
+        "firmwareOut": "adc_reset_mir.out",
+        "harnessSrc": "platform\\firmware\\adc_reset_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "adc_reset_ram.out",
+        "ramMap": "adc_reset_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-adc_reset.ps1",
+      "legacyVerify": "verify-mir-adc_reset.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "adc_single_soc": {
+      "key": "adc_single_soc",
+      "build": {
+        "outputDir": "build\\mir-adc_single_soc",
+        "mirFile": "adc_single_soc.mir.txt",
+        "asmFile": "adc_single_soc.asm",
+        "rustObj": "rust_adc_single_soc.obj",
+        "harnessObj": "adc_single_soc_switch_test.obj",
+        "firmwareOut": "adc_single_soc_mir.out",
+        "harnessSrc": "platform\\firmware\\adc_single_soc_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-adc_single_soc.js",
+        "passMarker": "adc_single_soc_TARGET_TEST=PASS",
+        "ramOut": "adc_single_soc_ram.out",
+        "ramMap": "adc_single_soc_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-adc_single_soc.ps1",
+      "legacyVerify": "verify-mir-adc_single_soc.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "adc_socctl_sweep": {
+      "key": "adc_socctl_sweep",
+      "build": {
+        "outputDir": "build\\mir-gpio0-adc_socctl_sweep",
+        "mirFile": "adc_socctl_sweep.mir.txt",
+        "asmFile": "adc_socctl_sweep.asm",
+        "rustObj": "rust_adc_socctl_sweep.obj",
+        "harnessObj": "adc_socctl_sweep_test.obj",
+        "firmwareOut": "adc_socctl_sweep_mir.out",
+        "harnessSrc": "platform\\firmware\\adc_socctl_sweep_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "adc_socctl_sweep_ram.out",
+        "ramMap": "adc_socctl_sweep_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-adc_socctl_sweep.ps1",
+      "legacyVerify": "verify-mir-adc_socctl_sweep.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "adc_trig_timer0": {
+      "key": "adc_trig_timer0",
+      "build": {
+        "outputDir": "build\\mir-gpio0-adc_trig_timer0",
+        "mirFile": "adc_trig_timer0.mir.txt",
+        "asmFile": "adc_trig_timer0.asm",
+        "rustObj": "rust_adc_trig_timer0.obj",
+        "harnessObj": "adc_trig_timer0_test.obj",
+        "firmwareOut": "adc_trig_timer0_mir.out",
+        "harnessSrc": "platform\\firmware\\adc_trig_timer0_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "adc_trig_timer0_ram.out",
+        "ramMap": "adc_trig_timer0_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-adc_trig_timer0.ps1",
+      "legacyVerify": "verify-mir-adc_trig_timer0.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "can-pin-mux": {
+      "key": "can-pin-mux",
+      "build": {
+        "outputDir": "build\\mir-gpio0-can_pin_mux",
+        "mirFile": "can_pin_mux.mir.txt",
+        "asmFile": "can_pin_mux.asm",
+        "rustObj": "rust_can_pin_mux.obj",
+        "harnessObj": "can_pin_mux_test.obj",
+        "firmwareOut": "can_pin_mux_mir.out",
+        "harnessSrc": "platform\\firmware\\can_pin_mux_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-can-pin-mux.js",
+        "passMarker": "can_pin_mux_TARGET_TEST=PASS",
+        "ramOut": "can_pin_mux_ram.out",
+        "ramMap": "can_pin_mux_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-can-pin-mux.ps1",
+      "legacyVerify": "verify-mir-can-pin-mux.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "can_extid_filter": {
+      "key": "can_extid_filter",
+      "build": {
+        "outputDir": "build\\mir-gpio0-can_extid_filter",
+        "mirFile": "can_extid_filter.mir.txt",
+        "asmFile": "can_extid_filter.asm",
+        "rustObj": "rust_can_extid_filter.obj",
+        "harnessObj": "can_extid_filter_test.obj",
+        "firmwareOut": "can_extid_filter_mir.out",
+        "harnessSrc": "platform\\firmware\\can_extid_filter_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "can_extid_filter_ram.out",
+        "ramMap": "can_extid_filter_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-can_extid_filter.ps1",
+      "legacyVerify": "verify-mir-can_extid_filter.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "can_global_mask": {
+      "key": "can_global_mask",
+      "build": {
+        "outputDir": "build\\mir-gpio0-can_global_mask",
+        "mirFile": "can_global_mask.mir.txt",
+        "asmFile": "can_global_mask.asm",
+        "rustObj": "rust_can_global_mask.obj",
+        "harnessObj": "can_global_mask_test.obj",
+        "firmwareOut": "can_global_mask_mir.out",
+        "harnessSrc": "platform\\firmware\\can_global_mask_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "can_global_mask_ram.out",
+        "ramMap": "can_global_mask_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-can_global_mask.ps1",
+      "legacyVerify": "verify-mir-can_global_mask.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "can_int_dual": {
+      "key": "can_int_dual",
+      "build": {
+        "outputDir": "build\\mir-gpio0-can_int_dual",
+        "mirFile": "can_int_dual.mir.txt",
+        "asmFile": "can_int_dual.asm",
+        "rustObj": "rust_can_int_dual.obj",
+        "harnessObj": "can_int_dual_test.obj",
+        "firmwareOut": "can_int_dual_mir.out",
+        "harnessSrc": "platform\\firmware\\can_int_dual_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "can_int_dual_ram.out",
+        "ramMap": "can_int_dual_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-can_int_dual.ps1",
+      "legacyVerify": "verify-mir-can_int_dual.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "can_mbox32_sweep": {
+      "key": "can_mbox32_sweep",
+      "build": {
+        "outputDir": "build\\mir-gpio0-can_mbox32_sweep",
+        "mirFile": "can_mbox32_sweep.mir.txt",
+        "asmFile": "can_mbox32_sweep.asm",
+        "rustObj": "rust_can_mbox32_sweep.obj",
+        "harnessObj": "can_mbox32_sweep_test.obj",
+        "firmwareOut": "can_mbox32_sweep_mir.out",
+        "harnessSrc": "platform\\firmware\\can_mbox32_sweep_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "can_mbox32_sweep_ram.out",
+        "ramMap": "can_mbox32_sweep_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-can_mbox32_sweep.ps1",
+      "legacyVerify": "verify-mir-can_mbox32_sweep.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "can_reset": {
+      "key": "can_reset",
+      "build": {
+        "outputDir": "build\\mir-gpio0-can_reset",
+        "mirFile": "can_reset.mir.txt",
+        "asmFile": "can_reset.asm",
+        "rustObj": "rust_can_reset.obj",
+        "harnessObj": "can_reset_test.obj",
+        "firmwareOut": "can_reset_mir.out",
+        "harnessSrc": "platform\\firmware\\can_reset_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "can_reset_ram.out",
+        "ramMap": "can_reset_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-can_reset.ps1",
+      "legacyVerify": "verify-mir-can_reset.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "can_rx_extid": {
+      "key": "can_rx_extid",
+      "build": {
+        "outputDir": "build\\mir-gpio0-can_rx_extid",
+        "mirFile": "can_rx_extid.mir.txt",
+        "asmFile": "can_rx_extid.asm",
+        "rustObj": "rust_can_rx_extid.obj",
+        "harnessObj": "can_rx_extid_test.obj",
+        "firmwareOut": "can_rx_extid_mir.out",
+        "harnessSrc": "platform\\firmware\\can_rx_extid_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "can_rx_extid_ram.out",
+        "ramMap": "can_rx_extid_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-can_rx_extid.ps1",
+      "legacyVerify": "verify-mir-can_rx_extid.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "can_selftest": {
+      "key": "can_selftest",
+      "build": {
+        "outputDir": "build\\mir-gpio0-can_selftest",
+        "mirFile": "can_selftest.mir.txt",
+        "asmFile": "can_selftest.asm",
+        "rustObj": "rust_can_selftest.obj",
+        "harnessObj": "can_selftest_test.obj",
+        "firmwareOut": "can_selftest_mir.out",
+        "harnessSrc": "platform\\firmware\\can_selftest_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "can_selftest_ram.out",
+        "ramMap": "can_selftest_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-can_selftest.ps1",
+      "legacyVerify": "verify-mir-can_selftest.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "can_status_flag": {
+      "key": "can_status_flag",
+      "build": {
+        "outputDir": "build\\mir-gpio0-can_status_flag",
+        "mirFile": "can_status_flag.mir.txt",
+        "asmFile": "can_status_flag.asm",
+        "rustObj": "rust_can_status_flag.obj",
+        "harnessObj": "can_status_flag_test.obj",
+        "firmwareOut": "can_status_flag_mir.out",
+        "harnessSrc": "platform\\firmware\\can_status_flag_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "can_status_flag_ram.out",
+        "ramMap": "can_status_flag_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-can_status_flag.ps1",
+      "legacyVerify": "verify-mir-can_status_flag.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "control-loop": {
+      "key": "control-loop",
+      "build": {
+        "outputDir": "build\\mir-control-loop",
+        "mirFile": "control-loop.mir.txt",
+        "asmFile": "control-loop.asm",
+        "rustObj": "rust_control_loop.obj",
+        "harnessObj": null,
+        "firmwareOut": "rust_control_loop.out",
+        "harnessSrc": null,
+        "onlyExport": null
+      },
+      "verify": {},
+      "custom": true,
+      "legacyBuild": "build-mir-control-loop.ps1",
+      "legacyVerify": null,
+      "buildCompilerCalls": 0,
+      "buildMissing": [
+        "harnessObj",
+        "harnessSrc"
+      ],
+      "verifyMissing": []
+    },
+    "demo_led_blink": {
+      "key": "demo_led_blink",
+      "build": {
+        "outputDir": "build\\mir-gpio0-demo_led_blink",
+        "mirFile": "demo_led_blink.mir.txt",
+        "asmFile": "demo_led_blink.asm",
+        "rustObj": "rust_demo_led_blink.obj",
+        "harnessObj": "demo_led_blink_test.obj",
+        "firmwareOut": "demo_led_blink_mir.out",
+        "harnessSrc": "platform\\firmware\\demo_led_blink_test.c",
+        "onlyExport": "rust_demo_led_blink_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "demo_led_blink_ram.out",
+        "ramMap": "demo_led_blink_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-demo_led_blink.ps1",
+      "legacyVerify": "verify-mir-demo_led_blink.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "ecap_apwm": {
+      "key": "ecap_apwm",
+      "build": {
+        "outputDir": "build\\mir-gpio0-ecap_apwm",
+        "mirFile": "ecap_apwm.mir.txt",
+        "asmFile": "ecap_apwm.asm",
+        "rustObj": "rust_ecap_apwm.obj",
+        "harnessObj": "ecap_apwm_test.obj",
+        "firmwareOut": "ecap_apwm_mir.out",
+        "harnessSrc": "platform\\firmware\\ecap_apwm_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "ecap_apwm_ram.out",
+        "ramMap": "ecap_apwm_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-ecap_apwm.ps1",
+      "legacyVerify": "verify-mir-ecap_apwm.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "ecap_capture_continuous": {
+      "key": "ecap_capture_continuous",
+      "build": {
+        "outputDir": "build\\mir-gpio0-ecap_capture_continuous",
+        "mirFile": "ecap_capture_continuous.mir.txt",
+        "asmFile": "ecap_capture_continuous.asm",
+        "rustObj": "rust_ecap_capture_continuous.obj",
+        "harnessObj": "ecap_capture_continuous_test.obj",
+        "firmwareOut": "ecap_capture_continuous_mir.out",
+        "harnessSrc": "platform\\firmware\\ecap_capture_continuous_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "ecap_capture_continuous_ram.out",
+        "ramMap": "ecap_capture_continuous_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-ecap_capture_continuous.ps1",
+      "legacyVerify": "verify-mir-ecap_capture_continuous.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "ecap_capture_counter_reset": {
+      "key": "ecap_capture_counter_reset",
+      "build": {
+        "outputDir": "build\\mir-gpio0-ecap_capture_counter_reset",
+        "mirFile": "ecap_capture_counter_reset.mir.txt",
+        "asmFile": "ecap_capture_counter_reset.asm",
+        "rustObj": "rust_ecap_capture_counter_reset.obj",
+        "harnessObj": "ecap_capture_counter_reset_test.obj",
+        "firmwareOut": "ecap_capture_counter_reset_mir.out",
+        "harnessSrc": "platform\\firmware\\ecap_capture_counter_reset_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "ecap_capture_counter_reset_ram.out",
+        "ramMap": "ecap_capture_counter_reset_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-ecap_capture_counter_reset.ps1",
+      "legacyVerify": "verify-mir-ecap_capture_counter_reset.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "ecap_capture_dual": {
+      "key": "ecap_capture_dual",
+      "build": {
+        "outputDir": "build\\mir-gpio0-ecap_capture_dual",
+        "mirFile": "ecap_capture_dual.mir.txt",
+        "asmFile": "ecap_capture_dual.asm",
+        "rustObj": "rust_ecap_capture_dual.obj",
+        "harnessObj": "ecap_capture_dual_test.obj",
+        "firmwareOut": "ecap_capture_dual_mir.out",
+        "harnessSrc": "platform\\firmware\\ecap_capture_dual_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "ecap_capture_dual_ram.out",
+        "ramMap": "ecap_capture_dual_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-ecap_capture_dual.ps1",
+      "legacyVerify": "verify-mir-ecap_capture_dual.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "ecap_capture_prescale": {
+      "key": "ecap_capture_prescale",
+      "build": {
+        "outputDir": "build\\mir-gpio0-ecap_capture_prescale",
+        "mirFile": "ecap_capture_prescale.mir.txt",
+        "asmFile": "ecap_capture_prescale.asm",
+        "rustObj": "rust_ecap_capture_prescale.obj",
+        "harnessObj": "ecap_capture_prescale_test.obj",
+        "firmwareOut": "ecap_capture_prescale_mir.out",
+        "harnessSrc": "platform\\firmware\\ecap_capture_prescale_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "ecap_capture_prescale_ram.out",
+        "ramMap": "ecap_capture_prescale_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-ecap_capture_prescale.ps1",
+      "legacyVerify": "verify-mir-ecap_capture_prescale.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "ecap_capture_quad": {
+      "key": "ecap_capture_quad",
+      "build": {
+        "outputDir": "build\\mir-gpio0-ecap_capture_quad",
+        "mirFile": "ecap_capture_quad.mir.txt",
+        "asmFile": "ecap_capture_quad.asm",
+        "rustObj": "rust_ecap_capture_quad.obj",
+        "harnessObj": "ecap_capture_quad_test.obj",
+        "firmwareOut": "ecap_capture_quad_mir.out",
+        "harnessSrc": "platform\\firmware\\ecap_capture_quad_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "ecap_capture_quad_ram.out",
+        "ramMap": "ecap_capture_quad_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-ecap_capture_quad.ps1",
+      "legacyVerify": "verify-mir-ecap_capture_quad.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "ecap_capture_wrap": {
+      "key": "ecap_capture_wrap",
+      "build": {
+        "outputDir": "build\\mir-gpio0-ecap_capture_wrap",
+        "mirFile": "ecap_capture_wrap.mir.txt",
+        "asmFile": "ecap_capture_wrap.asm",
+        "rustObj": "rust_ecap_capture_wrap.obj",
+        "harnessObj": "ecap_capture_wrap_test.obj",
+        "firmwareOut": "ecap_capture_wrap_mir.out",
+        "harnessSrc": "platform\\firmware\\ecap_capture_wrap_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "ecap_capture_wrap_ram.out",
+        "ramMap": "ecap_capture_wrap_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-ecap_capture_wrap.ps1",
+      "legacyVerify": "verify-mir-ecap_capture_wrap.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "ecap_interrupt_integration": {
+      "key": "ecap_interrupt_integration",
+      "build": {
+        "outputDir": "build\\mir-gpio0-ecap_interrupt_integration",
+        "mirFile": "ecap_interrupt_integration.mir.txt",
+        "asmFile": "ecap_interrupt_integration.asm",
+        "rustObj": "rust_ecap_interrupt_integration.obj",
+        "harnessObj": "ecap_interrupt_integration_test.obj",
+        "firmwareOut": "ecap_interrupt_integration_mir.out",
+        "harnessSrc": "platform\\firmware\\ecap_interrupt_integration_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "ecap_interrupt_integration_ram.out",
+        "ramMap": "ecap_interrupt_integration_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-ecap_interrupt_integration.ps1",
+      "legacyVerify": "verify-mir-ecap_interrupt_integration.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "ecap_reg_rw": {
+      "key": "ecap_reg_rw",
+      "build": {
+        "outputDir": "build\\mir-gpio0-ecap_reg_rw",
+        "mirFile": "ecap_reg_rw.mir.txt",
+        "asmFile": "ecap_reg_rw.asm",
+        "rustObj": "rust_ecap_reg_rw.obj",
+        "harnessObj": "ecap_reg_rw_test.obj",
+        "firmwareOut": "ecap_reg_rw_mir.out",
+        "harnessSrc": "platform\\firmware\\ecap_reg_rw_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-ecap_reg_rw.js",
+        "passMarker": "ecap_reg_rw_TARGET_TEST=PASS",
+        "ramOut": "ecap_reg_rw_ram.out",
+        "ramMap": "ecap_reg_rw_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-ecap_reg_rw.ps1",
+      "legacyVerify": "verify-mir-ecap_reg_rw.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "ecap_single": {
+      "key": "ecap_single",
+      "build": {
+        "outputDir": "build\\mir-gpio0-ecap_single",
+        "mirFile": "ecap_single.mir.txt",
+        "asmFile": "ecap_single.asm",
+        "rustObj": "rust_ecap_single.obj",
+        "harnessObj": "ecap_single_test.obj",
+        "firmwareOut": "ecap_single_mir.out",
+        "harnessSrc": "platform\\firmware\\ecap_single_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "ecap_single_ram.out",
+        "ramMap": "ecap_single_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-ecap_single.ps1",
+      "legacyVerify": "verify-mir-ecap_single.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "epwm-deadband": {
+      "key": "epwm-deadband",
+      "build": {
+        "outputDir": "build\\mir-gpio0-epwm_deadband",
+        "mirFile": "epwm_deadband.mir.txt",
+        "asmFile": "epwm_deadband.asm",
+        "rustObj": "rust_epwm_deadband.obj",
+        "harnessObj": "epwm_deadband_test.obj",
+        "firmwareOut": "epwm_deadband_mir.out",
+        "harnessSrc": "platform\\firmware\\epwm_deadband_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": null,
+        "passMarker": "epwm_deadband_TARGET_TEST=PASS",
+        "ramOut": "epwm_deadband_ram.out",
+        "ramMap": "epwm_deadband_ram.map"
+      },
+      "custom": true,
+      "legacyBuild": "build-mir-epwm-deadband.ps1",
+      "legacyVerify": "verify-mir-epwm-deadband.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": [
+        "js"
+      ]
+    },
+    "epwm-event-int-soca": {
+      "key": "epwm-event-int-soca",
+      "build": {
+        "outputDir": "build\\mir-gpio0-epwm_event_int_soca",
+        "mirFile": "epwm_event_int_soca.mir.txt",
+        "asmFile": "epwm_event_int_soca.asm",
+        "rustObj": "rust_epwm_event_int_soca.obj",
+        "harnessObj": "epwm_event_int_soca_switch_test.obj",
+        "firmwareOut": "epwm_event_int_soca_mir.out",
+        "harnessSrc": "platform\\firmware\\epwm_event_int_soca_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-epwm-event-int-soca.js",
+        "passMarker": "epwm_int_soca_TARGET_TEST=PASS",
+        "ramOut": "epwm_event_int_soca_ram.out",
+        "ramMap": "epwm_event_int_soca_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-epwm-event-int-soca.ps1",
+      "legacyVerify": "verify-mir-epwm-event-int-soca.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "epwm-event-socb": {
+      "key": "epwm-event-socb",
+      "build": {
+        "outputDir": "build\\mir-gpio0-epwm_event_socb",
+        "mirFile": "epwm_event_socb.mir.txt",
+        "asmFile": "epwm_event_socb.asm",
+        "rustObj": "rust_epwm_event_socb.obj",
+        "harnessObj": "epwm_event_socb_switch_test.obj",
+        "firmwareOut": "epwm_event_socb_mir.out",
+        "harnessSrc": "platform\\firmware\\epwm_event_socb_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-epwm-event-socb.js",
+        "passMarker": "epwm_socb_TARGET_TEST=PASS",
+        "ramOut": "epwm_socb_ram.out",
+        "ramMap": "epwm_socb_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-epwm-event-socb.ps1",
+      "legacyVerify": "verify-mir-epwm-event-socb.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "epwm-tz-external": {
+      "key": "epwm-tz-external",
+      "build": {
+        "outputDir": "build\\mir-gpio0-epwm_tz_external",
+        "mirFile": "epwm_tz_external.mir.txt",
+        "asmFile": "epwm_tz_external.asm",
+        "rustObj": "rust_epwm_tz_external.obj",
+        "harnessObj": "epwm_tz_external_test.obj",
+        "firmwareOut": "epwm_tz_external_mir.out",
+        "harnessSrc": "platform\\firmware\\epwm_tz_external_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-epwm-tz-external.js",
+        "passMarker": "epwm_tz_external_TARGET_TEST=PASS",
+        "ramOut": "epwm_tz_external_ram.out",
+        "ramMap": "epwm_tz_external_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-epwm-tz-external.ps1",
+      "legacyVerify": "verify-mir-epwm-tz-external.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "epwm-tz-swforce": {
+      "key": "epwm-tz-swforce",
+      "build": {
+        "outputDir": "build\\mir-gpio0-epwm_tz_swforce",
+        "mirFile": "epwm_tz_swforce.mir.txt",
+        "asmFile": "epwm_tz_swforce.asm",
+        "rustObj": "rust_epwm_tz_swforce.obj",
+        "harnessObj": "epwm_tz_swforce_test.obj",
+        "firmwareOut": "epwm_tz_swforce_mir.out",
+        "harnessSrc": "platform\\firmware\\epwm_tz_swforce_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": null,
+        "passMarker": "epwm_tz_swforce_TARGET_TEST=PASS",
+        "ramOut": "epwm_tz_swforce_ram.out",
+        "ramMap": "epwm_tz_swforce_ram.map"
+      },
+      "custom": true,
+      "legacyBuild": "build-mir-epwm-tz-swforce.ps1",
+      "legacyVerify": "verify-mir-epwm-tz-swforce.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": [
+        "js"
+      ]
+    },
+    "epwm-up-aq": {
+      "key": "epwm-up-aq",
+      "build": {
+        "outputDir": "build\\mir-gpio0-epwm_up_aq",
+        "mirFile": "epwm_up_aq.mir.txt",
+        "asmFile": "epwm_up_aq.asm",
+        "rustObj": "rust_epwm_up_aq.obj",
+        "harnessObj": "epwm_up_aq_switch_test.obj",
+        "firmwareOut": "epwm_up_aq_mir.out",
+        "harnessSrc": "platform\\firmware\\epwm_up_aq_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-epwm-up-aq.js",
+        "passMarker": "EPWM_UP_AQ_TARGET_TEST=PASS",
+        "ramOut": "epwm_up_aq_ram.out",
+        "ramMap": "epwm_up_aq_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-epwm-up-aq.ps1",
+      "legacyVerify": "verify-mir-epwm-up-aq.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "epwm-updown": {
+      "key": "epwm-updown",
+      "build": {
+        "outputDir": "build\\mir-gpio0-epwm_updown",
+        "mirFile": "epwm_updown.mir.txt",
+        "asmFile": "epwm_updown.asm",
+        "rustObj": "rust_epwm_updown.obj",
+        "harnessObj": "epwm_updown_switch_test.obj",
+        "firmwareOut": "epwm_updown_mir.out",
+        "harnessSrc": "platform\\firmware\\epwm_updown_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-epwm-updown.js",
+        "passMarker": "epwm_updown_TARGET_TEST=PASS",
+        "ramOut": "epwm_updown_ram.out",
+        "ramMap": "epwm_updown_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-epwm-updown.ps1",
+      "legacyVerify": "verify-mir-epwm-updown.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "epwm_clkdiv": {
+      "key": "epwm_clkdiv",
+      "build": {
+        "outputDir": "build\\mir-gpio0-epwm_clkdiv",
+        "mirFile": "epwm_clkdiv.mir.txt",
+        "asmFile": "epwm_clkdiv.asm",
+        "rustObj": "rust_epwm_clkdiv.obj",
+        "harnessObj": "epwm_clkdiv_test.obj",
+        "firmwareOut": "epwm_clkdiv_mir.out",
+        "harnessSrc": "platform\\firmware\\epwm_clkdiv_test.c",
+        "onlyExport": "rust_epwm_clkdiv_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "epwm_clkdiv_ram.out",
+        "ramMap": "epwm_clkdiv_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-epwm_clkdiv.ps1",
+      "legacyVerify": "verify-mir-epwm_clkdiv.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "epwm_cmp_boundary": {
+      "key": "epwm_cmp_boundary",
+      "build": {
+        "outputDir": "build\\mir-gpio0-epwm_cmp_boundary",
+        "mirFile": "epwm_cmp_boundary.mir.txt",
+        "asmFile": "epwm_cmp_boundary.asm",
+        "rustObj": "rust_epwm_cmp_boundary.obj",
+        "harnessObj": "epwm_cmp_boundary_test.obj",
+        "firmwareOut": "epwm_cmp_boundary_mir.out",
+        "harnessSrc": "platform\\firmware\\epwm_cmp_boundary_test.c",
+        "onlyExport": "rust_epwm_cmp_boundary_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "epwm_cmp_boundary_ram.out",
+        "ramMap": "epwm_cmp_boundary_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-epwm_cmp_boundary.ps1",
+      "legacyVerify": "verify-mir-epwm_cmp_boundary.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "epwm_reg_rw": {
+      "key": "epwm_reg_rw",
+      "build": {
+        "outputDir": "build\\mir-gpio0-epwm_reg_rw",
+        "mirFile": "epwm_reg_rw.mir.txt",
+        "asmFile": "epwm_reg_rw.asm",
+        "rustObj": "rust_epwm_reg_rw.obj",
+        "harnessObj": "epwm_reg_rw_test.obj",
+        "firmwareOut": "epwm_reg_rw_mir.out",
+        "harnessSrc": "platform\\firmware\\epwm_reg_rw_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "epwm_reg_rw_ram.out",
+        "ramMap": "epwm_reg_rw_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-epwm_reg_rw.ps1",
+      "legacyVerify": "verify-mir-epwm_reg_rw.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "epwm_tz_ext_simple": {
+      "key": "epwm_tz_ext_simple",
+      "build": {
+        "outputDir": "build\\mir-gpio0-epwm_tz_ext_simple",
+        "mirFile": "epwm_tz_ext_simple.mir.txt",
+        "asmFile": "epwm_tz_ext_simple.asm",
+        "rustObj": "rust_epwm_tz_ext_simple.obj",
+        "harnessObj": "epwm_tz_ext_simple_test.obj",
+        "firmwareOut": "epwm_tz_ext_simple_mir.out",
+        "harnessSrc": "platform\\firmware\\epwm_tz_ext_simple_test.c",
+        "onlyExport": "rust_epwm_tz_ext_simple_setup"
+      },
+      "verify": {},
+      "custom": true,
+      "legacyBuild": "build-mir-epwm_tz_ext_simple.ps1",
+      "legacyVerify": null,
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "epwm_tz_external": {
+      "key": "epwm_tz_external",
+      "build": {
+        "outputDir": "build\\mir-gpio0-epwm_tz_external",
+        "mirFile": "epwm_tz_external.mir.txt",
+        "asmFile": "epwm_tz_external.asm",
+        "rustObj": "rust_epwm_tz_external.obj",
+        "harnessObj": "epwm_tz_external_test.obj",
+        "firmwareOut": "epwm_tz_external_mir.out",
+        "harnessSrc": "platform\\firmware\\epwm_tz_external_test.c",
+        "onlyExport": "rust_epwm_tz_external_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "epwm_tz_external_ram.out",
+        "ramMap": "epwm_tz_external_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-epwm_tz_external.ps1",
+      "legacyVerify": "verify-mir-epwm_tz_external.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "eqep_compare_output_pulse": {
+      "key": "eqep_compare_output_pulse",
+      "build": {
+        "outputDir": "build\\mir-gpio0-eqep_compare_output_pulse",
+        "mirFile": "eqep_compare_output_pulse.mir.txt",
+        "asmFile": "eqep_compare_output_pulse.asm",
+        "rustObj": "rust_eqep_compare_output_pulse.obj",
+        "harnessObj": "eqep_compare_output_pulse_test.obj",
+        "firmwareOut": "eqep_compare_output_pulse_mir.out",
+        "harnessSrc": "platform\\firmware\\eqep_compare_output_pulse_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "eqep_compare_output_pulse_ram.out",
+        "ramMap": "eqep_compare_output_pulse_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-eqep_compare_output_pulse.ps1",
+      "legacyVerify": "verify-mir-eqep_compare_output_pulse.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "eqep_count_basic": {
+      "key": "eqep_count_basic",
+      "build": {
+        "outputDir": "build\\mir-gpio0-eqep_count_basic",
+        "mirFile": "eqep_count_basic.mir.txt",
+        "asmFile": "eqep_count_basic.asm",
+        "rustObj": "rust_eqep_count_basic.obj",
+        "harnessObj": "eqep_count_basic_test.obj",
+        "firmwareOut": "eqep_count_basic_mir.out",
+        "harnessSrc": "platform\\firmware\\eqep_count_basic_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "eqep_count_basic_ram.out",
+        "ramMap": "eqep_count_basic_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-eqep_count_basic.ps1",
+      "legacyVerify": "verify-mir-eqep_count_basic.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "eqep_interrupt_gate": {
+      "key": "eqep_interrupt_gate",
+      "build": {
+        "outputDir": "build\\mir-gpio0-eqep_interrupt_gate",
+        "mirFile": "eqep_interrupt_gate.mir.txt",
+        "asmFile": "eqep_interrupt_gate.asm",
+        "rustObj": "rust_eqep_interrupt_gate.obj",
+        "harnessObj": "eqep_interrupt_gate_test.obj",
+        "firmwareOut": "eqep_interrupt_gate_mir.out",
+        "harnessSrc": "platform\\firmware\\eqep_interrupt_gate_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "eqep_interrupt_gate_ram.out",
+        "ramMap": "eqep_interrupt_gate_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-eqep_interrupt_gate.ps1",
+      "legacyVerify": "verify-mir-eqep_interrupt_gate.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "eqep_mode_test": {
+      "key": "eqep_mode_test",
+      "build": {
+        "outputDir": "build\\mir-gpio0-eqep_mode_test",
+        "mirFile": "eqep_mode_test.mir.txt",
+        "asmFile": "eqep_mode_test.asm",
+        "rustObj": "rust_eqep_mode_test.obj",
+        "harnessObj": "eqep_mode_test_test.obj",
+        "firmwareOut": "eqep_mode_test_mir.out",
+        "harnessSrc": "platform\\firmware\\eqep_mode_test_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "eqep_mode_test_ram.out",
+        "ramMap": "eqep_mode_test_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-eqep_mode_test.ps1",
+      "legacyVerify": "verify-mir-eqep_mode_test.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "eqep_polarity_test": {
+      "key": "eqep_polarity_test",
+      "build": {
+        "outputDir": "build\\mir-gpio0-eqep_polarity_test",
+        "mirFile": "eqep_polarity_test.mir.txt",
+        "asmFile": "eqep_polarity_test.asm",
+        "rustObj": "rust_eqep_polarity_test.obj",
+        "harnessObj": "eqep_polarity_test_test.obj",
+        "firmwareOut": "eqep_polarity_test_mir.out",
+        "harnessSrc": "platform\\firmware\\eqep_polarity_test_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "eqep_polarity_test_ram.out",
+        "ramMap": "eqep_polarity_test_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-eqep_polarity_test.ps1",
+      "legacyVerify": "verify-mir-eqep_polarity_test.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "eqep_register_wr": {
+      "key": "eqep_register_wr",
+      "build": {
+        "outputDir": "build\\mir-gpio0-eqep_register_wr",
+        "mirFile": "eqep_register_wr.mir.txt",
+        "asmFile": "eqep_register_wr.asm",
+        "rustObj": "rust_eqep_register_wr.obj",
+        "harnessObj": "eqep_register_wr_test.obj",
+        "firmwareOut": "eqep_register_wr_mir.out",
+        "harnessSrc": "platform\\firmware\\eqep_register_wr_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "eqep_register_wr_ram.out",
+        "ramMap": "eqep_register_wr_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-eqep_register_wr.ps1",
+      "legacyVerify": "verify-mir-eqep_register_wr.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "eqep_reset_fsm_matrix": {
+      "key": "eqep_reset_fsm_matrix",
+      "build": {
+        "outputDir": "build\\mir-gpio0-eqep_reset_fsm_matrix",
+        "mirFile": "eqep_reset_fsm_matrix.mir.txt",
+        "asmFile": "eqep_reset_fsm_matrix.asm",
+        "rustObj": "rust_eqep_reset_fsm_matrix.obj",
+        "harnessObj": "eqep_reset_fsm_matrix_test.obj",
+        "firmwareOut": "eqep_reset_fsm_matrix_mir.out",
+        "harnessSrc": "platform\\firmware\\eqep_reset_fsm_matrix_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "eqep_reset_fsm_matrix_ram.out",
+        "ramMap": "eqep_reset_fsm_matrix_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-eqep_reset_fsm_matrix.ps1",
+      "legacyVerify": "verify-mir-eqep_reset_fsm_matrix.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "eqep_unit_timeout_test": {
+      "key": "eqep_unit_timeout_test",
+      "build": {
+        "outputDir": "build\\mir-gpio0-eqep_unit_timeout_test",
+        "mirFile": "eqep_unit_timeout_test.mir.txt",
+        "asmFile": "eqep_unit_timeout_test.asm",
+        "rustObj": "rust_eqep_unit_timeout_test.obj",
+        "harnessObj": "eqep_unit_timeout_test_test.obj",
+        "firmwareOut": "eqep_unit_timeout_test_mir.out",
+        "harnessSrc": "platform\\firmware\\eqep_unit_timeout_test_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "eqep_unit_timeout_test_ram.out",
+        "ramMap": "eqep_unit_timeout_test_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-eqep_unit_timeout_test.ps1",
+      "legacyVerify": "verify-mir-eqep_unit_timeout_test.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "eqep_unit_timer": {
+      "key": "eqep_unit_timer",
+      "build": {
+        "outputDir": "build\\mir-gpio0-eqep_unit_timer",
+        "mirFile": "eqep_unit_timer.mir.txt",
+        "asmFile": "eqep_unit_timer.asm",
+        "rustObj": "rust_eqep_unit_timer.obj",
+        "harnessObj": "eqep_unit_timer_test.obj",
+        "firmwareOut": "eqep_unit_timer_mir.out",
+        "harnessSrc": "platform\\firmware\\eqep_unit_timer_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "eqep_unit_timer_ram.out",
+        "ramMap": "eqep_unit_timer_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-eqep_unit_timer.ps1",
+      "legacyVerify": "verify-mir-eqep_unit_timer.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "eqep_watchdog_timeout_test": {
+      "key": "eqep_watchdog_timeout_test",
+      "build": {
+        "outputDir": "build\\mir-gpio0-eqep_watchdog_timeout_test",
+        "mirFile": "eqep_watchdog_timeout_test.mir.txt",
+        "asmFile": "eqep_watchdog_timeout_test.asm",
+        "rustObj": "rust_eqep_watchdog_timeout_test.obj",
+        "harnessObj": "eqep_watchdog_timeout_test_test.obj",
+        "firmwareOut": "eqep_watchdog_timeout_test_mir.out",
+        "harnessSrc": "platform\\firmware\\eqep_watchdog_timeout_test_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "eqep_watchdog_timeout_test_ram.out",
+        "ramMap": "eqep_watchdog_timeout_test_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-eqep_watchdog_timeout_test.ps1",
+      "legacyVerify": "verify-mir-eqep_watchdog_timeout_test.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "et_jtag": {
+      "key": "et_jtag",
+      "build": {
+        "outputDir": "build\\mir-gpio0-et_jtag",
+        "mirFile": "et_jtag.mir.txt",
+        "asmFile": "et_jtag.asm",
+        "rustObj": "rust_et_jtag.obj",
+        "harnessObj": "et_jtag_test.obj",
+        "firmwareOut": "et_jtag_mir.out",
+        "harnessSrc": "platform\\firmware\\et_jtag_test.c",
+        "onlyExport": "rust_et_jtag_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "et_jtag_ram.out",
+        "ramMap": "et_jtag_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-et_jtag.ps1",
+      "legacyVerify": "verify-mir-et_jtag.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "gpio-pin-walk": {
+      "key": "gpio-pin-walk",
+      "build": {
+        "outputDir": "build\\mir-gpio0-gpio_pin_walk",
+        "mirFile": "gpio_pin_walk.mir.txt",
+        "asmFile": "gpio_pin_walk.asm",
+        "rustObj": "rust_gpio_pin_walk.obj",
+        "harnessObj": "gpio_pin_walk_test.obj",
+        "firmwareOut": "gpio_pin_walk_mir.out",
+        "harnessSrc": "platform\\firmware\\gpio_pin_walk_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-gpio-pin-walk.js",
+        "passMarker": "gpio_pin_walk_TARGET_TEST=PASS",
+        "ramOut": "gpio_pin_walk_ram.out",
+        "ramMap": "gpio_pin_walk_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-gpio-pin-walk.ps1",
+      "legacyVerify": "verify-mir-gpio-pin-walk.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "gpio0-mux": {
+      "key": "gpio0-mux",
+      "build": {
+        "outputDir": "build\\mir-gpio0-mux",
+        "mirFile": "mux.mir.txt",
+        "asmFile": "mux.asm",
+        "rustObj": "rust_gpio0_mux.obj",
+        "harnessObj": "gpio0_mux_switch_test.obj",
+        "firmwareOut": "gpio0_mux_mir.out",
+        "harnessSrc": "platform\\firmware\\gpio0_mux_switch_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-gpio0-mux.js",
+        "passMarker": "GPIO0_MUX_TARGET_TEST=PASS",
+        "ramOut": "gpio0_mux_ram.out",
+        "ramMap": "gpio0_mux_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-gpio0-mux.ps1",
+      "legacyVerify": "verify-mir-gpio0-mux.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "gpio34-dirswitch": {
+      "key": "gpio34-dirswitch",
+      "build": {
+        "outputDir": "build\\mir-gpio34-dirswitch",
+        "mirFile": "dirswitch.mir.txt",
+        "asmFile": "dirswitch.asm",
+        "rustObj": "rust_gpio34_direction_switch.obj",
+        "harnessObj": "gpio34_direction_switch_test.obj",
+        "firmwareOut": "gpio34_dirswitch_mir.out",
+        "harnessSrc": "platform\\firmware\\gpio34_direction_switch_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-gpio34-dirswitch.js",
+        "passMarker": "GPIO34_DIRECTION_SWITCH_TARGET_TEST=PASS",
+        "ramOut": "gpio34_dirswitch_ram.out",
+        "ramMap": "gpio34_dirswitch_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-gpio34-dirswitch.ps1",
+      "legacyVerify": "verify-mir-gpio34-dirswitch.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "gpio34-output": {
+      "key": "gpio34-output",
+      "build": {
+        "outputDir": "build\\mir-gpio34-output",
+        "mirFile": "gpio34-output.mir.txt",
+        "asmFile": "gpio34-output.asm",
+        "rustObj": "rust_gpio34_output.obj",
+        "harnessObj": "gpio34_output_test.obj",
+        "firmwareOut": "gpio34_output_mir.out",
+        "harnessSrc": "platform\\firmware\\gpio34_output_test.c",
+        "onlyExport": null
+      },
+      "verify": {},
+      "custom": true,
+      "legacyBuild": "build-mir-gpio34-output.ps1",
+      "legacyVerify": null,
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "gpio39-low": {
+      "key": "gpio39-low",
+      "build": {
+        "outputDir": "build\\mir-gpio39-low",
+        "mirFile": "gpio39-safe.mir.txt",
+        "asmFile": "gpio39-safe.asm",
+        "rustObj": "rust_gpio39_low.obj",
+        "harnessObj": "gpio39_low_test.obj",
+        "firmwareOut": "gpio39_low_mir.out",
+        "harnessSrc": "platform\\firmware\\gpio39_low_test.c",
+        "onlyExport": null
+      },
+      "verify": {},
+      "custom": true,
+      "legacyBuild": "build-mir-gpio39-low.ps1",
+      "legacyVerify": null,
+      "buildCompilerCalls": 0,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "gpio_input": {
+      "key": "gpio_input",
+      "build": {
+        "outputDir": "build\\mir-gpio0-gpio_input",
+        "mirFile": "gpio_input.mir.txt",
+        "asmFile": "gpio_input.asm",
+        "rustObj": "rust_gpio_input.obj",
+        "harnessObj": "gpio_input_test.obj",
+        "firmwareOut": "gpio_input_mir.out",
+        "harnessSrc": "platform\\firmware\\gpio_input_test.c",
+        "onlyExport": "rust_gpio_input_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "gpio_input_ram.out",
+        "ramMap": "gpio_input_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-gpio_input.ps1",
+      "legacyVerify": "verify-mir-gpio_input.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "gpio_xint_falling": {
+      "key": "gpio_xint_falling",
+      "build": {
+        "outputDir": "build\\mir-gpio0-gpio_xint_falling",
+        "mirFile": "gpio_xint_falling.mir.txt",
+        "asmFile": "gpio_xint_falling.asm",
+        "rustObj": "rust_gpio_xint_falling.obj",
+        "harnessObj": "gpio_xint_falling_test.obj",
+        "firmwareOut": "gpio_xint_falling_mir.out",
+        "harnessSrc": "platform\\firmware\\gpio_xint_falling_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "gpio_xint_falling_ram.out",
+        "ramMap": "gpio_xint_falling_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-gpio_xint_falling.ps1",
+      "legacyVerify": "verify-mir-gpio_xint_falling.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "gpio_xint_rising": {
+      "key": "gpio_xint_rising",
+      "build": {
+        "outputDir": "build\\mir-gpio0-gpio_xint_rising",
+        "mirFile": "gpio_xint_rising.mir.txt",
+        "asmFile": "gpio_xint_rising.asm",
+        "rustObj": "rust_gpio_xint_rising.obj",
+        "harnessObj": "gpio_xint_rising_test.obj",
+        "firmwareOut": "gpio_xint_rising_mir.out",
+        "harnessSrc": "platform\\firmware\\gpio_xint_rising_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "gpio_xint_rising_ram.out",
+        "ramMap": "gpio_xint_rising_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-gpio_xint_rising.ps1",
+      "legacyVerify": "verify-mir-gpio_xint_rising.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "hrcap_capture_fifo": {
+      "key": "hrcap_capture_fifo",
+      "build": {
+        "outputDir": "build\\mir-gpio0-hrcap_capture_fifo",
+        "mirFile": "hrcap_capture_fifo.mir.txt",
+        "asmFile": "hrcap_capture_fifo.asm",
+        "rustObj": "rust_hrcap_capture_fifo.obj",
+        "harnessObj": "hrcap_capture_fifo_test.obj",
+        "firmwareOut": "hrcap_capture_fifo_mir.out",
+        "harnessSrc": "platform\\firmware\\hrcap_capture_fifo_test.c",
+        "onlyExport": "rust_hrcap_capture_fifo_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "hrcap_capture_fifo_ram.out",
+        "ramMap": "hrcap_capture_fifo_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-hrcap_capture_fifo.ps1",
+      "legacyVerify": "verify-mir-hrcap_capture_fifo.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "hrcap_clock_reset": {
+      "key": "hrcap_clock_reset",
+      "build": {
+        "outputDir": "build\\mir-gpio0-hrcap_clock_reset",
+        "mirFile": "hrcap_clock_reset.mir.txt",
+        "asmFile": "hrcap_clock_reset.asm",
+        "rustObj": "rust_hrcap_clock_reset.obj",
+        "harnessObj": "hrcap_clock_reset_test.obj",
+        "firmwareOut": "hrcap_clock_reset_mir.out",
+        "harnessSrc": "platform\\firmware\\hrcap_clock_reset_test.c",
+        "onlyExport": "rust_hrcap_clock_reset_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "hrcap_clock_reset_ram.out",
+        "ramMap": "hrcap_clock_reset_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-hrcap_clock_reset.ps1",
+      "legacyVerify": "verify-mir-hrcap_clock_reset.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "hrcap_counter_ovf": {
+      "key": "hrcap_counter_ovf",
+      "build": {
+        "outputDir": "build\\mir-gpio0-hrcap_counter_ovf",
+        "mirFile": "hrcap_counter_ovf.mir.txt",
+        "asmFile": "hrcap_counter_ovf.asm",
+        "rustObj": "rust_hrcap_counter_ovf.obj",
+        "harnessObj": "hrcap_counter_ovf_test.obj",
+        "firmwareOut": "hrcap_counter_ovf_mir.out",
+        "harnessSrc": "platform\\firmware\\hrcap_counter_ovf_test.c",
+        "onlyExport": "rust_hrcap_counter_ovf_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "hrcap_counter_ovf_ram.out",
+        "ramMap": "hrcap_counter_ovf_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-hrcap_counter_ovf.ps1",
+      "legacyVerify": "verify-mir-hrcap_counter_ovf.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "hrcap_dual_instance": {
+      "key": "hrcap_dual_instance",
+      "build": {
+        "outputDir": "build\\mir-gpio0-hrcap_dual_instance",
+        "mirFile": "hrcap_dual_instance.mir.txt",
+        "asmFile": "hrcap_dual_instance.asm",
+        "rustObj": "rust_hrcap_dual_instance.obj",
+        "harnessObj": "hrcap_dual_instance_test.obj",
+        "firmwareOut": "hrcap_dual_instance_mir.out",
+        "harnessSrc": "platform\\firmware\\hrcap_dual_instance_test.c",
+        "onlyExport": "rust_hrcap_dual_instance_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "hrcap_dual_instance_ram.out",
+        "ramMap": "hrcap_dual_instance_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-hrcap_dual_instance.ps1",
+      "legacyVerify": "verify-mir-hrcap_dual_instance.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "hrcap_hr_fall": {
+      "key": "hrcap_hr_fall",
+      "build": {
+        "outputDir": "build\\mir-gpio0-hrcap_hr_fall",
+        "mirFile": "hrcap_hr_fall.mir.txt",
+        "asmFile": "hrcap_hr_fall.asm",
+        "rustObj": "rust_hrcap_hr_fall.obj",
+        "harnessObj": "hrcap_hr_fall_test.obj",
+        "firmwareOut": "hrcap_hr_fall_mir.out",
+        "harnessSrc": "platform\\firmware\\hrcap_hr_fall_test.c",
+        "onlyExport": "rust_hrcap_hr_fall_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "hrcap_hr_fall_ram.out",
+        "ramMap": "hrcap_hr_fall_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-hrcap_hr_fall.ps1",
+      "legacyVerify": "verify-mir-hrcap_hr_fall.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "hrcap_hr_rise": {
+      "key": "hrcap_hr_rise",
+      "build": {
+        "outputDir": "build\\mir-gpio0-hrcap_hr_rise",
+        "mirFile": "hrcap_hr_rise.mir.txt",
+        "asmFile": "hrcap_hr_rise.asm",
+        "rustObj": "rust_hrcap_hr_rise.obj",
+        "harnessObj": "hrcap_hr_rise_test.obj",
+        "firmwareOut": "hrcap_hr_rise_mir.out",
+        "harnessSrc": "platform\\firmware\\hrcap_hr_rise_test.c",
+        "onlyExport": "rust_hrcap_hr_rise_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "hrcap_hr_rise_ram.out",
+        "ramMap": "hrcap_hr_rise_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-hrcap_hr_rise.ps1",
+      "legacyVerify": "verify-mir-hrcap_hr_rise.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "hrcap_int_enable": {
+      "key": "hrcap_int_enable",
+      "build": {
+        "outputDir": "build\\mir-gpio0-hrcap_int_enable",
+        "mirFile": "hrcap_int_enable.mir.txt",
+        "asmFile": "hrcap_int_enable.asm",
+        "rustObj": "rust_hrcap_int_enable.obj",
+        "harnessObj": "hrcap_int_enable_test.obj",
+        "firmwareOut": "hrcap_int_enable_mir.out",
+        "harnessSrc": "platform\\firmware\\hrcap_int_enable_test.c",
+        "onlyExport": "rust_hrcap_int_enable_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "hrcap_int_enable_ram.out",
+        "ramMap": "hrcap_int_enable_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-hrcap_int_enable.ps1",
+      "legacyVerify": "verify-mir-hrcap_int_enable.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "hrcap_normal_fall": {
+      "key": "hrcap_normal_fall",
+      "build": {
+        "outputDir": "build\\mir-gpio0-hrcap_normal_fall",
+        "mirFile": "hrcap_normal_fall.mir.txt",
+        "asmFile": "hrcap_normal_fall.asm",
+        "rustObj": "rust_hrcap_normal_fall.obj",
+        "harnessObj": "hrcap_normal_fall_test.obj",
+        "firmwareOut": "hrcap_normal_fall_mir.out",
+        "harnessSrc": "platform\\firmware\\hrcap_normal_fall_test.c",
+        "onlyExport": "rust_hrcap_normal_fall_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "hrcap_normal_fall_ram.out",
+        "ramMap": "hrcap_normal_fall_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-hrcap_normal_fall.ps1",
+      "legacyVerify": "verify-mir-hrcap_normal_fall.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "hrcap_normal_rise": {
+      "key": "hrcap_normal_rise",
+      "build": {
+        "outputDir": "build\\mir-gpio0-hrcap_normal_rise",
+        "mirFile": "hrcap_normal_rise.mir.txt",
+        "asmFile": "hrcap_normal_rise.asm",
+        "rustObj": "rust_hrcap_normal_rise.obj",
+        "harnessObj": "hrcap_normal_rise_test.obj",
+        "firmwareOut": "hrcap_normal_rise_mir.out",
+        "harnessSrc": "platform\\firmware\\hrcap_normal_rise_test.c",
+        "onlyExport": "rust_hrcap_normal_rise_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "hrcap_normal_rise_ram.out",
+        "ramMap": "hrcap_normal_rise_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-hrcap_normal_rise.ps1",
+      "legacyVerify": "verify-mir-hrcap_normal_rise.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "hrcap_reg_rw": {
+      "key": "hrcap_reg_rw",
+      "build": {
+        "outputDir": "build\\mir-gpio0-hrcap_reg_rw",
+        "mirFile": "hrcap_reg_rw.mir.txt",
+        "asmFile": "hrcap_reg_rw.asm",
+        "rustObj": "rust_hrcap_reg_rw.obj",
+        "harnessObj": "hrcap_reg_rw_test.obj",
+        "firmwareOut": "hrcap_reg_rw_mir.out",
+        "harnessSrc": "platform\\firmware\\hrcap_reg_rw_test.c",
+        "onlyExport": "rust_hrcap_reg_rw_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "hrcap_reg_rw_ram.out",
+        "ramMap": "hrcap_reg_rw_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-hrcap_reg_rw.ps1",
+      "legacyVerify": "verify-mir-hrcap_reg_rw.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "i2c-write1": {
+      "key": "i2c-write1",
+      "build": {
+        "outputDir": "build\\mir-gpio0-i2c_write1",
+        "mirFile": "i2c_write1.mir.txt",
+        "asmFile": "i2c_write1.asm",
+        "rustObj": "rust_i2c_write1.obj",
+        "harnessObj": "i2c_write1_test.obj",
+        "firmwareOut": "i2c_write1_mir.out",
+        "harnessSrc": "platform\\firmware\\i2c_write1_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-gpio-pin-walk.js",
+        "passMarker": "i2c_write1_TARGET_TEST=PASS",
+        "ramOut": "i2c_write1_ram.out",
+        "ramMap": "i2c_write1_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-i2c-write1.ps1",
+      "legacyVerify": "verify-mir-i2c-write1.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "i2c_nack": {
+      "key": "i2c_nack",
+      "build": {
+        "outputDir": "build\\mir-gpio0-i2c_nack",
+        "mirFile": "i2c_nack.mir.txt",
+        "asmFile": "i2c_nack.asm",
+        "rustObj": "rust_i2c_nack.obj",
+        "harnessObj": "i2c_nack_test.obj",
+        "firmwareOut": "i2c_nack_mir.out",
+        "harnessSrc": "platform\\firmware\\i2c_nack_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "i2c_nack_ram.out",
+        "ramMap": "i2c_nack_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-i2c_nack.ps1",
+      "legacyVerify": "verify-mir-i2c_nack.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "i2c_read1": {
+      "key": "i2c_read1",
+      "build": {
+        "outputDir": "build\\mir-gpio0-i2c_read1",
+        "mirFile": "i2c_read1.mir.txt",
+        "asmFile": "i2c_read1.asm",
+        "rustObj": "rust_i2c_read1.obj",
+        "harnessObj": "i2c_read1_test.obj",
+        "firmwareOut": "i2c_read1_mir.out",
+        "harnessSrc": "platform\\firmware\\i2c_read1_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-i2c_read1.js",
+        "passMarker": "i2c_read1_TARGET_TEST=PASS",
+        "ramOut": "i2c_read1_ram.out",
+        "ramMap": "i2c_read1_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-i2c_read1.ps1",
+      "legacyVerify": "verify-mir-i2c_read1.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "i2c_read8": {
+      "key": "i2c_read8",
+      "build": {
+        "outputDir": "build\\mir-gpio0-i2c_read8",
+        "mirFile": "i2c_read8.mir.txt",
+        "asmFile": "i2c_read8.asm",
+        "rustObj": "rust_i2c_read8.obj",
+        "harnessObj": "i2c_read8_test.obj",
+        "firmwareOut": "i2c_read8_mir.out",
+        "harnessSrc": "platform\\firmware\\i2c_read8_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "i2c_read8_ram.out",
+        "ramMap": "i2c_read8_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-i2c_read8.ps1",
+      "legacyVerify": "verify-mir-i2c_read8.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "i2c_read_back_to_back": {
+      "key": "i2c_read_back_to_back",
+      "build": {
+        "outputDir": "build\\mir-gpio0-i2c_read_back_to_back",
+        "mirFile": "i2c_read_back_to_back.mir.txt",
+        "asmFile": "i2c_read_back_to_back.asm",
+        "rustObj": "rust_i2c_read_back_to_back.obj",
+        "harnessObj": "i2c_read_back_to_back_test.obj",
+        "firmwareOut": "i2c_read_back_to_back_mir.out",
+        "harnessSrc": "platform\\firmware\\i2c_read_back_to_back_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "i2c_read_back_to_back_ram.out",
+        "ramMap": "i2c_read_back_to_back_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-i2c_read_back_to_back.ps1",
+      "legacyVerify": "verify-mir-i2c_read_back_to_back.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "i2c_reg_rw": {
+      "key": "i2c_reg_rw",
+      "build": {
+        "outputDir": "build\\mir-gpio0-i2c_reg_rw",
+        "mirFile": "i2c_reg_rw.mir.txt",
+        "asmFile": "i2c_reg_rw.asm",
+        "rustObj": "rust_i2c_reg_rw.obj",
+        "harnessObj": "i2c_reg_rw_test.obj",
+        "firmwareOut": "i2c_reg_rw_mir.out",
+        "harnessSrc": "platform\\firmware\\i2c_reg_rw_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-i2c_reg_rw.js",
+        "passMarker": "i2c_reg_rw_TARGET_TEST=PASS",
+        "ramOut": "i2c_reg_rw_ram.out",
+        "ramMap": "i2c_reg_rw_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-i2c_reg_rw.ps1",
+      "legacyVerify": "verify-mir-i2c_reg_rw.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "i2c_repeated_start": {
+      "key": "i2c_repeated_start",
+      "build": {
+        "outputDir": "build\\mir-gpio0-i2c_repeated_start",
+        "mirFile": "i2c_repeated_start.mir.txt",
+        "asmFile": "i2c_repeated_start.asm",
+        "rustObj": "rust_i2c_repeated_start.obj",
+        "harnessObj": "i2c_repeated_start_test.obj",
+        "firmwareOut": "i2c_repeated_start_mir.out",
+        "harnessSrc": "platform\\firmware\\i2c_repeated_start_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "i2c_repeated_start_ram.out",
+        "ramMap": "i2c_repeated_start_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-i2c_repeated_start.ps1",
+      "legacyVerify": "verify-mir-i2c_repeated_start.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "i2c_write8": {
+      "key": "i2c_write8",
+      "build": {
+        "outputDir": "build\\mir-gpio0-i2c_write8",
+        "mirFile": "i2c_write8.mir.txt",
+        "asmFile": "i2c_write8.asm",
+        "rustObj": "rust_i2c_write8.obj",
+        "harnessObj": "i2c_write8_test.obj",
+        "firmwareOut": "i2c_write8_mir.out",
+        "harnessSrc": "platform\\firmware\\i2c_write8_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "i2c_write8_ram.out",
+        "ramMap": "i2c_write8_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-i2c_write8.ps1",
+      "legacyVerify": "verify-mir-i2c_write8.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "i2c_write_back_to_back": {
+      "key": "i2c_write_back_to_back",
+      "build": {
+        "outputDir": "build\\mir-gpio0-i2c_write_back_to_back",
+        "mirFile": "i2c_write_back_to_back.mir.txt",
+        "asmFile": "i2c_write_back_to_back.asm",
+        "rustObj": "rust_i2c_write_back_to_back.obj",
+        "harnessObj": "i2c_write_back_to_back_test.obj",
+        "firmwareOut": "i2c_write_back_to_back_mir.out",
+        "harnessSrc": "platform\\firmware\\i2c_write_back_to_back_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "i2c_write_back_to_back_ram.out",
+        "ramMap": "i2c_write_back_to_back_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-i2c_write_back_to_back.ps1",
+      "legacyVerify": "verify-mir-i2c_write_back_to_back.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "i2c_write_then_read": {
+      "key": "i2c_write_then_read",
+      "build": {
+        "outputDir": "build\\mir-gpio0-i2c_write_then_read",
+        "mirFile": "i2c_write_then_read.mir.txt",
+        "asmFile": "i2c_write_then_read.asm",
+        "rustObj": "rust_i2c_write_then_read.obj",
+        "harnessObj": "i2c_write_then_read_test.obj",
+        "firmwareOut": "i2c_write_then_read_mir.out",
+        "harnessSrc": "platform\\firmware\\i2c_write_then_read_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "i2c_write_then_read_ram.out",
+        "ramMap": "i2c_write_then_read_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-i2c_write_then_read.ps1",
+      "legacyVerify": "verify-mir-i2c_write_then_read.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "lin_baud": {
+      "key": "lin_baud",
+      "build": {
+        "outputDir": "build\\mir-gpio0-lin_baud",
+        "mirFile": "lin_baud.mir.txt",
+        "asmFile": "lin_baud.asm",
+        "rustObj": "rust_lin_baud.obj",
+        "harnessObj": "lin_baud_test.obj",
+        "firmwareOut": "lin_baud_mir.out",
+        "harnessSrc": "platform\\firmware\\lin_baud_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-lin_baud.js",
+        "passMarker": "lin_baud_TARGET_TEST=PASS",
+        "ramOut": "lin_baud_ram.out",
+        "ramMap": "lin_baud_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-lin_baud.ps1",
+      "legacyVerify": "verify-mir-lin_baud.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "lin_header_break_sync": {
+      "key": "lin_header_break_sync",
+      "build": {
+        "outputDir": "build\\mir-gpio0-lin_header_break_sync",
+        "mirFile": "lin_header_break_sync.mir.txt",
+        "asmFile": "lin_header_break_sync.asm",
+        "rustObj": "rust_lin_header_break_sync.obj",
+        "harnessObj": "lin_header_break_sync_test.obj",
+        "firmwareOut": "lin_header_break_sync_mir.out",
+        "harnessSrc": "platform\\firmware\\lin_header_break_sync_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "lin_header_break_sync_ram.out",
+        "ramMap": "lin_header_break_sync_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-lin_header_break_sync.ps1",
+      "legacyVerify": "verify-mir-lin_header_break_sync.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "lin_iodft_loopback": {
+      "key": "lin_iodft_loopback",
+      "build": {
+        "outputDir": "build\\mir-gpio0-lin_iodft_loopback",
+        "mirFile": "lin_iodft_loopback.mir.txt",
+        "asmFile": "lin_iodft_loopback.asm",
+        "rustObj": "rust_lin_iodft_loopback.obj",
+        "harnessObj": "lin_iodft_loopback_test.obj",
+        "firmwareOut": "lin_iodft_loopback_mir.out",
+        "harnessSrc": "platform\\firmware\\lin_iodft_loopback_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "lin_iodft_loopback_ram.out",
+        "ramMap": "lin_iodft_loopback_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-lin_iodft_loopback.ps1",
+      "legacyVerify": "verify-mir-lin_iodft_loopback.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "lin_reg_rw": {
+      "key": "lin_reg_rw",
+      "build": {
+        "outputDir": "build\\mir-gpio0-lin_reg_rw",
+        "mirFile": "lin_reg_rw.mir.txt",
+        "asmFile": "lin_reg_rw.asm",
+        "rustObj": "rust_lin_reg_rw.obj",
+        "harnessObj": "lin_reg_rw_test.obj",
+        "firmwareOut": "lin_reg_rw_mir.out",
+        "harnessSrc": "platform\\firmware\\lin_reg_rw_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-lin_reg_rw.js",
+        "passMarker": "lin_reg_rw_TARGET_TEST=PASS",
+        "ramOut": "lin_reg_rw_ram.out",
+        "ramMap": "lin_reg_rw_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-lin_reg_rw.ps1",
+      "legacyVerify": "verify-mir-lin_reg_rw.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "lin_rx_checksum": {
+      "key": "lin_rx_checksum",
+      "build": {
+        "outputDir": "build\\mir-gpio0-lin_rx_checksum",
+        "mirFile": "lin_rx_checksum.mir.txt",
+        "asmFile": "lin_rx_checksum.asm",
+        "rustObj": "rust_lin_rx_checksum.obj",
+        "harnessObj": "lin_rx_checksum_test.obj",
+        "firmwareOut": "lin_rx_checksum_mir.out",
+        "harnessSrc": "platform\\firmware\\lin_rx_checksum_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "lin_rx_checksum_ram.out",
+        "ramMap": "lin_rx_checksum_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-lin_rx_checksum.ps1",
+      "legacyVerify": "verify-mir-lin_rx_checksum.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "lin_rx_rxcnt": {
+      "key": "lin_rx_rxcnt",
+      "build": {
+        "outputDir": "build\\mir-gpio0-lin_rx_rxcnt",
+        "mirFile": "lin_rx_rxcnt.mir.txt",
+        "asmFile": "lin_rx_rxcnt.asm",
+        "rustObj": "rust_lin_rx_rxcnt.obj",
+        "harnessObj": "lin_rx_rxcnt_test.obj",
+        "firmwareOut": "lin_rx_rxcnt_mir.out",
+        "harnessSrc": "platform\\firmware\\lin_rx_rxcnt_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "lin_rx_rxcnt_ram.out",
+        "ramMap": "lin_rx_rxcnt_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-lin_rx_rxcnt.ps1",
+      "legacyVerify": "verify-mir-lin_rx_rxcnt.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "lin_sci_multibuf": {
+      "key": "lin_sci_multibuf",
+      "build": {
+        "outputDir": "build\\mir-gpio0-lin_sci_multibuf",
+        "mirFile": "lin_sci_multibuf.mir.txt",
+        "asmFile": "lin_sci_multibuf.asm",
+        "rustObj": "rust_lin_sci_multibuf.obj",
+        "harnessObj": "lin_sci_multibuf_test.obj",
+        "firmwareOut": "lin_sci_multibuf_mir.out",
+        "harnessSrc": "platform\\firmware\\lin_sci_multibuf_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "lin_sci_multibuf_ram.out",
+        "ramMap": "lin_sci_multibuf_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-lin_sci_multibuf.ps1",
+      "legacyVerify": "verify-mir-lin_sci_multibuf.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "lin_top_mode": {
+      "key": "lin_top_mode",
+      "build": {
+        "outputDir": "build\\mir-gpio0-lin_top_mode",
+        "mirFile": "lin_top_mode.mir.txt",
+        "asmFile": "lin_top_mode.asm",
+        "rustObj": "rust_lin_top_mode.obj",
+        "harnessObj": "lin_top_mode_test.obj",
+        "firmwareOut": "lin_top_mode_mir.out",
+        "harnessSrc": "platform\\firmware\\lin_top_mode_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "lin_top_mode_ram.out",
+        "ramMap": "lin_top_mode_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-lin_top_mode.ps1",
+      "legacyVerify": "verify-mir-lin_top_mode.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "lin_tx_checksum": {
+      "key": "lin_tx_checksum",
+      "build": {
+        "outputDir": "build\\mir-gpio0-lin_tx_checksum",
+        "mirFile": "lin_tx_checksum.mir.txt",
+        "asmFile": "lin_tx_checksum.asm",
+        "rustObj": "rust_lin_tx_checksum.obj",
+        "harnessObj": "lin_tx_checksum_test.obj",
+        "firmwareOut": "lin_tx_checksum_mir.out",
+        "harnessSrc": "platform\\firmware\\lin_tx_checksum_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "lin_tx_checksum_ram.out",
+        "ramMap": "lin_tx_checksum_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-lin_tx_checksum.ps1",
+      "legacyVerify": "verify-mir-lin_tx_checksum.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "lin_wakeup": {
+      "key": "lin_wakeup",
+      "build": {
+        "outputDir": "build\\mir-gpio0-lin_wakeup",
+        "mirFile": "lin_wakeup.mir.txt",
+        "asmFile": "lin_wakeup.asm",
+        "rustObj": "rust_lin_wakeup.obj",
+        "harnessObj": "lin_wakeup_test.obj",
+        "firmwareOut": "lin_wakeup_mir.out",
+        "harnessSrc": "platform\\firmware\\lin_wakeup_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "lin_wakeup_ram.out",
+        "ramMap": "lin_wakeup_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-lin_wakeup.ps1",
+      "legacyVerify": "verify-mir-lin_wakeup.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "pie_fill_u16": {
+      "key": "pie_fill_u16",
+      "build": {
+        "outputDir": "build\\mir-gpio0-pie_fill_u16",
+        "mirFile": "pie_fill_u16.mir.txt",
+        "asmFile": "pie_fill_u16.asm",
+        "rustObj": "rust_pie_fill_u16.obj",
+        "harnessObj": "pie_fill_u16_test.obj",
+        "firmwareOut": "pie_fill_u16_mir.out",
+        "harnessSrc": "platform\\firmware\\pie_fill_u16_test.c",
+        "onlyExport": "rust_pie_fill_u16_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "pie_fill_u16_ram.out",
+        "ramMap": "pie_fill_u16_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-pie_fill_u16.ps1",
+      "legacyVerify": "verify-mir-pie_fill_u16.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "pie_fill_u32": {
+      "key": "pie_fill_u32",
+      "build": {
+        "outputDir": "build\\mir-gpio0-pie_fill_u32",
+        "mirFile": "pie_fill_u32.mir.txt",
+        "asmFile": "pie_fill_u32.asm",
+        "rustObj": "rust_pie_fill_u32.obj",
+        "harnessObj": "pie_fill_u32_test.obj",
+        "firmwareOut": "pie_fill_u32_mir.out",
+        "harnessSrc": "platform\\firmware\\pie_fill_u32_test.c",
+        "onlyExport": "rust_pie_fill_u32_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "pie_fill_u32_ram.out",
+        "ramMap": "pie_fill_u32_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-pie_fill_u32.ps1",
+      "legacyVerify": "verify-mir-pie_fill_u32.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "pie_irq_ack": {
+      "key": "pie_irq_ack",
+      "build": {
+        "outputDir": "build\\mir-gpio0-pie_irq_ack",
+        "mirFile": "pie_irq_ack.mir.txt",
+        "asmFile": "pie_irq_ack.asm",
+        "rustObj": "rust_pie_irq_ack.obj",
+        "harnessObj": "pie_irq_ack_test.obj",
+        "firmwareOut": "pie_irq_ack_mir.out",
+        "harnessSrc": "platform\\firmware\\pie_irq_ack_test.c",
+        "onlyExport": "rust_pie_irq_ack_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "pie_irq_ack_ram.out",
+        "ramMap": "pie_irq_ack_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-pie_irq_ack.ps1",
+      "legacyVerify": "verify-mir-pie_irq_ack.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "pie_irq_single": {
+      "key": "pie_irq_single",
+      "build": {
+        "outputDir": "build\\mir-gpio0-pie_irq_single",
+        "mirFile": "pie_irq_single.mir.txt",
+        "asmFile": "pie_irq_single.asm",
+        "rustObj": "rust_pie_irq_single.obj",
+        "harnessObj": "pie_irq_single_test.obj",
+        "firmwareOut": "pie_irq_single_mir.out",
+        "harnessSrc": "platform\\firmware\\pie_irq_single_test.c",
+        "onlyExport": "rust_pie_irq_single_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "pie_irq_single_ram.out",
+        "ramMap": "pie_irq_single_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-pie_irq_single.ps1",
+      "legacyVerify": "verify-mir-pie_irq_single.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "pie_mask_ack": {
+      "key": "pie_mask_ack",
+      "build": {
+        "outputDir": "build\\mir-gpio0-pie_mask_ack",
+        "mirFile": "pie_mask_ack.mir.txt",
+        "asmFile": "pie_mask_ack.asm",
+        "rustObj": "rust_pie_mask_ack.obj",
+        "harnessObj": "pie_mask_ack_test.obj",
+        "firmwareOut": "pie_mask_ack_mir.out",
+        "harnessSrc": "platform\\firmware\\pie_mask_ack_test.c",
+        "onlyExport": "rust_pie_mask_ack_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "pie_mask_ack_ram.out",
+        "ramMap": "pie_mask_ack_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-pie_mask_ack.ps1",
+      "legacyVerify": "verify-mir-pie_mask_ack.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "pie_rw_inline": {
+      "key": "pie_rw_inline",
+      "build": {
+        "outputDir": "build\\mir-gpio0-pie_rw_inline",
+        "mirFile": "pie_rw_inline.mir.txt",
+        "asmFile": "pie_rw_inline.asm",
+        "rustObj": "rust_pie_rw_inline.obj",
+        "harnessObj": "pie_rw_inline_test.obj",
+        "firmwareOut": "pie_rw_inline_mir.out",
+        "harnessSrc": "platform\\firmware\\pie_rw_inline_test.c",
+        "onlyExport": "rust_pie_rw_inline_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "pie_rw_inline_ram.out",
+        "ramMap": "pie_rw_inline_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-pie_rw_inline.ps1",
+      "legacyVerify": "verify-mir-pie_rw_inline.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "pie_soc_nmi": {
+      "key": "pie_soc_nmi",
+      "build": {
+        "outputDir": "build\\mir-gpio0-pie_soc_nmi",
+        "mirFile": "pie_soc_nmi.mir.txt",
+        "asmFile": "pie_soc_nmi.asm",
+        "rustObj": "rust_pie_soc_nmi.obj",
+        "harnessObj": "pie_soc_nmi_test.obj",
+        "firmwareOut": "pie_soc_nmi_mir.out",
+        "harnessSrc": "platform\\firmware\\pie_soc_nmi_test.c",
+        "onlyExport": "rust_pie_soc_nmi_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "pie_soc_nmi_ram.out",
+        "ramMap": "pie_soc_nmi_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-pie_soc_nmi.ps1",
+      "legacyVerify": "verify-mir-pie_soc_nmi.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "pie_soc_xint": {
+      "key": "pie_soc_xint",
+      "build": {
+        "outputDir": "build\\mir-gpio0-pie_soc_xint",
+        "mirFile": "pie_soc_xint.mir.txt",
+        "asmFile": "pie_soc_xint.asm",
+        "rustObj": "rust_pie_soc_xint.obj",
+        "harnessObj": "pie_soc_xint_test.obj",
+        "firmwareOut": "pie_soc_xint_mir.out",
+        "harnessSrc": "platform\\firmware\\pie_soc_xint_test.c",
+        "onlyExport": "rust_pie_soc_xint_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "pie_soc_xint_ram.out",
+        "ramMap": "pie_soc_xint_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-pie_soc_xint.ps1",
+      "legacyVerify": "verify-mir-pie_soc_xint.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "pie_xint_counter": {
+      "key": "pie_xint_counter",
+      "build": {
+        "outputDir": "build\\mir-gpio0-pie_xint_counter",
+        "mirFile": "pie_xint_counter.mir.txt",
+        "asmFile": "pie_xint_counter.asm",
+        "rustObj": "rust_pie_xint_counter.obj",
+        "harnessObj": "pie_xint_counter_test.obj",
+        "firmwareOut": "pie_xint_counter_mir.out",
+        "harnessSrc": "platform\\firmware\\pie_xint_counter_test.c",
+        "onlyExport": "rust_pie_xint_counter_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "pie_xint_counter_ram.out",
+        "ramMap": "pie_xint_counter_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-pie_xint_counter.ps1",
+      "legacyVerify": "verify-mir-pie_xint_counter.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "pie_xint_readhit": {
+      "key": "pie_xint_readhit",
+      "build": {
+        "outputDir": "build\\mir-gpio0-pie_xint_readhit",
+        "mirFile": "pie_xint_readhit.mir.txt",
+        "asmFile": "pie_xint_readhit.asm",
+        "rustObj": "rust_pie_xint_readhit.obj",
+        "harnessObj": "pie_xint_readhit_test.obj",
+        "firmwareOut": "pie_xint_readhit_mir.out",
+        "harnessSrc": "platform\\firmware\\pie_xint_readhit_test.c",
+        "onlyExport": "rust_pie_xint_readhit_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "pie_xint_readhit_ram.out",
+        "ramMap": "pie_xint_readhit_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-pie_xint_readhit.ps1",
+      "legacyVerify": "verify-mir-pie_xint_readhit.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "sci-loopback": {
+      "key": "sci-loopback",
+      "build": {
+        "outputDir": "build\\mir-gpio0-sci_loopback",
+        "mirFile": "sci_loopback.mir.txt",
+        "asmFile": "sci_loopback.asm",
+        "rustObj": "rust_sci_loopback.obj",
+        "harnessObj": "sci_loopback_test.obj",
+        "firmwareOut": "sci_loopback_mir.out",
+        "harnessSrc": "platform\\firmware\\sci_loopback_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-gpio-pin-walk.js",
+        "passMarker": "sci_loopback_TARGET_TEST=PASS",
+        "ramOut": "sci_loopback_ram.out",
+        "ramMap": "sci_loopback_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-sci-loopback.ps1",
+      "legacyVerify": "verify-mir-sci-loopback.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "sci_baud": {
+      "key": "sci_baud",
+      "build": {
+        "outputDir": "build\\mir-gpio0-sci_baud",
+        "mirFile": "sci_baud.mir.txt",
+        "asmFile": "sci_baud.asm",
+        "rustObj": "rust_sci_baud.obj",
+        "harnessObj": "sci_baud_test.obj",
+        "firmwareOut": "sci_baud_mir.out",
+        "harnessSrc": "platform\\firmware\\sci_baud_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-sci_baud.js",
+        "passMarker": "sci_baud_TARGET_TEST=PASS",
+        "ramOut": "sci_baud_ram.out",
+        "ramMap": "sci_baud_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-sci_baud.ps1",
+      "legacyVerify": "verify-mir-sci_baud.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "sci_datapat": {
+      "key": "sci_datapat",
+      "build": {
+        "outputDir": "build\\mir-gpio0-sci_datapat",
+        "mirFile": "sci_datapat.mir.txt",
+        "asmFile": "sci_datapat.asm",
+        "rustObj": "rust_sci_datapat.obj",
+        "harnessObj": "sci_datapat_test.obj",
+        "firmwareOut": "sci_datapat_mir.out",
+        "harnessSrc": "platform\\firmware\\sci_datapat_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "sci_datapat_ram.out",
+        "ramMap": "sci_datapat_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-sci_datapat.ps1",
+      "legacyVerify": "verify-mir-sci_datapat.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "sci_fifo_reset_loopback": {
+      "key": "sci_fifo_reset_loopback",
+      "build": {
+        "outputDir": "build\\mir-gpio0-sci_fifo_reset_loopback",
+        "mirFile": "sci_fifo_reset_loopback.mir.txt",
+        "asmFile": "sci_fifo_reset_loopback.asm",
+        "rustObj": "rust_sci_fifo_reset_loopback.obj",
+        "harnessObj": "sci_fifo_reset_loopback_test.obj",
+        "firmwareOut": "sci_fifo_reset_loopback_mir.out",
+        "harnessSrc": "platform\\firmware\\sci_fifo_reset_loopback_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "sci_fifo_reset_loopback_ram.out",
+        "ramMap": "sci_fifo_reset_loopback_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-sci_fifo_reset_loopback.ps1",
+      "legacyVerify": "verify-mir-sci_fifo_reset_loopback.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "sci_fifo_rx": {
+      "key": "sci_fifo_rx",
+      "build": {
+        "outputDir": "build\\mir-gpio0-sci_fifo_rx",
+        "mirFile": "sci_fifo_rx.mir.txt",
+        "asmFile": "sci_fifo_rx.asm",
+        "rustObj": "rust_sci_fifo_rx.obj",
+        "harnessObj": "sci_fifo_rx_test.obj",
+        "firmwareOut": "sci_fifo_rx_mir.out",
+        "harnessSrc": "platform\\firmware\\sci_fifo_rx_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "sci_fifo_rx_ram.out",
+        "ramMap": "sci_fifo_rx_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-sci_fifo_rx.ps1",
+      "legacyVerify": "verify-mir-sci_fifo_rx.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "sci_reg_rw": {
+      "key": "sci_reg_rw",
+      "build": {
+        "outputDir": "build\\mir-gpio0-sci_reg_rw",
+        "mirFile": "sci_reg_rw.mir.txt",
+        "asmFile": "sci_reg_rw.asm",
+        "rustObj": "rust_sci_reg_rw.obj",
+        "harnessObj": "sci_reg_rw_test.obj",
+        "firmwareOut": "sci_reg_rw_mir.out",
+        "harnessSrc": "platform\\firmware\\sci_reg_rw_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-sci_reg_rw.js",
+        "passMarker": "sci_reg_rw_TARGET_TEST=PASS",
+        "ramOut": "sci_reg_rw_ram.out",
+        "ramMap": "sci_reg_rw_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-sci_reg_rw.ps1",
+      "legacyVerify": "verify-mir-sci_reg_rw.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "sci_rxrdy_clear": {
+      "key": "sci_rxrdy_clear",
+      "build": {
+        "outputDir": "build\\mir-gpio0-sci_rxrdy_clear",
+        "mirFile": "sci_rxrdy_clear.mir.txt",
+        "asmFile": "sci_rxrdy_clear.asm",
+        "rustObj": "rust_sci_rxrdy_clear.obj",
+        "harnessObj": "sci_rxrdy_clear_test.obj",
+        "firmwareOut": "sci_rxrdy_clear_mir.out",
+        "harnessSrc": "platform\\firmware\\sci_rxrdy_clear_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "sci_rxrdy_clear_ram.out",
+        "ramMap": "sci_rxrdy_clear_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-sci_rxrdy_clear.ps1",
+      "legacyVerify": "verify-mir-sci_rxrdy_clear.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "sci_sciccr_charlen": {
+      "key": "sci_sciccr_charlen",
+      "build": {
+        "outputDir": "build\\mir-gpio0-sci_sciccr_charlen",
+        "mirFile": "sci_sciccr_charlen.mir.txt",
+        "asmFile": "sci_sciccr_charlen.asm",
+        "rustObj": "rust_sci_sciccr_charlen.obj",
+        "harnessObj": "sci_sciccr_charlen_test.obj",
+        "firmwareOut": "sci_sciccr_charlen_mir.out",
+        "harnessSrc": "platform\\firmware\\sci_sciccr_charlen_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "sci_sciccr_charlen_ram.out",
+        "ramMap": "sci_sciccr_charlen_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-sci_sciccr_charlen.ps1",
+      "legacyVerify": "verify-mir-sci_sciccr_charlen.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "sci_stop2_parity": {
+      "key": "sci_stop2_parity",
+      "build": {
+        "outputDir": "build\\mir-gpio0-sci_stop2_parity",
+        "mirFile": "sci_stop2_parity.mir.txt",
+        "asmFile": "sci_stop2_parity.asm",
+        "rustObj": "rust_sci_stop2_parity.obj",
+        "harnessObj": "sci_stop2_parity_test.obj",
+        "firmwareOut": "sci_stop2_parity_mir.out",
+        "harnessSrc": "platform\\firmware\\sci_stop2_parity_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "sci_stop2_parity_ram.out",
+        "ramMap": "sci_stop2_parity_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-sci_stop2_parity.ps1",
+      "legacyVerify": "verify-mir-sci_stop2_parity.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "sci_txrdy_int": {
+      "key": "sci_txrdy_int",
+      "build": {
+        "outputDir": "build\\mir-gpio0-sci_txrdy_int",
+        "mirFile": "sci_txrdy_int.mir.txt",
+        "asmFile": "sci_txrdy_int.asm",
+        "rustObj": "rust_sci_txrdy_int.obj",
+        "harnessObj": "sci_txrdy_int_test.obj",
+        "firmwareOut": "sci_txrdy_int_mir.out",
+        "harnessSrc": "platform\\firmware\\sci_txrdy_int_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "sci_txrdy_int_ram.out",
+        "ramMap": "sci_txrdy_int_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-sci_txrdy_int.ps1",
+      "legacyVerify": "verify-mir-sci_txrdy_int.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "spi_charlen": {
+      "key": "spi_charlen",
+      "build": {
+        "outputDir": "build\\mir-gpio0-spi_charlen",
+        "mirFile": "spi_charlen.mir.txt",
+        "asmFile": "spi_charlen.asm",
+        "rustObj": "rust_spi_charlen.obj",
+        "harnessObj": "spi_charlen_test.obj",
+        "firmwareOut": "spi_charlen_mir.out",
+        "harnessSrc": "platform\\firmware\\spi_charlen_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "spi_charlen_ram.out",
+        "ramMap": "spi_charlen_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-spi_charlen.ps1",
+      "legacyVerify": "verify-mir-spi_charlen.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "spi_fifo_level_boundary": {
+      "key": "spi_fifo_level_boundary",
+      "build": {
+        "outputDir": "build\\mir-gpio0-spi_fifo_level_boundary",
+        "mirFile": "spi_fifo_level_boundary.mir.txt",
+        "asmFile": "spi_fifo_level_boundary.asm",
+        "rustObj": "rust_spi_fifo_level_boundary.obj",
+        "harnessObj": "spi_fifo_level_boundary_test.obj",
+        "firmwareOut": "spi_fifo_level_boundary_mir.out",
+        "harnessSrc": "platform\\firmware\\spi_fifo_level_boundary_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "spi_fifo_level_boundary_ram.out",
+        "ramMap": "spi_fifo_level_boundary_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-spi_fifo_level_boundary.ps1",
+      "legacyVerify": "verify-mir-spi_fifo_level_boundary.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "spi_fifo_rx": {
+      "key": "spi_fifo_rx",
+      "build": {
+        "outputDir": "build\\mir-gpio0-spi_fifo_rx",
+        "mirFile": "spi_fifo_rx.mir.txt",
+        "asmFile": "spi_fifo_rx.asm",
+        "rustObj": "rust_spi_fifo_rx.obj",
+        "harnessObj": "spi_fifo_rx_test.obj",
+        "firmwareOut": "spi_fifo_rx_mir.out",
+        "harnessSrc": "platform\\firmware\\spi_fifo_rx_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "spi_fifo_rx_ram.out",
+        "ramMap": "spi_fifo_rx_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-spi_fifo_rx.ps1",
+      "legacyVerify": "verify-mir-spi_fifo_rx.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "spi_fifo_tx": {
+      "key": "spi_fifo_tx",
+      "build": {
+        "outputDir": "build\\mir-gpio0-spi_fifo_tx",
+        "mirFile": "spi_fifo_tx.mir.txt",
+        "asmFile": "spi_fifo_tx.asm",
+        "rustObj": "rust_spi_fifo_tx.obj",
+        "harnessObj": "spi_fifo_tx_test.obj",
+        "firmwareOut": "spi_fifo_tx_mir.out",
+        "harnessSrc": "platform\\firmware\\spi_fifo_tx_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "spi_fifo_tx_ram.out",
+        "ramMap": "spi_fifo_tx_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-spi_fifo_tx.ps1",
+      "legacyVerify": "verify-mir-spi_fifo_tx.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "spi_loopback": {
+      "key": "spi_loopback",
+      "build": {
+        "outputDir": "build\\mir-gpio0-spi_loopback",
+        "mirFile": "spi_loopback.mir.txt",
+        "asmFile": "spi_loopback.asm",
+        "rustObj": "rust_spi_loopback.obj",
+        "harnessObj": "spi_loopback_test.obj",
+        "firmwareOut": "spi_loopback_mir.out",
+        "harnessSrc": "platform\\firmware\\spi_loopback_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-spi_loopback.js",
+        "passMarker": "spi_loopback_TARGET_TEST=PASS",
+        "ramOut": "spi_loopback_ram.out",
+        "ramMap": "spi_loopback_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-spi_loopback.ps1",
+      "legacyVerify": "verify-mir-spi_loopback.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "spi_loopback_mode_matrix": {
+      "key": "spi_loopback_mode_matrix",
+      "build": {
+        "outputDir": "build\\mir-gpio0-spi_loopback_mode_matrix",
+        "mirFile": "spi_loopback_mode_matrix.mir.txt",
+        "asmFile": "spi_loopback_mode_matrix.asm",
+        "rustObj": "rust_spi_loopback_mode_matrix.obj",
+        "harnessObj": "spi_loopback_mode_matrix_test.obj",
+        "firmwareOut": "spi_loopback_mode_matrix_mir.out",
+        "harnessSrc": "platform\\firmware\\spi_loopback_mode_matrix_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "spi_loopback_mode_matrix_ram.out",
+        "ramMap": "spi_loopback_mode_matrix_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-spi_loopback_mode_matrix.ps1",
+      "legacyVerify": "verify-mir-spi_loopback_mode_matrix.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "spi_multiple_frame_loopback": {
+      "key": "spi_multiple_frame_loopback",
+      "build": {
+        "outputDir": "build\\mir-gpio0-spi_multiple_frame_loopback",
+        "mirFile": "spi_multiple_frame_loopback.mir.txt",
+        "asmFile": "spi_multiple_frame_loopback.asm",
+        "rustObj": "rust_spi_multiple_frame_loopback.obj",
+        "harnessObj": "spi_multiple_frame_loopback_test.obj",
+        "firmwareOut": "spi_multiple_frame_loopback_mir.out",
+        "harnessSrc": "platform\\firmware\\spi_multiple_frame_loopback_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "spi_multiple_frame_loopback_ram.out",
+        "ramMap": "spi_multiple_frame_loopback_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-spi_multiple_frame_loopback.ps1",
+      "legacyVerify": "verify-mir-spi_multiple_frame_loopback.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "spi_nonfifo_intflag_irq": {
+      "key": "spi_nonfifo_intflag_irq",
+      "build": {
+        "outputDir": "build\\mir-gpio0-spi_nonfifo_intflag_irq",
+        "mirFile": "spi_nonfifo_intflag_irq.mir.txt",
+        "asmFile": "spi_nonfifo_intflag_irq.asm",
+        "rustObj": "rust_spi_nonfifo_intflag_irq.obj",
+        "harnessObj": "spi_nonfifo_intflag_irq_test.obj",
+        "firmwareOut": "spi_nonfifo_intflag_irq_mir.out",
+        "harnessSrc": "platform\\firmware\\spi_nonfifo_intflag_irq_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "spi_nonfifo_intflag_irq_ram.out",
+        "ramMap": "spi_nonfifo_intflag_irq_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-spi_nonfifo_intflag_irq.ps1",
+      "legacyVerify": "verify-mir-spi_nonfifo_intflag_irq.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "spi_reg_rw": {
+      "key": "spi_reg_rw",
+      "build": {
+        "outputDir": "build\\mir-gpio0-spi_reg_rw",
+        "mirFile": "spi_reg_rw.mir.txt",
+        "asmFile": "spi_reg_rw.asm",
+        "rustObj": "rust_spi_reg_rw.obj",
+        "harnessObj": "spi_reg_rw_test.obj",
+        "firmwareOut": "spi_reg_rw_mir.out",
+        "harnessSrc": "platform\\firmware\\spi_reg_rw_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-spi_reg_rw.js",
+        "passMarker": "spi_reg_rw_TARGET_TEST=PASS",
+        "ramOut": "spi_reg_rw_ram.out",
+        "ramMap": "spi_reg_rw_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-spi_reg_rw.ps1",
+      "legacyVerify": "verify-mir-spi_reg_rw.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "spi_triwire": {
+      "key": "spi_triwire",
+      "build": {
+        "outputDir": "build\\mir-gpio0-spi_triwire",
+        "mirFile": "spi_triwire.mir.txt",
+        "asmFile": "spi_triwire.asm",
+        "rustObj": "rust_spi_triwire.obj",
+        "harnessObj": "spi_triwire_test.obj",
+        "firmwareOut": "spi_triwire_mir.out",
+        "harnessSrc": "platform\\firmware\\spi_triwire_test.c",
+        "onlyExport": "rust_spi_triwire_setup"
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "spi_triwire_ram.out",
+        "ramMap": "spi_triwire_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-spi_triwire.ps1",
+      "legacyVerify": "verify-mir-spi_triwire.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "sys_divsel": {
+      "key": "sys_divsel",
+      "build": {
+        "outputDir": "build\\mir-gpio0-sys_divsel",
+        "mirFile": "sys_divsel.mir.txt",
+        "asmFile": "sys_divsel.asm",
+        "rustObj": "rust_sys_divsel.obj",
+        "harnessObj": "sys_divsel_test.obj",
+        "firmwareOut": "sys_divsel_mir.out",
+        "harnessSrc": "platform\\firmware\\sys_divsel_test.c",
+        "onlyExport": "rust_sys_divsel_setup"
+      },
+      "verify": {},
+      "custom": true,
+      "legacyBuild": "build-mir-sys_divsel.ps1",
+      "legacyVerify": null,
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "sys_intosc2_pll": {
+      "key": "sys_intosc2_pll",
+      "build": {
+        "outputDir": "build\\mir-gpio0-sys_intosc2_pll",
+        "mirFile": "sys_intosc2_pll.mir.txt",
+        "asmFile": "sys_intosc2_pll.asm",
+        "rustObj": "rust_sys_intosc2_pll.obj",
+        "harnessObj": "sys_intosc2_pll_test.obj",
+        "firmwareOut": "sys_intosc2_pll_mir.out",
+        "harnessSrc": "platform\\firmware\\sys_intosc2_pll_test.c",
+        "onlyExport": "rust_sys_intosc2_pll_setup"
+      },
+      "verify": {},
+      "custom": true,
+      "legacyBuild": "build-mir-sys_intosc2_pll.ps1",
+      "legacyVerify": null,
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "sys_lpm_idle_int": {
+      "key": "sys_lpm_idle_int",
+      "build": {
+        "outputDir": "build\\mir-gpio0-sys_lpm_idle_int",
+        "mirFile": "sys_lpm_idle_int.mir.txt",
+        "asmFile": "sys_lpm_idle_int.asm",
+        "rustObj": "rust_sys_lpm_idle_int.obj",
+        "harnessObj": "sys_lpm_idle_int_test.obj",
+        "firmwareOut": "sys_lpm_idle_int_mir.out",
+        "harnessSrc": "platform\\firmware\\sys_lpm_idle_int_test.c",
+        "onlyExport": "rust_sys_lpm_idle_int_setup"
+      },
+      "verify": {},
+      "custom": true,
+      "legacyBuild": "build-mir-sys_lpm_idle_int.ps1",
+      "legacyVerify": null,
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "sys_lpm_idle_wdg": {
+      "key": "sys_lpm_idle_wdg",
+      "build": {
+        "outputDir": "build\\mir-gpio0-sys_lpm_idle_wdg",
+        "mirFile": "sys_lpm_idle_wdg.mir.txt",
+        "asmFile": "sys_lpm_idle_wdg.asm",
+        "rustObj": "rust_sys_lpm_idle_wdg.obj",
+        "harnessObj": "sys_lpm_idle_wdg_test.obj",
+        "firmwareOut": "sys_lpm_idle_wdg_mir.out",
+        "harnessSrc": "platform\\firmware\\sys_lpm_idle_wdg_test.c",
+        "onlyExport": "rust_sys_lpm_idle_wdg_setup"
+      },
+      "verify": {},
+      "custom": true,
+      "legacyBuild": "build-mir-sys_lpm_idle_wdg.ps1",
+      "legacyVerify": null,
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "sys_lpm_reg": {
+      "key": "sys_lpm_reg",
+      "build": {
+        "outputDir": "build\\mir-gpio0-sys_lpm_reg",
+        "mirFile": "sys_lpm_reg.mir.txt",
+        "asmFile": "sys_lpm_reg.asm",
+        "rustObj": "rust_sys_lpm_reg.obj",
+        "harnessObj": "sys_lpm_reg_test.obj",
+        "firmwareOut": "sys_lpm_reg_mir.out",
+        "harnessSrc": "platform\\firmware\\sys_lpm_reg_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "sys_lpm_reg_ram.out",
+        "ramMap": "sys_lpm_reg_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-sys_lpm_reg.ps1",
+      "legacyVerify": "verify-mir-sys_lpm_reg.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "sys_osc1_osc2": {
+      "key": "sys_osc1_osc2",
+      "build": {
+        "outputDir": "build\\mir-gpio0-sys_osc1_osc2",
+        "mirFile": "sys_osc1_osc2.mir.txt",
+        "asmFile": "sys_osc1_osc2.asm",
+        "rustObj": "rust_sys_osc1_osc2.obj",
+        "harnessObj": "sys_osc1_osc2_test.obj",
+        "firmwareOut": "sys_osc1_osc2_mir.out",
+        "harnessSrc": "platform\\firmware\\sys_osc1_osc2_test.c",
+        "onlyExport": "rust_sys_osc1_osc2_setup"
+      },
+      "verify": {},
+      "custom": true,
+      "legacyBuild": "build-mir-sys_osc1_osc2.ps1",
+      "legacyVerify": null,
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "sys_pll_bypass": {
+      "key": "sys_pll_bypass",
+      "build": {
+        "outputDir": "build\\mir-gpio0-sys_pll_bypass",
+        "mirFile": "sys_pll_bypass.mir.txt",
+        "asmFile": "sys_pll_bypass.asm",
+        "rustObj": "rust_sys_pll_bypass.obj",
+        "harnessObj": "sys_pll_bypass_test.obj",
+        "firmwareOut": "sys_pll_bypass_mir.out",
+        "harnessSrc": "platform\\firmware\\sys_pll_bypass_test.c",
+        "onlyExport": "rust_sys_pll_bypass_setup"
+      },
+      "verify": {},
+      "custom": true,
+      "legacyBuild": "build-mir-sys_pll_bypass.ps1",
+      "legacyVerify": null,
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "sys_pll_lock": {
+      "key": "sys_pll_lock",
+      "build": {
+        "outputDir": "build\\mir-gpio0-sys_pll_lock",
+        "mirFile": "sys_pll_lock.mir.txt",
+        "asmFile": "sys_pll_lock.asm",
+        "rustObj": "rust_sys_pll_lock.obj",
+        "harnessObj": "sys_pll_lock_test.obj",
+        "firmwareOut": "sys_pll_lock_mir.out",
+        "harnessSrc": "platform\\firmware\\sys_pll_lock_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "sys_pll_lock_ram.out",
+        "ramMap": "sys_pll_lock_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-sys_pll_lock.ps1",
+      "legacyVerify": "verify-mir-sys_pll_lock.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "sys_reset_release": {
+      "key": "sys_reset_release",
+      "build": {
+        "outputDir": "build\\mir-gpio0-sys_reset_release",
+        "mirFile": "sys_reset_release.mir.txt",
+        "asmFile": "sys_reset_release.asm",
+        "rustObj": "rust_sys_reset_release.obj",
+        "harnessObj": "sys_reset_release_test.obj",
+        "firmwareOut": "sys_reset_release_mir.out",
+        "harnessSrc": "platform\\firmware\\sys_reset_release_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "sys_reset_release_ram.out",
+        "ramMap": "sys_reset_release_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-sys_reset_release.ps1",
+      "legacyVerify": "verify-mir-sys_reset_release.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "sys_watchdog_timeout": {
+      "key": "sys_watchdog_timeout",
+      "build": {
+        "outputDir": "build\\mir-gpio0-sys_watchdog_timeout",
+        "mirFile": "sys_watchdog_timeout.mir.txt",
+        "asmFile": "sys_watchdog_timeout.asm",
+        "rustObj": "rust_sys_watchdog_timeout.obj",
+        "harnessObj": "sys_watchdog_timeout_test.obj",
+        "firmwareOut": "sys_watchdog_timeout_mir.out",
+        "harnessSrc": "platform\\firmware\\sys_watchdog_timeout_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "sys_watchdog_timeout_ram.out",
+        "ramMap": "sys_watchdog_timeout_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-sys_watchdog_timeout.ps1",
+      "legacyVerify": "verify-mir-sys_watchdog_timeout.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "sys_wdg_timeout": {
+      "key": "sys_wdg_timeout",
+      "build": {
+        "outputDir": "build\\mir-gpio0-sys_wdg_timeout",
+        "mirFile": "sys_wdg_timeout.mir.txt",
+        "asmFile": "sys_wdg_timeout.asm",
+        "rustObj": "rust_sys_wdg_timeout.obj",
+        "harnessObj": "sys_wdg_timeout_test.obj",
+        "firmwareOut": "sys_wdg_timeout_mir.out",
+        "harnessSrc": "platform\\firmware\\sys_wdg_timeout_test.c",
+        "onlyExport": "rust_sys_wdg_timeout_setup"
+      },
+      "verify": {},
+      "custom": true,
+      "legacyBuild": "build-mir-sys_wdg_timeout.ps1",
+      "legacyVerify": null,
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "sys_wdg_wdchk": {
+      "key": "sys_wdg_wdchk",
+      "build": {
+        "outputDir": "build\\mir-gpio0-sys_wdg_wdchk",
+        "mirFile": "sys_wdg_wdchk.mir.txt",
+        "asmFile": "sys_wdg_wdchk.asm",
+        "rustObj": "rust_sys_wdg_wdchk.obj",
+        "harnessObj": "sys_wdg_wdchk_test.obj",
+        "firmwareOut": "sys_wdg_wdchk_mir.out",
+        "harnessSrc": "platform\\firmware\\sys_wdg_wdchk_test.c",
+        "onlyExport": "rust_sys_wdg_wdchk_setup"
+      },
+      "verify": {},
+      "custom": true,
+      "legacyBuild": "build-mir-sys_wdg_wdchk.ps1",
+      "legacyVerify": null,
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "sys_xclkout_div": {
+      "key": "sys_xclkout_div",
+      "build": {
+        "outputDir": "build\\mir-gpio0-sys_xclkout_div",
+        "mirFile": "sys_xclkout_div.mir.txt",
+        "asmFile": "sys_xclkout_div.asm",
+        "rustObj": "rust_sys_xclkout_div.obj",
+        "harnessObj": "sys_xclkout_div_test.obj",
+        "firmwareOut": "sys_xclkout_div_mir.out",
+        "harnessSrc": "platform\\firmware\\sys_xclkout_div_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "sys_xclkout_div_ram.out",
+        "ramMap": "sys_xclkout_div_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-sys_xclkout_div.ps1",
+      "legacyVerify": "verify-mir-sys_xclkout_div.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "sys_xrs_runtime": {
+      "key": "sys_xrs_runtime",
+      "build": {
+        "outputDir": "build\\mir-gpio0-sys_xrs_runtime",
+        "mirFile": "sys_xrs_runtime.mir.txt",
+        "asmFile": "sys_xrs_runtime.asm",
+        "rustObj": "rust_sys_xrs_runtime.obj",
+        "harnessObj": "sys_xrs_runtime_test.obj",
+        "firmwareOut": "sys_xrs_runtime_mir.out",
+        "harnessSrc": "platform\\firmware\\sys_xrs_runtime_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "sys_xrs_runtime_ram.out",
+        "ramMap": "sys_xrs_runtime_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-sys_xrs_runtime.ps1",
+      "legacyVerify": "verify-mir-sys_xrs_runtime.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "watchdog_disable": {
+      "key": "watchdog_disable",
+      "build": {
+        "outputDir": "build\\mir-gpio0-watchdog_disable",
+        "mirFile": "watchdog_disable.mir.txt",
+        "asmFile": "watchdog_disable.asm",
+        "rustObj": "rust_watchdog_disable.obj",
+        "harnessObj": "watchdog_disable_test.obj",
+        "firmwareOut": "watchdog_disable_mir.out",
+        "harnessSrc": "platform\\firmware\\watchdog_disable_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "watchdog_disable_ram.out",
+        "ramMap": "watchdog_disable_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-watchdog_disable.ps1",
+      "legacyVerify": "verify-mir-watchdog_disable.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "watchdog_intr_mode": {
+      "key": "watchdog_intr_mode",
+      "build": {
+        "outputDir": "build\\mir-gpio0-watchdog_intr_mode",
+        "mirFile": "watchdog_intr_mode.mir.txt",
+        "asmFile": "watchdog_intr_mode.asm",
+        "rustObj": "rust_watchdog_intr_mode.obj",
+        "harnessObj": "watchdog_intr_mode_test.obj",
+        "firmwareOut": "watchdog_intr_mode_mir.out",
+        "harnessSrc": "platform\\firmware\\watchdog_intr_mode_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "watchdog_intr_mode_ram.out",
+        "ramMap": "watchdog_intr_mode_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-watchdog_intr_mode.ps1",
+      "legacyVerify": "verify-mir-watchdog_intr_mode.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "watchdog_key_sequence": {
+      "key": "watchdog_key_sequence",
+      "build": {
+        "outputDir": "build\\mir-gpio0-watchdog_key_sequence",
+        "mirFile": "watchdog_key_sequence.mir.txt",
+        "asmFile": "watchdog_key_sequence.asm",
+        "rustObj": "rust_watchdog_key_sequence.obj",
+        "harnessObj": "watchdog_key_sequence_test.obj",
+        "firmwareOut": "watchdog_key_sequence_mir.out",
+        "harnessSrc": "platform\\firmware\\watchdog_key_sequence_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "watchdog_key_sequence_ram.out",
+        "ramMap": "watchdog_key_sequence_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-watchdog_key_sequence.ps1",
+      "legacyVerify": "verify-mir-watchdog_key_sequence.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "watchdog_prescaler": {
+      "key": "watchdog_prescaler",
+      "build": {
+        "outputDir": "build\\mir-gpio0-watchdog_prescaler",
+        "mirFile": "watchdog_prescaler.mir.txt",
+        "asmFile": "watchdog_prescaler.asm",
+        "rustObj": "rust_watchdog_prescaler.obj",
+        "harnessObj": "watchdog_prescaler_test.obj",
+        "firmwareOut": "watchdog_prescaler_mir.out",
+        "harnessSrc": "platform\\firmware\\watchdog_prescaler_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "watchdog_prescaler_ram.out",
+        "ramMap": "watchdog_prescaler_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-watchdog_prescaler.ps1",
+      "legacyVerify": "verify-mir-watchdog_prescaler.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "watchdog_wdflag": {
+      "key": "watchdog_wdflag",
+      "build": {
+        "outputDir": "build\\mir-gpio0-watchdog_wdflag",
+        "mirFile": "watchdog_wdflag.mir.txt",
+        "asmFile": "watchdog_wdflag.asm",
+        "rustObj": "rust_watchdog_wdflag.obj",
+        "harnessObj": "watchdog_wdflag_test.obj",
+        "firmwareOut": "watchdog_wdflag_mir.out",
+        "harnessSrc": "platform\\firmware\\watchdog_wdflag_test.c",
+        "onlyExport": null
+      },
+      "verify": {
+        "js": "verify-called.js",
+        "passMarker": "TARGET_TEST=PASS",
+        "ramOut": "watchdog_wdflag_ram.out",
+        "ramMap": "watchdog_wdflag_ram.map"
+      },
+      "custom": false,
+      "legacyBuild": "build-mir-watchdog_wdflag.ps1",
+      "legacyVerify": "verify-mir-watchdog_wdflag.ps1",
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    },
+    "wdg_reset_mode": {
+      "key": "wdg_reset_mode",
+      "build": {
+        "outputDir": "build\\mir-gpio0-wdg_reset_mode",
+        "mirFile": "wdg_reset_mode.mir.txt",
+        "asmFile": "wdg_reset_mode.asm",
+        "rustObj": "rust_wdg_reset_mode.obj",
+        "harnessObj": "wdg_reset_mode_test.obj",
+        "firmwareOut": "wdg_reset_mode_mir.out",
+        "harnessSrc": "platform\\firmware\\wdg_reset_mode_test.c",
+        "onlyExport": "rust_wdg_reset_mode_setup"
+      },
+      "verify": {},
+      "custom": true,
+      "legacyBuild": "build-mir-wdg_reset_mode.ps1",
+      "legacyVerify": null,
+      "buildCompilerCalls": 7,
+      "buildMissing": [],
+      "verifyMissing": []
+    }
+  }
+}

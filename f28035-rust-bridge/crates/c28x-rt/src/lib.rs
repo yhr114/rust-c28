@@ -1,223 +1,282 @@
-//! # c28x-rt
+//! F28035 B-1 RAM runtime: TI startup, PIE vectors and compiler interrupt ABI.
 //!
-//! Minimal runtime / startup for TI C2000 (C28x) microcontrollers.
-//!
-//! Modeled after [`msp430-rt`](https://github.com/rust-embedded/msp430-rt).
-//!
-//! This crate provides:
-//! - The `Reset` handler (stack setup, `PreInit`, PIE table copy, `.bss`
-//!   zero, `.data` copy, call `main`)
-//! - The CPU interrupt vector table (`.vector_table`) and PIE table
-//! - A default interrupt handler
-//! - The `#[entry]` macro to declare the application entry point
-//! - The `#[pre_init]` macro to run code before RAM is initialized
-//! - The `#[interrupt]` macro to declare interrupt handlers (transitional;
-//!   see [Interrupts](#interrupts))
-//!
-//! ## `memory.x`
-//!
-//! The user (or the PAC crate) supplies a `memory.x` linker script with
-//! at least these regions:
-//!
-//! ```text
-//! MEMORY
-//! {
-//!     RAML2   : ORIGIN = 0x008C00, LENGTH = 0x000400   /* .bss / .data */
-//!     FLASHA  : ORIGIN = 0x3F6000, LENGTH = 0x001F80   /* .text / .rodata */
-//!     RESET   : ORIGIN = 0x3FFFC0, LENGTH = 0x000002   /* reset vector */
-//!     VECTORS : ORIGIN = 0x3FFFC2, LENGTH = 0x00003E   /* CPU vectors */
-//! }
-//! ```
-//!
-//! The stack top is computed as `ORIGIN(RAMM0) + LENGTH(RAMM0)`; the heap
-//! starts at `_edata` (right after both `.bss` and `.data`).
-//!
-//! ## Example
-//!
-//! ```ignore
-//! #![no_std]
-//! #![no_main]
-//!
-//! use c28x_rt::{entry, pre_init};
-//!
-//! #[pre_init]
-//! fn early_init() {
-//!     /* e.g. disable watchdog — runs before .bss/.data */
-//! }
-//!
-//! #[entry]
-//! fn main() -> ! {
-//!     loop {
-//!         // application code
-//!     }
-//! }
-//!
-//! #[panic_handler]
-//! fn panic(_: &core::panic::PanicInfo) -> ! {
-//!     loop {}
-//! }
-//! ```
-//!
-//! ## Symbols you will see in the output binary
-//!
-//! - `Reset` — assembly startup routine (defined in `asm.s`).
-//! - `__RESET_VECTOR` — pointer to `Reset`, placed at the reset address.
-//! - `__INTERRUPTS` — device interrupt table; weak-filled here, overridden
-//!   by the PAC crate when the `device` feature is on.
-//! - `PreInit` — weak alias to `PreInit_`; override with `#[pre_init]`.
-//! - `DefaultHandler` — weak alias to `DefaultHandler_`; the default loop
-//!   that catches unhandled interrupts.
-//! - `_sbss`, `_ebss`, `_sdata`, `_edata`, `_sidata`, `_sheap`,
-//!   `__stack_end` — boundaries exported by `link.x`.
-//!
-//! ## Interrupts
-//!
-//! The C28x has 32 CPU interrupt vectors, expanded through the PIE
-//! controller into 12 groups × 16 entries.  When the `device` feature is
-//! enabled (default), the PAC crate supplies `__INTERRUPTS` as a static
-//! array of function pointers placed in `.vector_table.interrupts`, and
-//! a `device.x` linker script with `PROVIDE(...)` weak aliases.
-//!
-//! ### Transitional status
-//!
-//! C28x has **no dedicated interrupt ABI** in rustc (unlike MSP430's
-//! `extern "msp430-interrupt"`).  Until that lands:
-//!
-//! - `#[interrupt]` expands to a plain `extern "C"` function.
-//! - C28x does **not** push registers on interrupt entry the way
-//!   Cortex-M does.  ISRs that clobber ACC/XAR/XT/T must save/restore
-//!   them in an assembly trampoline.
-//! - Handlers must return via `LRETR` (what `extern "C"` leaf functions
-//!   already emit).
-//!
-//! When `extern "c28x-interrupt"` is added to rustc, `#[interrupt]` will
-//! switch to it transparently.
-
+//! Applications use `#![no_std]`, `#![no_main]`, and
+//! `#![feature(abi_c28x_interrupt)]`, then `#[entry] fn boot() -> !` and
+//! `#[interrupt] fn TINT0()`. See docs/PATH_B.md in the main repository.
+//! Peripheral flags and PIE acknowledgements must be cleared by the handler.
+//! This RAM profile does not configure Flash boot or nested interrupts.
 #![no_std]
 #![deny(missing_docs)]
 
-/// Number of CPU interrupt vectors on C28x (reset + 32 IRQs).
-pub const NUM_VECTORS: usize = 32;
+use core::cell::UnsafeCell;
+#[cfg(not(target_arch = "c28x"))]
+use core::sync::atomic::{AtomicBool, Ordering};
 
-/// Default interrupt handler: infinite loop.
-#[no_mangle]
-unsafe extern "C" fn DefaultHandler_() -> ! {
-    loop {
-        /* Prevent the optimizer from removing this loop. */
-        #[allow(clippy::empty_loop)]
-        {}
-    }
-}
-
-/// Weak alias for DefaultHandler (overridable by user).
-#[no_mangle]
-pub unsafe extern "C" fn DefaultHandler() -> ! {
-    unsafe { DefaultHandler_() }
-}
-
-/// Pre-initialization hook (called before .bss/.data init).
-#[no_mangle]
-unsafe extern "C" fn PreInit_() {}
-
-/// Entry point attribute: marks the function that `Reset` calls.
-///
-/// This is a placeholder; a proper proc-macro would expand to
-/// `#[no_mangle] extern "C" fn main() -> !`.
-///
-/// The user writes:
-/// ```ignore
-/// #[entry]
-/// fn main() -> ! { loop {} }
-/// ```
-///
-/// Which expands to:
-/// ```ignore
-/// #[no_mangle]
-/// extern "C" fn main() -> ! { loop {} }
-/// ```
+/// Startup/interrupt attributes with checked signatures.
+#[cfg(feature = "macros")]
 pub use c28x_rt_macros::{entry, interrupt, pre_init};
+/// F28035 has 32 CPU/reserved slots plus 12 groups of 8 PIE slots.
+pub const NUM_VECTORS: usize = 128;
+/// Physical TI word address of the PIE vector RAM.
+pub const PIE_VECTOR_BASE: u32 = 0x0d00;
+/// Timer0 is PIE INT1.7: vector 38, at TI word address 0x0d4c.
+pub const TIMER0_VECTOR: usize = 38;
 
-/// Reset vector: points to the `Reset` handler in asm.s.
+#[cfg(target_arch = "c28x")]
+extern "C" {
+    fn c28x_rt_enable_interrupts();
+    fn c28x_rt_disable_interrupts();
+    fn c28x_rt_set_ier(mask: u16);
+    fn c28x_rt_enter_critical() -> u16;
+    fn c28x_rt_exit_critical(saved: u16);
+}
+/// Enable maskable CPU interrupts after vectors and peripheral state are ready.
 ///
-/// Placed at 0x3FFFC0 (RESET region).
+/// # Safety
+/// Every enabled interrupt must have a valid handler and synchronized shared data.
 #[cfg(target_arch = "c28x")]
-#[link_section = ".reset"]
-#[no_mangle]
-pub static __RESET_VECTOR: unsafe extern "C" fn() -> ! = Reset;
-
-#[cfg(target_arch = "c28x")]
-extern "C" {
-    fn Reset() -> !;
-}
-
-extern "C" {
-    static _sbss: u16;
-    static _ebss: u16;
-    static _sdata: u16;
-    static _edata: u16;
-    static _sidata: u16;
-    static __stack_end: u16;
-}
-
-/// Returns the start of the heap (right after .bss + .data).
 #[inline]
-pub fn heap_start() -> *mut u32 {
-    extern "C" {
-        static mut _sheap: u32;
+pub unsafe fn enable_interrupts() { unsafe { c28x_rt_enable_interrupts() } }
+/// Mask CPU interrupts. This does not return the previous state for nesting.
+///
+/// # Safety
+/// The caller must restore the appropriate interrupt state for its context.
+#[cfg(target_arch = "c28x")]
+#[inline]
+pub unsafe fn disable_interrupts() { unsafe { c28x_rt_disable_interrupts() } }
+/// Replace the CPU IER mask (bit 0 enables PIE group 1, bit 12 Timer1).
+///
+/// # Safety
+/// Update this with interrupts masked; all enabled vectors must be initialized.
+#[cfg(target_arch = "c28x")]
+pub unsafe fn set_cpu_interrupt_mask(mask: u16) { unsafe { c28x_rt_set_ier(mask) } }
+
+#[cfg(target_arch = "c28x")]
+struct InterruptGuard(u16);
+
+#[cfg(target_arch = "c28x")]
+impl Drop for InterruptGuard {
+    #[inline]
+    fn drop(&mut self) { unsafe { c28x_rt_exit_critical(self.0) } }
+}
+
+/// Runs `f` with maskable interrupts disabled on the single-core C28x target.
+///
+/// The previous INTM state is restored on return (or unwinding). Nested calls
+/// restore in stack order; the private guard cannot escape, be forgotten or be
+/// dropped out of order by safe application code. This does not mask NMI or
+/// synchronize DMA. On hosts the closure runs directly: this function alone
+/// provides no thread synchronization. [`SharedCell`] supplies its own host lock.
+#[inline]
+pub fn critical_section<R>(f: impl FnOnce() -> R) -> R {
+    #[cfg(target_arch = "c28x")]
+    let _interrupts = InterruptGuard(unsafe { c28x_rt_enter_critical() });
+    f()
+}
+
+/// A shared cell is already borrowed, either recursively or by another host thread.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SharedCellBorrowError;
+
+/// A cell whose value is shared between the main loop and interrupt handlers.
+///
+/// C28x accesses mask interrupts and check an exclusive borrow flag before
+/// forming a reference. Host accesses use an acquire/release atomic lock.
+/// Recursive borrowing and host contention return an error from [`Self::try_with`]
+/// or panic in [`Self::with`]; neither path spins or exposes a second reference.
+/// Do not use this cell from NMI or DMA, which INTM cannot exclude.
+///
+/// The protected reference cannot escape the callback:
+/// ```compile_fail
+/// let cell = c28x_rt::SharedCell::new(1u16);
+/// let escaped = cell.with(|value| value);
+/// *escaped = 2;
+/// ```
+/// A value that is not `Send` cannot be shared between threads:
+/// ```compile_fail
+/// use std::rc::Rc;
+/// fn require_sync<T: Sync>() {}
+/// require_sync::<c28x_rt::SharedCell<Rc<u16>>>();
+/// ```
+pub struct SharedCell<T> {
+    inner: UnsafeCell<T>,
+    #[cfg(target_arch = "c28x")]
+    // Volatile accesses preserve the C28x native 16-bit synchronization width;
+    // INTM, rather than volatile itself, excludes other maskable contexts.
+    borrowed: UnsafeCell<u16>,
+    #[cfg(not(target_arch = "c28x"))]
+    borrowed: AtomicBool,
+}
+
+// SAFETY: every reference is protected by an exclusive borrow. C28x check/set
+// and release execute with INTM set; hosts use an acquire/release atomic lock.
+// The borrow guard releases on unwind and cannot be manipulated by callers.
+// Moving access between contexts requires T: Send, just as for a mutex.
+unsafe impl<T: Send> Sync for SharedCell<T> {}
+
+struct BorrowGuard<'a, T>(&'a SharedCell<T>);
+
+impl<T> Drop for BorrowGuard<'_, T> {
+    fn drop(&mut self) {
+        #[cfg(target_arch = "c28x")]
+        unsafe { core::ptr::write_volatile(self.0.borrowed.get(), 0) };
+        #[cfg(not(target_arch = "c28x"))]
+        self.0.borrowed.store(false, Ordering::Release);
     }
-    &raw mut _sheap
 }
 
-/* Generic vector table (device feature disabled): all vectors -> DefaultHandler. */
-#[cfg(not(feature = "device"))]
-#[link_section = ".vector_table.interrupts"]
-#[no_mangle]
-pub static __INTERRUPTS: [unsafe extern "C" fn(); NUM_VECTORS] = [
-    DefaultHandler; NUM_VECTORS
-];
+impl<T> SharedCell<T> {
+    /// Creates a shared cell holding `value`.
+    pub const fn new(value: T) -> Self {
+        Self {
+            inner: UnsafeCell::new(value),
+            #[cfg(target_arch = "c28x")]
+            borrowed: UnsafeCell::new(0),
+            #[cfg(not(target_arch = "c28x"))]
+            borrowed: AtomicBool::new(false),
+        }
+    }
 
-/// PIE (Peripheral Interrupt Expansion) vector table in Flash.
-///
-/// The CPU vectors (in Boot ROM) point to entries in this table.
-/// The startup code copies this to PIE RAM at 0x0D00.
-///
-/// Each entry is a 22-bit handler address.  Group 1 starts at index 0,
-/// Group 2 at index 16, etc.  The first 16 entries are reserved for
-/// CPU-specific interrupts (RESET, NMI, etc.).
-#[repr(C)]
-#[repr(align(2))]
-#[allow(missing_docs)]
-pub struct PieTable {
-    pub reserved: [unsafe extern "C" fn() -> !; 16],
-    pub group1: [unsafe extern "C" fn() -> !; 16], // ADC, TIMER0, ...
-    pub group2: [unsafe extern "C" fn() -> !; 16],
-    pub group3: [unsafe extern "C" fn() -> !; 16],
-    pub group4: [unsafe extern "C" fn() -> !; 16],
-    pub group5: [unsafe extern "C" fn() -> !; 16],
-    pub group6: [unsafe extern "C" fn() -> !; 16],
-    pub group7: [unsafe extern "C" fn() -> !; 16],
-    pub group8: [unsafe extern "C" fn() -> !; 16],
-    pub group9: [unsafe extern "C" fn() -> !; 16],
-    pub group10: [unsafe extern "C" fn() -> !; 16],
-    pub group11: [unsafe extern "C" fn() -> !; 16],
-    pub group12: [unsafe extern "C" fn() -> !; 16],
+    /// Tries one exclusive access, without waiting or calling `f` on conflict.
+    ///
+    /// C28x keeps maskable interrupts disabled for the whole callback. Hosts
+    /// return `Err` on contention; callers may retry after doing other work.
+    #[inline]
+    pub fn try_with<R>(&self, f: impl FnOnce(&mut T) -> R) -> Result<R, SharedCellBorrowError> {
+        critical_section(|| {
+            #[cfg(target_arch = "c28x")]
+            let acquired = unsafe { core::ptr::read_volatile(self.borrowed.get()) } == 0;
+            #[cfg(not(target_arch = "c28x"))]
+            let acquired = self.borrowed
+                .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed).is_ok();
+            if !acquired {
+                return Err(SharedCellBorrowError);
+            }
+            #[cfg(target_arch = "c28x")]
+            // SAFETY: INTM excludes maskable handlers; no reference to the
+            // protected value exists until this flag has been set.
+            unsafe { core::ptr::write_volatile(self.borrowed.get(), 1) };
+            let _borrow = BorrowGuard(self);
+            // SAFETY: only the successful borrower reaches this expression.
+            // The private guard outlives the callback reference and is dropped
+            // before the enclosing critical section restores interrupts.
+            Ok(f(unsafe { &mut *self.inner.get() }))
+        })
+    }
+
+    /// Runs `f` exclusively. Panics on recursive borrowing or host contention.
+    /// Use [`Self::try_with`] when a conflict should be recoverable. A panic
+    /// unwinds and releases the borrow on hosts; panic=abort firmware stops.
+    #[inline]
+    pub fn with<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
+        match self.try_with(f) {
+            Ok(value) => value,
+            Err(_) => panic!("SharedCell is already borrowed"),
+        }
+    }
+
+    /// Replaces the protected value, returning the previous one.
+    #[inline]
+    pub fn replace(&self, value: T) -> T {
+        self.with(|slot| core::mem::replace(slot, value))
+    }
 }
 
-/// Default PIE table: all entries point to DefaultHandler.
-#[link_section = ".pie_table"]
-#[no_mangle]
-pub static _pie_table: PieTable = PieTable {
-    reserved: [DefaultHandler_; 16],
-    group1: [DefaultHandler_; 16],
-    group2: [DefaultHandler_; 16],
-    group3: [DefaultHandler_; 16],
-    group4: [DefaultHandler_; 16],
-    group5: [DefaultHandler_; 16],
-    group6: [DefaultHandler_; 16],
-    group7: [DefaultHandler_; 16],
-    group8: [DefaultHandler_; 16],
-    group9: [DefaultHandler_; 16],
-    group10: [DefaultHandler_; 16],
-    group11: [DefaultHandler_; 16],
-    group12: [DefaultHandler_; 16],
-};
+#[cfg(test)]
+mod tests {
+    extern crate std;
+    use super::{critical_section, SharedCell, SharedCellBorrowError};
+    use self::std::{panic::{catch_unwind, AssertUnwindSafe}, sync::{Arc, Barrier}, thread};
+
+    #[test]
+    fn shared_cell_serialises_updates() {
+        static CELL: SharedCell<u32> = SharedCell::new(0);
+        CELL.with(|v| *v += 1);
+        CELL.with(|v| *v += 1);
+        assert_eq!(CELL.with(|v| *v), 2);
+        assert_eq!(CELL.replace(10), 2);
+        assert_eq!(CELL.with(|v| *v), 10);
+    }
+
+    #[test]
+    fn recursive_borrow_is_rejected_before_callback() {
+        let cell = SharedCell::new(7u32);
+        cell.with(|first| {
+            assert_eq!(cell.try_with(|_| panic!("second reference created")), Err(SharedCellBorrowError));
+            *first += 1;
+            assert_eq!(cell.try_with(|_| ()), Err(SharedCellBorrowError));
+        });
+        assert_eq!(cell.with(|value| *value), 8);
+    }
+
+    #[test]
+    fn recursive_replace_panics_and_releases_borrow() {
+        let cell = SharedCell::new(3u16);
+        assert!(catch_unwind(AssertUnwindSafe(|| cell.with(|_| cell.replace(9)))).is_err());
+        assert_eq!(cell.replace(4), 3);
+    }
+
+    #[test]
+    fn callback_panic_releases_borrow_without_poisoning() {
+        let cell = SharedCell::new(0u16);
+        assert!(catch_unwind(AssertUnwindSafe(|| cell.with(|value| {
+            *value = 5;
+            panic!("callback failed");
+        }))).is_err());
+        assert_eq!(cell.try_with(|value| *value), Ok(5));
+    }
+
+    #[test]
+    fn different_cells_and_critical_sections_can_nest() {
+        let first = SharedCell::new(1u16);
+        let second = SharedCell::new(2u16);
+        critical_section(|| first.with(|a| critical_section(|| second.with(|b| *a += *b))));
+        assert_eq!(first.with(|value| *value), 3);
+    }
+
+    #[test]
+    fn concurrent_borrow_returns_busy_without_running_callback() {
+        let cell = Arc::new(SharedCell::new(0u32));
+        let entered = Arc::new(Barrier::new(2));
+        let release = Arc::new(Barrier::new(2));
+        let worker = {
+            let (cell, entered, release) = (cell.clone(), entered.clone(), release.clone());
+            thread::spawn(move || cell.with(|value| {
+                entered.wait();
+                release.wait();
+                *value = 42;
+            }))
+        };
+        entered.wait();
+        let result = cell.try_with(|_| panic!("concurrent reference created"));
+        release.wait();
+        worker.join().unwrap();
+        assert_eq!(result, Err(SharedCellBorrowError));
+        assert_eq!(cell.with(|value| *value), 42);
+    }
+
+    #[test]
+    fn concurrent_updates_are_exclusive_and_visible() {
+        let cell = Arc::new(SharedCell::new((0u32, !0u32)));
+        let start = Arc::new(Barrier::new(4));
+        let mut workers = std::vec::Vec::new();
+        for _ in 0..4 {
+            let (cell, start) = (cell.clone(), start.clone());
+            workers.push(thread::spawn(move || {
+                start.wait();
+                for _ in 0..2000 {
+                    loop {
+                        if cell.try_with(|value| {
+                            assert_eq!(value.1, !value.0);
+                            value.0 += 1;
+                            value.1 = !value.0;
+                        }).is_ok() { break; }
+                        thread::yield_now();
+                    }
+                }
+            }));
+        }
+        for worker in workers { worker.join().unwrap(); }
+        assert_eq!(cell.with(|value| *value), (8000, !8000u32));
+    }
+}

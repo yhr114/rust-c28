@@ -68,6 +68,25 @@ function Test-Contains([string[]]$seq, [string[]]$checks) {
     return $true, ''
 }
 
+function Get-TextHex([string]$ObjPath) {
+    $dump = Invoke-NativeCapture $Objdump @('-s', '-j', '.text', $ObjPath)
+    if ($dump.ExitCode -ne 0) {
+        throw "llvm-objdump failed ($(Format-Rc $dump.ExitCode)): $($dump.StdErr.Trim())"
+    }
+    $hex = ''
+    $inSection = $false
+    foreach ($line in ($dump.StdOut -split "`r?`n")) {
+        if ($line -match 'Contents of section') { $inSection = $true; continue }
+        if (-not $inSection) { continue }
+        $head = ($line.TrimEnd() -split '\s{2,}')[0]
+        $tokens = @($head -split '\s+' | Where-Object { $_ -ne '' })
+        if ($tokens.Count -lt 2) { continue }
+        $bytes = ($tokens | Select-Object -Skip 1) -join ''
+        if ($bytes -match '^[0-9a-fA-F]+$') { $hex += $bytes }
+    }
+    return $hex.ToLowerInvariant()
+}
+
 $passCount = 0; $failCount = 0; $skipCount = 0
 $failDetails = @()
 
@@ -163,12 +182,8 @@ foreach ($case in $cases) {
                 if ($objRes.ExitCode -ne 0) {
                     throw "llc object emission failed ($(Format-Rc $objRes.ExitCode)): $($objRes.StdErr.Trim())"
                 }
-                $dump = Invoke-NativeCapture $Objdump @('-s', '-j', '.text', $obj)
-                if ($dump.ExitCode -ne 0) {
-                    throw "llvm-objdump failed ($(Format-Rc $dump.ExitCode)): $($dump.StdErr.Trim())"
-                }
-                $hex = ($dump.StdOut -replace '[^0-9a-fA-F]', '').ToLowerInvariant()
-                $bytesOk = $hex.Contains($case.objbytes.ToLowerInvariant())
+                $hex = Get-TextHex $obj
+                $bytesOk = ($hex -eq $case.objbytes.ToLowerInvariant())
             }
             if ($ok -and $bytesOk -and $strictOk) {
                 Write-Host '  PASS: checks + 字节回归通过' -ForegroundColor Green

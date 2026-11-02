@@ -4,6 +4,8 @@
 )
 
 . (Join-Path $PSScriptRoot 'toolchain.ps1')
+. (Join-Path $PSScriptRoot '_internal\image-stamp.ps1')
+. (Join-Path $PSScriptRoot '_internal\standalone-image-keys.ps1')
 if (-not $Compiler) { $Compiler = $Toolchain.Compiler }
 if (-not $Cargo) { $Cargo = $Toolchain.Cargo }
 
@@ -49,7 +51,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "C bridge build failed with exit code $LASTEXITCODE"
 }
 
-& $Cargo test --manifest-path (Join-Path $PSScriptRoot 'rust-to-ti-c\Cargo.toml')
+& $Toolchain.HostTestCargo test --manifest-path (Join-Path $PSScriptRoot 'rust-to-ti-c\Cargo.toml') --target $Toolchain.HostTestTarget
 if ($LASTEXITCODE -ne 0) {
     throw "rust-to-ti-c tests failed with exit code $LASTEXITCODE"
 }
@@ -125,3 +127,6 @@ Write-Output "Built $firmwareOut"
 Write-Output "Hex   $firmwareHex"
 Write-Output "Map   $mapFile"
 Write-Output "Asm   $rustAssembly"
+
+# 新鲜度戳：链接+hex 成功后记录输入指纹，flash-and-verify-gpio39-low.ps1 上板前断言
+Set-ImageStamp -Image $firmwareOut -Key (Get-GpioTargetImageKey -Compiler $Compiler -ProjectRoot $projectRoot -Target gpio39)

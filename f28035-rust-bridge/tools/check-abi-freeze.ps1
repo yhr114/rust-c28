@@ -5,24 +5,22 @@ param()
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
+$workspace = Split-Path -Parent $root
+$b1Root = Join-Path $workspace 'f28035-rust-bridge-b1'
 
-$canonicalLayout = 'e-m:e-p:32:32-i32:32-i64:32-f32:32-f64:32-a:8:8-n8:16-S16'
+$canonicalLayout = 'e-m:e-p:32:32-i1:8:8-i32:32-i64:32-f32:32-f64:32-a:8:8-n8:16-S16'
 $forbidden = @('p:16:16-i', 'pointer_width: 16,', '"target-pointer-width": 16')
 
 $requiredFiles = @(
     (Join-Path $root 'backend\llvm-c28x\C28xTargetMachine.cpp'),
-    (Join-Path $root 'backend\llvm-c28x\rustc-patches\c28x_none_elf.rs'),
-    (Join-Path $root 'backend\llvm-c28x\rustc-patches\c28x_none_elf_1_100.rs'),
-    (Join-Path $root 'backend\llvm-c28x\rustc-patches\0001-add-c28x-target.patch'),
-    (Join-Path $root 'backend\llvm-c28x\PATCHING_RUSTC.md'),
     (Join-Path $root 'crates\c28x-rt\c28x-none-elf.json'),
-    (Join-Path $root 'crates\rust-targets\c28x.json')
+    (Join-Path $b1Root 'backend\llvm-c28x\rustc-patches\c28x_none_elf_1_100.rs')
 )
 
 $scanDirs = @(
     (Join-Path $root 'backend\llvm-c28x'),
     (Join-Path $root 'crates\c28x-rt'),
-    (Join-Path $root 'crates\rust-targets')
+    (Join-Path $b1Root 'backend\llvm-c28x\rustc-patches')
 )
 
 $excludeDirNames = @('build', 'vendor', 'target', '.git', 'node_modules')
@@ -65,7 +63,7 @@ foreach ($file in $requiredFiles) {
     }
 }
 
-foreach ($jsonRelative in @('crates\c28x-rt\c28x-none-elf.json', 'crates\rust-targets\c28x.json')) {
+foreach ($jsonRelative in @('crates\c28x-rt\c28x-none-elf.json')) {
     $jsonFile = Join-Path $root $jsonRelative
     if (-not (Test-Path $jsonFile)) { continue }
     $json = Get-Content -Raw -LiteralPath $jsonFile | ConvertFrom-Json

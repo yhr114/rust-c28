@@ -27,10 +27,17 @@ const SelectionDAGTargetInfo *C28xSubtarget::getSelectionDAGInfo() const {
 }
 
 void C28xSubtarget::initLibcallLoweringInfo(LibcallLoweringInfo &Info) const {
-  // Provide the standard C memory routines; the runtime crate implements them.
-  Info.setLibcallImpl(RTLIB::MEMCPY, RTLIB::impl_memcpy);
-  Info.setLibcallImpl(RTLIB::MEMMOVE, RTLIB::impl_memmove);
-  Info.setLibcallImpl(RTLIB::MEMSET, RTLIB::impl_memset);
+  // Memory routines: route to our own byte-address implementations
+  // (c28x_memcpy / c28x_memmove / c28x_memset / c28x_memcmp / c28x_bcmp).
+  // These take Rust's 32-bit *logical byte* pointers, NOT TI C WORD addresses.
+  // TI's rts2800_ml_eabi.lib also defines memcpy/memmove/memset/memcmp with
+  // word addresses, so we use distinct names to avoid pulling the wrong
+  // (word-address) implementation into the link.  See C28X_MEMORY_MODEL.md.
+  Info.setLibcallImpl(RTLIB::MEMCPY, RTLIB::impl_c28x_memcpy);
+  Info.setLibcallImpl(RTLIB::MEMMOVE, RTLIB::impl_c28x_memmove);
+  Info.setLibcallImpl(RTLIB::MEMSET, RTLIB::impl_c28x_memset);
+  Info.setLibcallImpl(RTLIB::MEMCMP, RTLIB::impl_c28x_memcmp);
+  Info.setLibcallImpl(RTLIB::BCMP, RTLIB::impl_c28x_bcmp);
 
   // F28035 has no hardware divide.  These compiler_builtins routines are
   // provided by the c28x build of compiler_builtins.

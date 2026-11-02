@@ -24,18 +24,19 @@ def SDT_C28xCmp : SDTypeProfile<0, 2, [SDTCisSameAs<0, 1>]>;
 def C28xcmp : SDNode<"C28xISD::CMP", SDT_C28xCmp,
                      [SDNPOutGlue]>;
 
-// Conditional branch: (chain, dst, cond, glue).
-def SDT_C28xBrcond : SDTypeProfile<0, 2,
+// Keep comparison operands with the branch until after register allocation.
+def SDT_C28xBrcond : SDTypeProfile<0, 4,
                                    [SDTCisVT<0, OtherVT>,
-                                    SDTCisVT<1, i16>]>;
+                                    SDTCisVT<1, i16>, SDTCisSameAs<2, 3>]>;
 def C28xbrcond : SDNode<"C28xISD::BRCOND", SDT_C28xBrcond,
-                        [SDNPHasChain, SDNPInGlue]>;
+                        [SDNPHasChain]>;
 
-// Select based on flags: (i16 true, i16 false, i16 cond, glue) -> i16.
-def SDT_C28xSelectCC : SDTypeProfile<1, 3,
-  [SDTCisVT<0, i16>, SDTCisSameAs<1, 0>, SDTCisSameAs<2, 0>, SDTCisVT<3, i16>]>;
+// Select carries lhs/rhs rather than flags that PHI copies/spills can destroy.
+def SDT_C28xSelectCC : SDTypeProfile<1, 5,
+  [SDTCisVT<0, i16>, SDTCisSameAs<1, 0>, SDTCisSameAs<2, 0>,
+   SDTCisVT<3, i16>, SDTCisSameAs<4, 5>]>;
 def C28xselectcc : SDNode<"C28xISD::SELECT_CC", SDT_C28xSelectCC,
-                          [SDNPInGlue]>;
+                          []>;
 
 // Direct call: (chain, callee, glue).
 def SDT_C28xCall : SDTypeProfile<0, -1, [SDTCisVT<0, iPTR>]>;
@@ -65,17 +66,27 @@ def STORE_STK16 : C28xPseudo<(outs), (ins i16imm:$off, GR16:$src)> {
   let hasCtrlDep = 1;
 }
 
-// Pseudo: trap / abort.  C28x has no hardware trap/halt instruction, so this is
-// expanded post-RA to an infinite self-loop (`b ., unc`).  Used by the panic
+// Pseudo: trap / abort, expanded to an instruction-local infinite loop.
+// Used by the panic
 // abort path (core::process::abort_immediate -> llvm.trap).
 def TRAP : C28xPseudo<(outs), (ins)> {
   let hasSideEffects = 1;
 }
 def : Pat<(trap), (TRAP)>;
+// No MBB operand: returning to the block entry would re-execute preceding
+// instructions (including the prologue) and can refer to an unlabelled entry.
+def B_SELF : C28xInst<(outs), (ins), "b $$, unc", []> {
+  let isTerminator = 1;
+  let isBarrier = 1;
+  let hasSideEffects = 1;
+}
 
 def MOV16rr : C28xInst<(outs GR16:$dst), (ins GR16:$src),
   "mov $dst, $src", []>;
 
+// DEPRECATED: do not emit. C28x has no XAR-to-XAR 32-bit copy; the old
+// MOV32rr encoding was "MOVL XARn, @ARm" (a memory read), which corrupted
+// data. All emission sites now use PUSH32/POP32. See u32-compare-codegen-bug.md.
 def MOV32rr : C28xInst<(outs GR32:$dst), (ins GR32:$src),
   "movl $dst, $src", []>;
 
@@ -110,6 +121,11 @@ def MOV_ind_store : C28xInst<(outs), (ins GR32:$ptr, GR16:$src),
   "mov *$ptr, $src",
   []>;
 
+// TI MOV loc16,ARn form.  Frame stores from AR0-AR6 use this directly so an
+// incoming ACC pointer is not disturbed just to spill a 16-bit argument.
+def MOV_ind_store_AR : C28xInst<(outs), (ins GR32:$ptr, ARegs:$src),
+  "mov *$ptr, $src", []>;
+
 def MOV_ind_load : C28xInst<(outs GR16:$dst), (ins GR32:$ptr),
   "mov $dst, *$ptr",
   []>;
@@ -127,13 +143,33 @@ def MOV_ind_store_AH : C28xInst<(outs), (ins GR32:$ptr),
   "mov *$ptr, ah", []> { let Uses = [AH]; }
 
 // 8-bit byte access: MOVB AL,*XARn = 0xC6xx, MOVB *XARn,AL = 0x3Cxx.
-// C28x hardware uses byte addressing: XARn holds byte address, LSB selects
-// low/high byte within the 16-bit word. Only one byte is touched, so adjacent
-// data is preserved.
+//
+// Byte accesses take the WORD address in XARn; the byte lane is selected by the
+// 2-bit displacement field (offset 0 = low byte, 1 = high byte) or by AR0 for a
+// run-time lane.  This is the layout of the global byte path, which was
+// verified on target: MOVL XAR7,#<word addr> + "movb al, *+xar7[2]" reads the
+// low byte of the next word.
 def MOVB_ind_load_AL : C28xInst<(outs GR16:$dst), (ins GR32:$ptr),
   "movb $dst, *$ptr", []>;
 def MOVB_ind_store_AL : C28xInst<(outs), (ins GR32:$ptr),
   "movb *$ptr, al", []> { let Uses = [AL]; }
+
+// Frame-index byte accesses know the lane at compile time (it comes from the
+// byte parity of the frame offset), so they use the fixed displacement field
+// instead of AR0.  Keeping AR0 out of the sequence avoids having to save a
+// caller's 32-bit XAR0 through the 16-bit PUSH_AR0/POP_AR0 pair.
+def MOVB_disp_load_AL : C28xInst<(outs GR16:$dst), (ins GR32:$ptr, i16imm:$lane),
+  "movb $dst, *+$ptr[$lane]", []>;
+def MOVB_disp_store_AL : C28xInst<(outs), (ins GR32:$ptr, i16imm:$lane),
+  "movb *+$ptr[$lane], al", []> { let Uses = [AL]; }
+
+// AR0 carries a run-time byte offset within the pointed-to word.  An even
+// offset selects its low lane and an odd offset selects its high lane.  The
+// backend sets AR0 to byte_addr & 1 and XAR7 to byte_addr >> 1.
+def MOVB_ind_load_index_AL : C28xInst<(outs GR16:$dst), (ins GR32:$ptr),
+  "movb $dst, *+$ptr[ar0]", []> { let Uses = [AR0]; }
+def MOVB_ind_store_index_AL : C28xInst<(outs), (ins GR32:$ptr),
+  "movb *+$ptr[ar0], al", []> { let Uses = [AL, AR0]; }
 
 // Materialize a 32-bit logical byte address (FROZEN ABI, see ABI_FREEZE.md).
 // The 16-bit MOV16ga global patterns were removed: they could only express
@@ -263,10 +299,17 @@ def SUB32rr : C28xInst<(outs ACCOnly:$dst), (ins ACCOnly:$lhs, ACC32:$rhs),
 // the reserved XAR7 as a parking register (PUSH/POP around live values), so the
 // allocator never pins ACC staging temps (that pinning exhausted registers in
 // the large float functions).
+// The post-RA expansion stages Lhs in ACC, Rhs in XT and parks the other
+// operand in XAR7.  Declare those clobbers so the allocator never keeps an
+// unrelated live value in ACC/XT across this pseudo: without them a live i32
+// argument parked in XT by fast-isel was silently destroyed (hardware
+// observed a+*p+*p instead of a+*p+b).
+let Defs = [ACC, XT] in {
 def ADD32_PSEUDO : C28xPseudo<(outs GPR32:$dst), (ins GPR32:$lhs, GPR32:$rhs),
   [(set GPR32:$dst, (add GPR32:$lhs, GPR32:$rhs))]>;
 def SUB32_PSEUDO : C28xPseudo<(outs GPR32:$dst), (ins GPR32:$lhs, GPR32:$rhs),
   [(set GPR32:$dst, (sub GPR32:$lhs, GPR32:$rhs))]>;
+}
 
 
 // 32-bit ADD/SUB with immediate.  Encoding chosen by emitter:
@@ -290,10 +333,15 @@ def SUB32imm : C28xInst<(outs ACCOnly:$dst), (ins ACCOnly:$lhs, i32immop:$src),
 // (which produced "ran out of registers").  Pre-RA custom inserter stages the
 // variable into XT (add) / parks it (sub), builds the constant in ACC from two
 // 16-bit halves, and runs the accumulator op.
+// Same clobber contract as ADD32_PSEUDO: the expansion parks Lhs in XAR7,
+// builds the constant in ACC and stages it in XT before the accumulator op,
+// so the allocator must not keep unrelated live values in ACC/XT across it.
+let Defs = [ACC, XT] in {
 def ADD32imm32 : C28xPseudo<(outs GPR32:$dst),
                             (ins GPR32:$lhs, i32imm:$val), []>;
 def SUB32imm32 : C28xPseudo<(outs GPR32:$dst),
                             (ins GPR32:$lhs, i32imm:$val), []>;
+}
 def immNot16 : ImmLeaf<i32, [{ return !(isInt<16>(Imm) || isUInt<16>(Imm)); }]>;
 def : Pat<(i32 (add GPR32:$lhs, immNot16:$val)),
           (ADD32imm32 GPR32:$lhs, immNot16:$val)>;
@@ -349,14 +397,17 @@ def XOR16_PSEUDO : C28xPseudo<(outs GR16:$dst), (ins GR16:$lhs, GR16:$rhs),
 def AND32_HALF_PSEUDO : C28xPseudo<(outs ACCOnly:$dst), (ins ACCOnly:$lhs, ACC32:$rhs),
   []> {
   let Constraints = "$dst = $lhs";
+  let Defs = [XAR0];
 }
 def OR32_HALF_PSEUDO : C28xPseudo<(outs ACCOnly:$dst), (ins ACCOnly:$lhs, ACC32:$rhs),
   []> {
   let Constraints = "$dst = $lhs";
+  let Defs = [XAR0];
 }
 def XOR32_HALF_PSEUDO : C28xPseudo<(outs ACCOnly:$dst), (ins ACCOnly:$lhs, ACC32:$rhs),
   []> {
   let Constraints = "$dst = $lhs";
+  let Defs = [XAR0];
 }
 
 // Wide 32-bit logical pseudos (GPR32).  No pre-RA custom inserter: they reach
@@ -365,11 +416,11 @@ def XOR32_HALF_PSEUDO : C28xPseudo<(outs ACCOnly:$dst), (ins ACCOnly:$lhs, ACC32
 // post-RA avoids pinning a chain of tied-ACC half ops that exhausted registers
 // in the float bit-twiddling code.
 def AND32_PSEUDO : C28xPseudo<(outs GPR32:$dst), (ins GPR32:$lhs, GPR32:$rhs),
-  [(set GPR32:$dst, (and GPR32:$lhs, GPR32:$rhs))]>;
+  [(set GPR32:$dst, (and GPR32:$lhs, GPR32:$rhs))]> { let Defs = [XAR0]; }
 def OR32_PSEUDO : C28xPseudo<(outs GPR32:$dst), (ins GPR32:$lhs, GPR32:$rhs),
-  [(set GPR32:$dst, (or GPR32:$lhs, GPR32:$rhs))]>;
+  [(set GPR32:$dst, (or GPR32:$lhs, GPR32:$rhs))]> { let Defs = [XAR0]; }
 def XOR32_PSEUDO : C28xPseudo<(outs GPR32:$dst), (ins GPR32:$lhs, GPR32:$rhs),
-  [(set GPR32:$dst, (xor GPR32:$lhs, GPR32:$rhs))]>;
+  [(set GPR32:$dst, (xor GPR32:$lhs, GPR32:$rhs))]> { let Defs = [XAR0]; }
 
 //===----------------------------------------------------------------------===//
 // Shift (constant immediate only)
@@ -400,10 +451,11 @@ def SETC_C : C28xInst<(outs), (ins), "setc c", []>;
 // Hardware variable-count 32-bit shifts.  The shift count is taken from the
 // five least significant bits of the T register (upper half of XT),
 // T(4:0) = 0..31; higher bits are ignored.  Verified with asm2000/dis2000:
-//   LSL ACC,T = FF50   LSRL ACC,T = 5622   ASRL ACC,T = 5610.
+  //   LSLL ACC,T = 563B   LSRL ACC,T = 5622   ASRL ACC,T = 5610.
+  // Legacy LSL ACC,T (FF50) only consumes T(3:0); LSLL uses T(4:0).
 // ASRL fills the high bits with the sign bit; LSRL zero-fills.
-def LSL_ACC_T  : C28xInst<(outs ACCOnly:$dst), (ins ACCOnly:$src),
-  "lsl acc,t", []> { let Constraints = "$dst = $src"; }
+def LSLL_ACC_T : C28xInst<(outs ACCOnly:$dst), (ins ACCOnly:$src),
+  "lsll acc,t", []> { let Constraints = "$dst = $src"; }
 def LSRL_ACC_T : C28xInst<(outs ACCOnly:$dst), (ins ACCOnly:$src),
   "lsrl acc,t", []> { let Constraints = "$dst = $src"; }
 def ASRL_ACC_T : C28xInst<(outs ACCOnly:$dst), (ins ACCOnly:$src),
@@ -568,6 +620,16 @@ def CMP32_PSEUDO : C28xPseudo<(outs), (ins GPR32:$lhs, GPR32:$rhs),
   let Defs = [ACC, XT, ST0];
   let hasSideEffects = 1;
 }
+// No spill, PHI copy or frame materialisation may split compare and branch.
+let isBranch = 1, isTerminator = 1, hasSideEffects = 1 in {
+let Defs = [AL, ST0] in
+def CMPBR16_PSEUDO : C28xPseudo<(outs),
+  (ins brtarget:$dst, GR16:$lhs, GR16NoAL:$rhs, i16imm:$cond), []>;
+let Defs = [ACC, XT, ST0] in
+def CMPBR32_PSEUDO : C28xPseudo<(outs),
+  (ins brtarget:$dst, GPR32:$lhs, GPR32:$rhs, i16imm:$cond), []>;
+}
+
 def C28x_COND_EQ : PatLeaf<(i16 0)>;
 def C28x_COND_NE : PatLeaf<(i16 1)>;
 def C28x_COND_GT : PatLeaf<(i16 2)>;
@@ -583,25 +645,25 @@ def C28x_COND_LOS : PatLeaf<(i16 9)>;
 // expandPostRAPseudo to the concrete b <cc>, dst.
 let isBranch = 1, isTerminator = 1, Uses = [ST0] in {
 def B_EQ_p : C28xPseudo<(outs), (ins brtarget:$dst),
-  [(C28xbrcond bb:$dst, C28x_COND_EQ)]>;
+  []>;
 def B_NE_p : C28xPseudo<(outs), (ins brtarget:$dst),
-  [(C28xbrcond bb:$dst, C28x_COND_NE)]>;
+  []>;
 def B_GT_p : C28xPseudo<(outs), (ins brtarget:$dst),
-  [(C28xbrcond bb:$dst, C28x_COND_GT)]>;
+  []>;
 def B_GE_p : C28xPseudo<(outs), (ins brtarget:$dst),
-  [(C28xbrcond bb:$dst, C28x_COND_GE)]>;
+  []>;
 def B_LT_p : C28xPseudo<(outs), (ins brtarget:$dst),
-  [(C28xbrcond bb:$dst, C28x_COND_LT)]>;
+  []>;
 def B_LE_p : C28xPseudo<(outs), (ins brtarget:$dst),
-  [(C28xbrcond bb:$dst, C28x_COND_LE)]>;
+  []>;
 def B_HI_p : C28xPseudo<(outs), (ins brtarget:$dst),
-  [(C28xbrcond bb:$dst, C28x_COND_HI)]>;
+  []>;
 def B_HIS_p : C28xPseudo<(outs), (ins brtarget:$dst),
-  [(C28xbrcond bb:$dst, C28x_COND_HIS)]>;
+  []>;
 def B_LO_p : C28xPseudo<(outs), (ins brtarget:$dst),
-  [(C28xbrcond bb:$dst, C28x_COND_LO)]>;
+  []>;
 def B_LOS_p : C28xPseudo<(outs), (ins brtarget:$dst),
-  [(C28xbrcond bb:$dst, C28x_COND_LOS)]>;
+  []>;
 }
 
 // Pseudo unconditional branch.
@@ -620,9 +682,8 @@ def LCR : C28xInst<(outs), (ins i22imm:$dst),
   "lcr $dst",
   []> {
   let isCall = 1;
-  // Caller-saved registers per TI C28x EABI: AL/ACC, XT, AR0-AR3, XAR0-XAR3.
-  // AR4-AR6 / XAR4-XAR6 are callee-saved (preserved by the callee).
-  let Defs = [AL, AH, ACC, XT, AR0, AR1, AR2, AR3, XAR0, XAR1, XAR2, XAR3];
+  // TI EABI: XAR1-3 are preserved; XAR0 and XAR4-7 are call-clobbered.
+  let Defs = [AL, AH, ACC, XT, P, XAR0, XAR4, XAR5, XAR6, XAR7];
 }
 
 // Callee addresses are iPTR (i32) per SDT_C28xCall; the hardware consumes
@@ -639,7 +700,7 @@ def : Pat<(C28xcall (i32 texternalsym:$dst)),
 def LCR_IND : C28xPseudo<(outs), (ins GR32:$dst),
   [(C28xcall GR32:$dst)]> {
   let isCall = 1;
-  let Defs = [AL, AH, ACC, XT, AR0, AR1, AR2, AR3, XAR0, XAR1, XAR2, XAR3, XAR7];
+  let Defs = [AL, AH, ACC, XT, P, XAR0, XAR4, XAR5, XAR6, XAR7];
 }
 
 // Real indirect call: LCR *XARn = 0x3E60|n (1-word).
@@ -647,7 +708,7 @@ def LCR_IND : C28xPseudo<(outs), (ins GR32:$dst),
 def LCR_IND_REAL : C28xInst<(outs), (ins GR32:$dst),
   "lcr *$dst", []> {
   let isCall = 1;
-  let Defs = [AL, AH, ACC, XT, AR0, AR1, AR2, AR3, XAR0, XAR1, XAR2, XAR3];
+  let Defs = [AL, AH, ACC, XT, P, XAR0, XAR4, XAR5, XAR6, XAR7];
 }
 
 let isReturn = 1, isTerminator = 1, isBarrier = 1 in
@@ -681,7 +742,27 @@ def IRET_Real : C28xInst<(outs), (ins), "iret", []> {
 //===----------------------------------------------------------------------===//
 
 def PUSH_AL : C28xInst<(outs), (ins), "push al", []>;
+// Full-width saves keep both the register value and the stack's even-word
+// alignment intact, including the AR0 scratch saves inside wide expansions.
+def PUSH32 : C28xInst<(outs), (ins GPR32:$src), "push $src", []> {
+  let Uses = [SP];
+  let Defs = [SP];
+  let mayStore = 1;
+}
+def POP32 : C28xInst<(outs GPR32:$dst), (ins), "pop $dst", []> {
+  let Uses = [SP];
+  let Defs = [SP, ST0];
+  let mayLoad = 1;
+}
 def POP_AL  : C28xInst<(outs), (ins), "pop al",  []>;
+def IRQ_ENTER : C28xInst<(outs), (ins),
+  "asp\n\tspm #0\n\tclrc ovm|page0\n\tclrc amode", []> {
+  let isCodeGenOnly = 1;
+  let Uses = [SP]; let Defs = [SP, ST0, ST1]; let hasSideEffects = 1;
+}
+def IRQ_LEAVE : C28xInst<(outs), (ins), "nasp", []> {
+  let Uses = [SP, ST1]; let Defs = [SP, ST1]; let hasSideEffects = 1;
+}
 def PUSH_ACC : C28xInst<(outs), (ins), "push acc", []> {
   let Uses = [SP, ACC];
   let Defs = [SP];
@@ -802,15 +883,34 @@ def STORE32_PSEUDO : C28xPseudo<(outs), (ins GR32:$ptr, GPR32:$src),
 
 // i8 load/store through a GR32 pointer. i8 values are promoted to GR16 (AL).
 // Expanded in post-RA to MOVB_ind_load_AL / MOVB_ind_store_AL.
+//
+// The expansion needs a scratch register for the byte lane and the only
+// encoding that takes a run-time lane is *+XARn[AR0], so AR0 (and the upper
+// half of XAR0) is destroyed.  The expansion runs after register allocation, so
+// without declaring the clobber the allocator happily keeps a live pointer in
+// XAR0: a stack byte array then had its pointer overwritten by the lane value
+// and the following access read an unrelated word (measured: 0x77 stored
+// correctly, read back as the address byte 0x10).  Defs = [XAR0] keeps live
+// 32-bit values out of XAR0 across these pseudos.
 def LOAD8_PSEUDO : C28xPseudo<(outs GR16:$dst), (ins GR32:$ptr),
-  [(set GR16:$dst, (zextloadi8 GR32:$ptr))]>;
+  [(set GR16:$dst, (zextloadi8 GR32:$ptr))]> { let Defs = [XAR0]; }
 // Also match any-extending i8 loads (MOVB zero-extends, which satisfies
 // the undefined upper bits of EXTLOAD).
 def : Pat<(extloadi8 GR32:$ptr), (LOAD8_PSEUDO GR32:$ptr)>;
 def LOAD8_ZEXT32_PSEUDO : C28xPseudo<(outs GPR32:$dst), (ins GR32:$ptr),
-  [(set GPR32:$dst, (zextloadi8 GR32:$ptr))]>;
+  [(set GPR32:$dst, (zextloadi8 GR32:$ptr))]> { let Defs = [XAR0]; }
 def STORE8_PSEUDO : C28xPseudo<(outs), (ins GR32:$ptr, GR16:$src),
-  [(truncstorei8 GR16:$src, GR32:$ptr)]>;
+  [(truncstorei8 GR16:$src, GR32:$ptr)]> { let Defs = [XAR0]; }
+// A direct global byte does not pass through the logical-byte-pointer ABI.
+// The TI relocation is already a word address; the constant offset selects
+// the low/high lane in that word.  Keep generic pointers and stack FIs on
+// their separate conversion paths.
+def LOAD8_GLOBAL_PSEUDO : C28xPseudo<(outs GR16:$dst),
+  (ins i22imm:$ga, i16imm:$lane), []> { let mayLoad = 1; let Defs = [XAR0]; }
+def LOAD8_GLOBAL_ZEXT32_PSEUDO : C28xPseudo<(outs GPR32:$dst),
+  (ins i22imm:$ga, i16imm:$lane), []> { let mayLoad = 1; let Defs = [XAR0]; }
+def STORE8_GLOBAL_PSEUDO : C28xPseudo<(outs),
+  (ins i22imm:$ga, i16imm:$lane, GR16:$src), []> { let mayStore = 1; let Defs = [XAR0]; }
 // i32 value truncated to i8: truncate to low 16 bits then store low 8 bits.
 // Use the TRUNC32_16 pseudo (post-RA routed for ACC/XT/XAR) rather than
 // EXTRACT_SUBREG, which the InstrEmitter cannot constrain when the source
@@ -827,7 +927,7 @@ def : Pat<(extloadi1 GR32:$ptr),
 // the i8->i32 byte load+zext.  Needed by spilled {i32,i1} struct fields
 // (e.g. overflowing_neg flag) that reload straight into an i32.
 def LOAD1_ZEXT32_PSEUDO : C28xPseudo<(outs GPR32:$dst), (ins GR32:$ptr),
-  [(set GPR32:$dst, (zextloadi1 GR32:$ptr))]>;
+  [(set GPR32:$dst, (zextloadi1 GR32:$ptr))]> { let Defs = [XAR0]; }
 def : Pat<(extloadi1 GR32:$ptr), (LOAD1_ZEXT32_PSEUDO GR32:$ptr)>;
 
 // Materialize a frame-index pointer into GR16; the TargetFrameIndex operand
@@ -835,8 +935,18 @@ def : Pat<(extloadi1 GR32:$ptr), (LOAD1_ZEXT32_PSEUDO GR32:$ptr)>;
 def MOV32fi : C28xPseudo<(outs GR32:$dst), (ins brtarget:$ptr), []>;
 def MOV32fi_off : C28xPseudo<(outs GR32:$dst), (ins brtarget:$ptr, i16imm:$off), []>;
 
-// Pseudo SELECT_CC: (true, false, flag) -> dst.
-// Expanded in expandPostRAPseudo to two basic blocks with conditional branch.
-let usesCustomInserter = 1 in
+// The compare width selects the eventual atomic compare/branch terminator.
+let usesCustomInserter = 1 in {
 def SELECT_CC_PSEUDO : C28xPseudo<(outs GR16:$dst),
-  (ins GR16:$trueval, GR16:$falseval, i16imm:$cond), []>;
+  (ins GR16:$trueval, GR16:$falseval, i16imm:$cond,
+       GR16:$lhs, GR16NoAL:$rhs), []>;
+def SELECT_CC32_PSEUDO : C28xPseudo<(outs GR16:$dst),
+  (ins GR16:$trueval, GR16:$falseval, i16imm:$cond,
+       GPR32:$lhs, GPR32:$rhs), []>;
+def SELECT_WIDE_CC16_PSEUDO : C28xPseudo<(outs GPR32:$dst),
+  (ins GPR32:$trueval, GPR32:$falseval, i16imm:$cond,
+       GR16:$lhs, GR16NoAL:$rhs), []>;
+def SELECT_WIDE_CC32_PSEUDO : C28xPseudo<(outs GPR32:$dst),
+  (ins GPR32:$trueval, GPR32:$falseval, i16imm:$cond,
+       GPR32:$lhs, GPR32:$rhs), []>;
+}

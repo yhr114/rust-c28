@@ -19,6 +19,10 @@ class C28xFrameLowering : public TargetFrameLowering {
 public:
   explicit C28xFrameLowering(const C28xSubtarget &STI);
 
+  static uint64_t getFrameAllocationWords(const MachineFunction &MF);
+  void determineCalleeSaves(MachineFunction &MF, BitVector &SavedRegs,
+                           RegScavenger *RS = nullptr) const override;
+
   void emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
   void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
 

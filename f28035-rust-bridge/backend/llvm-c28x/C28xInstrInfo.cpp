@@ -10,6 +10,7 @@
 #include "C28xInstrInfo.h"
 #include "C28xSubtarget.h"
 #include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/IR/Constants.h"
@@ -32,13 +33,38 @@ void C28xInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   if (DestReg == SrcReg)
     return;
 
+  // XARn -> XARm has NO register-to-register 32-bit MOVL on C28x.  The
+  // encoding previously used here (MOV32rr: "<XARn opcode> | 0xA0|m") is
+  // "MOVL XARn, @ARm", and @ARm is *register-direct memory addressing* — it
+  // loads from the address held in ARm, it does not copy the register.
+  // Hardware evidence (2026-10-27, b1-u32-compose probe): comparing a
+  // composed u32 against a 32-bit literal failed 10/10 because the value was
+  // moved into the compare register with this instruction; the same compare
+  // against a runtime value (no XAR->XAR copy) passed.
+  // Expand through the stack instead: PUSH32/POP32 preserve all 32 bits and
+  // clobber neither ACC nor XT.
+  if (C28x::GR32RegClass.contains(DestReg) &&
+      C28x::GR32RegClass.contains(SrcReg)) {
+    BuildMI(MBB, I, DL, get(C28x::PUSH32))
+        .addReg(SrcReg, getKillRegState(KillSrc));
+    BuildMI(MBB, I, DL, get(C28x::POP32), DestReg);
+    return;
+  }
+
+  // Same trap for XT -> XARn: the loc32 register-direct code for XT (0xAC)
+  // means "@XT" (memory at the address in XT), not the XT register.
+  if (C28x::GR32RegClass.contains(DestReg) && SrcReg == C28x::XT) {
+    BuildMI(MBB, I, DL, get(C28x::PUSH32))
+        .addReg(SrcReg, getKillRegState(KillSrc));
+    BuildMI(MBB, I, DL, get(C28x::POP32), DestReg);
+    return;
+  }
+
   // A full-width move must retain all 32 bits. Never derive subregisters
   // from enum arithmetic: TableGen register numbers are not an ABI.
   unsigned Opcode = 0;
   if (C28x::ACC32RegClass.contains(DestReg, SrcReg))
     Opcode = C28x::MOV_ACC_rr;
-  else if (C28x::GR32RegClass.contains(DestReg, SrcReg))
-    Opcode = C28x::MOV32rr;
   else if (C28x::GR32RegClass.contains(DestReg) &&
            C28x::ACC32RegClass.contains(SrcReg))
     Opcode = C28x::MOVL_XAR_ACC;
@@ -139,22 +165,18 @@ void C28xInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
   // SrcReg wrongly routed every 32-bit spill through the 16-bit store.
   bool Want32 = RC && RC->getSizeInBits() >= 32;
   if (Want32) {
-    // Stage the 32-bit value into physical ACC, then spill two adjacent words.
-    if (C28x::GR32RegClass.contains(SrcReg)) {
-      // XAR pointer source: MOVL ACC, XARn.
-      BuildMI(MBB, I, DL, get(C28x::MOVL_ACC_XAR), C28x::ACC).addReg(SrcReg);
-    } else if (SrcReg == C28x::ACC) {
-      // already in ACC
-    } else if (C28x::ACC32RegClass.contains(SrcReg)) {
-      // XT source: MOVL ACC, XT.
-      BuildMI(MBB, I, DL, get(C28x::MOV_ACC_rr), C28x::ACC).addReg(SrcReg);
-    } else {
-      // Virtual source: a COPY into ACC that the allocator routes.
-      BuildMI(MBB, I, DL, get(TargetOpcode::COPY), C28x::ACC).addReg(SrcReg);
-    }
+    // Emit the spill with the virtual register as the source operand.
+    // Do NOT stage the value through physical ACC with an explicit COPY:
+    // InlineSpiller inserts this sequence after LiveIntervals has finished
+    // computing physical-register liveranges, so a COPY def of $acc here
+    // never gets a live segment and a following $acc use trips the machine
+    // verifier ("No live segment at use").  Keeping a vreg operand lets
+    // VirtRegRewriter substitute the physical register and the post-RA
+    // STORE32_PSEUDO expansion stage it into ACC at that point (it already
+    // handles ACC/XT/XARn and residual vreg sources).
     BuildMI(MBB, I, DL, get(C28x::STORE32_PSEUDO))
         .addFrameIndex(FI)
-        .addReg(C28x::ACC)
+        .addReg(SrcReg, getKillRegState(IsKill))
         .setMIFlag(Flags);
   } else {
     BuildMI(MBB, I, DL, get(C28x::STORE16_PSEUDO))
@@ -180,22 +202,15 @@ void C28xInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
   // collided on the single ACC, producing "ran out of registers").
   bool Want32 = (SubReg == 0) && RC && RC->getSizeInBits() >= 32;
   if (Want32) {
-    // Reload two adjacent words into physical ACC first.
-    BuildMI(MBB, I, DL, get(C28x::LOAD32_PSEUDO), C28x::ACC)
+    // Emit the reload with the destination virtual register directly.
+    // Do NOT stage through physical ACC with a COPY (see the matching
+    // storeRegToStackSlot comment: a COPY into/out of $acc inserted after
+    // LiveIntervals has no live segment and trips the machine verifier).
+    // The post-RA LOAD32_PSEUDO expansion loads into ACC and routes to the
+    // physical destination VirtRegRewriter chose.
+    BuildMI(MBB, I, DL, get(C28x::LOAD32_PSEUDO), DstReg)
         .addFrameIndex(FI)
         .setMIFlag(Flags);
-    // Route the value to its destination.
-    if (DstReg == C28x::ACC) {
-      // already in place
-    } else if (C28x::ACC32RegClass.contains(DstReg)) {
-      // XT destination: MOVL XT, ACC.
-      BuildMI(MBB, I, DL, get(C28x::MOV_ACC_rr), DstReg).addReg(C28x::ACC);
-    } else if (C28x::GR32RegClass.contains(DstReg)) {
-      BuildMI(MBB, I, DL, get(C28x::MOVL_XAR_ACC), DstReg).addReg(C28x::ACC);
-    } else {
-      // Virtual destination: a COPY that the allocator routes.
-      BuildMI(MBB, I, DL, get(TargetOpcode::COPY), DstReg).addReg(C28x::ACC);
-    }
   } else {
     // 16-bit (or sub-register) reload.
     BuildMI(MBB, I, DL, get(C28x::LOAD16_PSEUDO), DstReg)
@@ -204,9 +219,14 @@ void C28xInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
   }
 }
 
+static unsigned realOpcodeFromCondEnc(unsigned Enc);
+
 bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   MachineBasicBlock &MBB = *MI.getParent();
   const DebugLoc &DL = MI.getDebugLoc();
+  const bool SaveScratchXAR0 =
+      MBB.computeRegisterLiveness(&RI, C28x::XAR0, MI) !=
+      MachineBasicBlock::LQR_Dead;
 
   // Route a result held in physical ACC to the (physical) destination reg.
   auto RouteFromACC = [&](Register Dst) {
@@ -218,6 +238,111 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     else
       BuildMI(MBB, MI, DL, get(C28x::MOVL_XAR_ACC), Dst)
           .addReg(C28x::ACC);
+  };
+  // Is ACC provably dead at MI?  True only when the nearest earlier reference
+  // to ACC in this block is a killing use (e.g. fast-isel spilling a live-in
+  // ACC parameter to XT with `movl xt, acc` kill).  Expansions that clobber
+  // ACC must save it unless this returns true: the forward scan below answers
+  // "is ACC needed later", which is NOT the same question — a later def can
+  // hide a live incoming value and would otherwise drop the save.
+  auto AccProvablyDead = [&]() {
+    if (MI.getIterator() == MBB.begin())
+      return false;
+    bool LowDead = false, HighDead = false;
+    for (auto It = std::prev(MI.getIterator());; --It) {
+      for (const MachineOperand &Op : It->operands()) {
+        if (!Op.isReg())
+          continue;
+        Register R = Op.getReg();
+        bool Low = R && RI.regsOverlap(R, C28x::AL) && !LowDead;
+        bool High = R && RI.regsOverlap(R, C28x::AH) && !HighDead;
+        if (!Low && !High) continue;
+        if (Op.isDef() || !Op.isKill()) return false;
+        LowDead |= Low;
+        HighDead |= High;
+      }
+      if (LowDead && HighDead) return true;
+      if (It == MBB.begin())
+        return false;
+    }
+  };
+  auto AccLiveThrough = [&](Register DefinedByMI = Register()) {
+    // We are about to use ACC as scratch.  Preserve it only if a later
+    // instruction reads ACC (or one of its AL/AH aliases) before redefining
+    // it.  A backward live-in check misclassifies killed incoming arguments,
+    // so a provably-dead ACC short-circuits to "no save".
+    if (AccProvablyDead())
+      return false;
+    // ACC must actually hold a value at MI (a block live-in or defined earlier
+    // in the block).  Otherwise there is nothing to save even if a later use
+    // exists -- that later use is itself undefined, which is exactly the
+    // "undefined ACC" the machine verifier rejects.
+    if (MBB.computeRegisterLiveness(&RI, C28x::ACC, MI, 200) ==
+        MachineBasicBlock::LQR_Dead) {
+      bool HasDef = false;
+      for (auto It = MBB.begin(); !HasDef && It != MI.getIterator(); ++It)
+        for (const MachineOperand &Op : It->operands())
+          if (Op.isReg() && Op.isDef() &&
+              RI.regsOverlap(Op.getReg(), C28x::ACC)) {
+            HasDef = true;
+            break;
+          }
+      if (!HasDef)
+        return false;
+    }
+    // A narrow load may define AL or AH while the OTHER half survives.
+    // Ignore the result half: subsequent uses there refer to the new load,
+    // not an old value that needs saving (which may be undefined).
+    bool LowDefined = DefinedByMI && RI.regsOverlap(DefinedByMI, C28x::AL);
+    bool HighDefined = DefinedByMI && RI.regsOverlap(DefinedByMI, C28x::AH);
+    for (auto It = std::next(MI.getIterator()); It != MBB.end(); ++It) {
+      for (const MachineOperand &Op : It->operands()) {
+        if (!Op.isReg() || !Op.isUse())
+          continue;
+        Register R = Op.getReg();
+        if ((R && RI.regsOverlap(R, C28x::AL) && !LowDefined) ||
+            (R && RI.regsOverlap(R, C28x::AH) && !HighDefined))
+          return true;
+      }
+      for (const MachineOperand &Op : It->operands()) {
+        if (!Op.isReg() || !Op.isDef())
+          continue;
+        Register R = Op.getReg();
+        if (R && RI.regsOverlap(R, C28x::AL))
+          LowDefined = true;
+        if (R && RI.regsOverlap(R, C28x::AH))
+          HighDefined = true;
+      }
+      if (LowDefined && HighDefined)
+        return false;
+    }
+    for (const MachineBasicBlock *Succ : MBB.successors())
+      for (const auto &LiveIn : Succ->liveins()) {
+        Register R = LiveIn.PhysReg;
+        if ((!LowDefined && RI.regsOverlap(R, C28x::AL)) ||
+            (!HighDefined && RI.regsOverlap(R, C28x::AH)))
+          return true;
+      }
+    return false;
+  };
+  auto EmitIndexedByteAddress = [&](Register Ptr) {
+    // XAR7 receives the physical word address.  AR0 is the 0/1 byte offset
+    // consumed by MOVB's indexed form; the low bit of XARn itself does not
+    // select a byte lane on C28x.
+    BuildMI(MBB, MI, DL, get(C28x::MOVL_ACC_XAR), C28x::ACC).addReg(Ptr);
+    BuildMI(MBB, MI, DL, get(C28x::MOVL_XAR_ACC), C28x::XAR7)
+        .addReg(C28x::ACC);
+    BuildMI(MBB, MI, DL, get(C28x::MOV16_imm), C28x::AR0).addImm(1);
+    BuildMI(MBB, MI, DL, get(C28x::AND16rr), C28x::AL)
+        .addReg(C28x::AL).addReg(C28x::AR0);
+    BuildMI(MBB, MI, DL, get(C28x::MOV16rr), C28x::AR0).addReg(C28x::AL);
+    BuildMI(MBB, MI, DL, get(C28x::MOVL_ACC_XAR), C28x::ACC)
+        .addReg(C28x::XAR7);
+    BuildMI(MBB, MI, DL, get(C28x::CLRC_C));
+    BuildMI(MBB, MI, DL, get(C28x::ROR_ACC), C28x::ACC)
+        .addReg(C28x::ACC);
+    BuildMI(MBB, MI, DL, get(C28x::MOVL_XAR_ACC), C28x::XAR7)
+        .addReg(C28x::ACC);
   };
   // Bring a wide (GPR32) physical value into physical ACC.
   auto LoadWideToACC = [&](Register Src) {
@@ -233,16 +358,15 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
 
   switch (MI.getOpcode()) {
   case C28x::TRAP: {
-    // C28x has no trap/halt instruction: park the core in an infinite self-loop
-    // (`b ., unc`).  This is the panic-abort sink (core::process::abort_immediate).
-    BuildMI(MBB, MI, DL, get(C28x::B_JMP)).addMBB(&MBB);
+    // Loop at this instruction, not at the MBB entry. The latter may have no
+    // emitted label, and would repeat preceding side effects/prologue pushes.
+    BuildMI(MBB, MI, DL, get(C28x::B_SELF));
     MBB.erase(MI);
     return true;
   }
   case C28x::IRET: {
-    // Interrupt return. IRET restores full hardware context from stack.
-    // Note: C28x hardware keeps INTM=1 after IRET (saved ST1 has INTM=1).
-    // Re-enable interrupts via enable_int() in the main loop.
+    // Software context and NASP are emitted by frame lowering. IRET restores
+    // the interrupted hardware frame, including the pre-interrupt INTM state.
     BuildMI(MBB, MI, DL, get(C28x::IRET_Real));
     MBB.erase(MI);
     return true;
@@ -269,7 +393,15 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     // Arbitrary 32-bit constant -> Dst (wide), built in ACC then routed.
     Register Dst = MI.getOperand(0).getReg();
     int32_t Val = (int32_t)MI.getOperand(1).getImm();
-    bool Save = Dst != C28x::ACC;
+    LivePhysRegs Live(RI);
+    Live.addLiveOuts(MBB);
+    for (auto I = MBB.end(); I != MI.getIterator();) {
+      --I;
+      if (&*I != &MI)
+        Live.stepBackward(*I);
+    }
+    bool Save = Dst != C28x::ACC &&
+                !Live.available(MBB.getParent()->getRegInfo(), C28x::ACC);
     if (Save)
       BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
     BuildMI(MBB, MI, DL, get(C28x::MOV16_imm), C28x::AL)
@@ -293,7 +425,11 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       BuildMI(MBB, MI, DL, get(C28x::MOVL_XAR_ACC), C28x::XAR7)
           .addReg(C28x::ACC);
     } else if (C28x::GR32RegClass.contains(Src)) {
-      BuildMI(MBB, MI, DL, get(C28x::MOV32rr), C28x::XAR7).addReg(Src);
+      // XARn -> XAR7 has no register-to-register 32-bit MOVL on C28x; the
+      // MOV32rr opcode encodes "MOVL XAR7, @ARn" (a 32-bit memory read from
+      // the address in ARn), NOT a copy. Stage via the stack instead.
+      BuildMI(MBB, MI, DL, get(C28x::PUSH32)).addReg(Src);
+      BuildMI(MBB, MI, DL, get(C28x::POP32), C28x::XAR7);
     } else { // XT
       BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
       BuildMI(MBB, MI, DL, get(C28x::MOV_ACC_rr), C28x::ACC)
@@ -342,13 +478,13 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case C28x::SRL32_VAR_PSEUDO:
   case C28x::SRA32_VAR_PSEUDO: {
     // Wide variable i32 shift.  Stage the count into T (via reserved XAR7),
-    // stage Src into ACC, run the hardware LSL/LSRL/ASRL ACC,T, route result.
+    // stage Src into ACC, run the hardware LSLL/LSRL/ASRL ACC,T, route result.
     Register Dst = MI.getOperand(0).getReg();
     Register Src = MI.getOperand(1).getReg();
     Register Amt = MI.getOperand(2).getReg();
     bool IsSHL = MI.getOpcode() == C28x::SHL32_VAR_PSEUDO;
     bool IsSRA = MI.getOpcode() == C28x::SRA32_VAR_PSEUDO;
-    bool Save = Dst != C28x::ACC;
+    bool Save = Dst != C28x::ACC && AccLiveThrough();
     if (Save)
       BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
 
@@ -359,20 +495,29 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       BuildMI(MBB, MI, DL, get(C28x::MOVL_XAR_ACC), C28x::XAR7)
           .addReg(C28x::ACC);
     } else if (Amt == C28x::XT) {
+      // Staging XT through ACC must not destroy an ACC source before
+      // LoadWideToACC(Src), which is a no-op when Src is already ACC.
+      if (Src == C28x::ACC)
+        BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
       BuildMI(MBB, MI, DL, get(C28x::MOV_ACC_rr), C28x::ACC)
           .addReg(C28x::XT);
       BuildMI(MBB, MI, DL, get(C28x::MOVL_XAR_ACC), C28x::XAR7)
           .addReg(C28x::ACC);
+      if (Src == C28x::ACC)
+        BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
     } else { // XARn
-      BuildMI(MBB, MI, DL, get(C28x::MOV32rr), C28x::XAR7).addReg(Amt);
+      // MOV32rr would encode "MOVL XAR7, @ARn" (memory read), not a copy.
+      BuildMI(MBB, MI, DL, get(C28x::PUSH32)).addReg(Amt);
+      BuildMI(MBB, MI, DL, get(C28x::POP32), C28x::XAR7);
     }
-    // T = AR7 (hardware reads the count from T's low five bits).
+    // Capture Src before writing T: T aliases the upper half of XT, so
+    // setting the count first would corrupt any Src allocated to XT.
+    LoadWideToACC(Src);
     BuildMI(MBB, MI, DL, get(C28x::MOV_T)).addReg(C28x::AR7);
 
-    // ACC = Src, then shift one instruction.
-    LoadWideToACC(Src);
+    // Shift ACC by T's low five bits.
     if (IsSHL)
-      BuildMI(MBB, MI, DL, get(C28x::LSL_ACC_T), C28x::ACC).addReg(C28x::ACC);
+      BuildMI(MBB, MI, DL, get(C28x::LSLL_ACC_T), C28x::ACC).addReg(C28x::ACC);
     else if (IsSRA)
       BuildMI(MBB, MI, DL, get(C28x::ASRL_ACC_T), C28x::ACC).addReg(C28x::ACC);
     else
@@ -430,7 +575,70 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     Register Dst = MI.getOperand(0).getReg();
     Register Lhs = MI.getOperand(1).getReg();
     int32_t Val = (int32_t)MI.getOperand(2).getImm();
-    bool Save = Dst != C28x::ACC;
+
+    // `ADD ACC,#16bit` / `SUB ACC,#16bit` ZERO-extend their immediate; they do
+    // not sign-extend it.  Hardware-verified on F28035: ACC=0x0808 with
+    // `ADD ACC,#0xFFFE` yields 0x0001_0806, not 0x0000_0806.  Expressing a
+    // negative constant as a negative immediate therefore leaves a stray
+    // 1<<16 in the accumulator, which survives the byte->word `>>1` that
+    // follows every address computation:
+    //
+    //   slice::Iter::next_back  self.end.sub(1)
+    //     end(byte)=0x0808 -> 0x10806 -> >>1 -> word 0x8403 (want 0x0403)
+    //
+    // i.e. `iter().last()` / `.rev()` read from code memory instead of the
+    // slice.  Rewrite a negative addend as the opposite operation on the
+    // magnitude, which is always representable in 16 bits (|Val| <= 32768).
+    if (Val < 0) {
+      IsAdd = !IsAdd;
+      Val = -Val;
+    }
+
+    // Pointer-update peephole:
+    //
+    //   %xt = COPY %xarN
+    //   %xt = ADD32imm32 %xt, imm
+    //   %xarN = COPY %xt
+    //
+    // is commonly produced for a byte-store GEP.  Keep the address in its
+    // XAR register instead of routing it through XT.  ACC must still be
+    // saved because the following byte store consumes AL as its data value.
+    // This is deliberately limited to the exact copy/update/copy shape so
+    // ordinary integer arithmetic and live-register cases are untouched.
+    if (MI.getOpcode() == C28x::ADD32imm32 && Dst == C28x::XT &&
+        Lhs == C28x::XT && Val >= -32768 && Val <= 65535) {
+      auto It = MI.getIterator();
+      if (It != MBB.begin()) {
+        auto PrevIt = std::prev(It);
+        auto NextIt = std::next(It);
+        if (PrevIt->isCopy() && NextIt != MBB.end() && NextIt->isCopy() &&
+            PrevIt->getOperand(0).getReg() == C28x::XT &&
+            NextIt->getOperand(1).getReg() == C28x::XT) {
+          Register Ptr = PrevIt->getOperand(1).getReg();
+          Register Out = NextIt->getOperand(0).getReg();
+          if (C28x::GR32RegClass.contains(Ptr) && Out == Ptr) {
+            BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
+            BuildMI(MBB, MI, DL, get(C28x::MOVL_ACC_XAR), C28x::ACC)
+                .addReg(Ptr);
+            BuildMI(MBB, MI, DL, get(C28x::ADD32imm), C28x::ACC)
+                .addReg(C28x::ACC).addImm(Val);
+            BuildMI(MBB, MI, DL, get(C28x::MOVL_XAR_ACC), Ptr)
+                .addReg(C28x::ACC);
+            BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
+            MBB.erase(*NextIt);
+            MBB.erase(*PrevIt);
+            MBB.erase(MI);
+            return true;
+          }
+        }
+      }
+    }
+
+    // Save ACC only when it actually survives this expansion.  Saving
+    // unconditionally emitted PUSH_ACC on a dead ACC (e.g. an AR-destination
+    // `xar4 = xar4 + imm`), which reads an undefined physical register and the
+    // machine verifier rejects.
+    bool Save = Dst != C28x::ACC && AccLiveThrough();
     // Fast path: constant fits the real accumulator immediate instruction
     // (-32768..65535).  Stage Lhs into ACC, run add/sub acc,#Val, route result.
     if (Val >= -32768 && Val <= 65535) {
@@ -464,7 +672,9 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
           .addReg(C28x::ACC);
       BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
     } else {
-      BuildMI(MBB, MI, DL, get(C28x::MOV32rr), C28x::XAR7).addReg(Lhs);
+      // MOV32rr would encode "MOVL XAR7, @ARn" (memory read), not a copy.
+      BuildMI(MBB, MI, DL, get(C28x::PUSH32)).addReg(Lhs);
+      BuildMI(MBB, MI, DL, get(C28x::POP32), C28x::XAR7);
     }
 
     // Build constant in ACC then move to XT.
@@ -507,6 +717,12 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case C28x::STORE_STK16: {
     int WordOff = (int)(int16_t)(uint16_t)MI.getOperand(0).getImm();
     Register Src = MI.getOperand(1).getReg();
+    // XAR7 is the address scratch, so a value that already lives in XAR7 must
+    // be moved out BEFORE the address is materialised (otherwise the store
+    // would write the low half of SP).
+    const bool StagedToAh = Src == C28x::AR7;
+    if (StagedToAh)
+      BuildMI(MBB, MI, DL, get(C28x::MOV16rr), C28x::AH).addReg(Src);
     BuildMI(MBB, MI, DL, get(C28x::MOVZ_XAR7_SP));
     // XAR7 = SP + WordOff.  ADDB/SUBB XAR7 take a 7-bit immediate, so chunk.
     if (WordOff > 0) {
@@ -524,12 +740,33 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
         R -= C;
       }
     }
-    if (Src == C28x::AL || Src == C28x::AH) {
+    if (StagedToAh) {
+      BuildMI(MBB, MI, DL, get(C28x::MOV_ind_store_AH)).addReg(C28x::XAR7);
+    } else if (Src == C28x::AL || Src == C28x::AH) {
       BuildMI(MBB, MI, DL, get(C28x::MOV_ind_store)).addReg(C28x::XAR7).addReg(Src);
+    } else if (C28x::ARegsRegClass.contains(Src)) {
+      // Store straight from the AR register.  Staging through AH instead
+      // silently destroys the high half of a live ACC: measured on target,
+      // a u32 argument parked in ACC across the call setup lost its high
+      // half to this staging, so the callee summed garbage (the Rust caller
+      // of rust_stack_args passed ACC=0x0005_0006 instead of 6).
+      BuildMI(MBB, MI, DL, get(C28x::MOV_ind_store_AR)).addReg(C28x::XAR7).addReg(Src);
     } else {
       BuildMI(MBB, MI, DL, get(C28x::MOV16rr), C28x::AH).addReg(Src);
       BuildMI(MBB, MI, DL, get(C28x::MOV_ind_store)).addReg(C28x::XAR7).addReg(C28x::AH);
     }
+    MBB.erase(MI);
+    return true;
+  }
+  case C28x::CMPBR16_PSEUDO:
+  case C28x::CMPBR32_PSEUDO: {
+    unsigned CompareOp = MI.getOpcode() == C28x::CMPBR32_PSEUDO
+                             ? C28x::CMP32_PSEUDO : C28x::CMP16_PSEUDO;
+    auto Compare = BuildMI(MBB, MI, DL, get(CompareOp))
+        .addReg(MI.getOperand(1).getReg()).addReg(MI.getOperand(2).getReg());
+    expandPostRAPseudo(*Compare);
+    BuildMI(MBB, MI, DL, get(realOpcodeFromCondEnc(MI.getOperand(3).getImm())))
+        .addMBB(MI.getOperand(0).getMBB());
     MBB.erase(MI);
     return true;
   }
@@ -562,7 +799,9 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
           .addReg(C28x::ACC);
       BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
     } else {
-      BuildMI(MBB, MI, DL, get(C28x::MOV32rr), C28x::XAR7).addReg(Lhs);
+      // MOV32rr would encode "MOVL XAR7, @ARn" (memory read), not a copy.
+      BuildMI(MBB, MI, DL, get(C28x::PUSH32)).addReg(Lhs);
+      BuildMI(MBB, MI, DL, get(C28x::POP32), C28x::XAR7);
     }
 
     // ACC = Rhs.
@@ -589,52 +828,73 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   }
   case C28x::ADD32_PSEUDO:
   case C28x::SUB32_PSEUDO: {
-    // Wide 32-bit add/sub, fully expanded post-RA.  Arrange ACC=Lhs, XT=Rhs
-    // using reserved XAR7 to park Rhs, run ADD/SUB, route result to Dst.
+    // Wide 32-bit add/sub, fully expanded post-RA.  Liveness-lean sequence:
+    // the pseudo declares Defs=[ACC,XT], so the allocator has already moved
+    // every live value out of ACC/XT -- the old unconditional PUSH_ACC/POP_ACC
+    // staging (an outer ACC save plus an ACC round-trip to move XAR7 into XT)
+    // pushed dead values and cost ~10 instructions where 6 suffice, with two
+    // dead stack words on top.  Order matters: park LHS in the reserved XAR7
+    // first, then build XT=Rhs while ACC is free, then reload ACC=Lhs.  The
+    // one corner that still needs a transient push is Lhs==XT && Rhs==ACC
+    // (each operand lives in the register the other's staging clobbers).
+    // Lhs/Rhs are never XAR7: the register is reserved as scratch.
     bool IsAdd = MI.getOpcode() == C28x::ADD32_PSEUDO;
     Register Dst = MI.getOperand(0).getReg();
     Register Lhs = MI.getOperand(1).getReg();
     Register Rhs = MI.getOperand(2).getReg();
 
-    bool SaveACC = (Dst != C28x::ACC);
-    if (SaveACC)
-      BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
-
-    // XAR7 = Rhs.
-    if (Rhs == C28x::XAR7) {
-      // already
-    } else if (Rhs == C28x::ACC) {
-      BuildMI(MBB, MI, DL, get(C28x::MOVL_XAR_ACC), C28x::XAR7)
-          .addReg(C28x::ACC);
-    } else if (C28x::GR32RegClass.contains(Rhs)) {
-      BuildMI(MBB, MI, DL, get(C28x::MOV32rr), C28x::XAR7).addReg(Rhs);
-    } else { // XT
-      BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
-      BuildMI(MBB, MI, DL, get(C28x::MOV_ACC_rr), C28x::ACC)
-          .addReg(C28x::XT);
-      BuildMI(MBB, MI, DL, get(C28x::MOVL_XAR_ACC), C28x::XAR7)
-          .addReg(C28x::ACC);
-      BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
-    }
-
-    // ACC = Lhs.
+    // XAR7 = Lhs.
+    bool AccHoldsLhs = false;
     if (Lhs == C28x::ACC) {
-      // already
+      BuildMI(MBB, MI, DL, get(C28x::MOVL_XAR_ACC), C28x::XAR7)
+          .addReg(C28x::ACC);
+      AccHoldsLhs = true;
     } else if (Lhs == C28x::XT) {
-      BuildMI(MBB, MI, DL, get(C28x::MOV_ACC_rr), C28x::ACC)
-          .addReg(C28x::XT);
+      if (Rhs == C28x::ACC) {
+        // Both operands sit in registers the other's staging clobbers:
+        // save Rhs, park Lhs in XAR7, restore Rhs straight into XT.
+        BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
+        BuildMI(MBB, MI, DL, get(C28x::MOV_ACC_rr), C28x::ACC)
+            .addReg(C28x::XT);
+        BuildMI(MBB, MI, DL, get(C28x::MOVL_XAR_ACC), C28x::XAR7)
+            .addReg(C28x::ACC);
+        BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
+        BuildMI(MBB, MI, DL, get(C28x::MOV_ACC_rr), C28x::XT)
+            .addReg(C28x::ACC);
+      } else {
+        BuildMI(MBB, MI, DL, get(C28x::MOV_ACC_rr), C28x::ACC)
+            .addReg(C28x::XT);
+        BuildMI(MBB, MI, DL, get(C28x::MOVL_XAR_ACC), C28x::XAR7)
+            .addReg(C28x::ACC);
+        AccHoldsLhs = true;
+      }
     } else {
-      BuildMI(MBB, MI, DL, get(C28x::MOVL_ACC_XAR), C28x::ACC)
-          .addReg(Lhs);
+      // MOV32rr would encode "MOVL XAR7, @ARn" (memory read), not a copy.
+      BuildMI(MBB, MI, DL, get(C28x::PUSH32)).addReg(Lhs);
+      BuildMI(MBB, MI, DL, get(C28x::POP32), C28x::XAR7);
     }
 
-    // XT = XAR7 (Rhs), preserving ACC=Lhs.
-    BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
-    BuildMI(MBB, MI, DL, get(C28x::MOVL_ACC_XAR), C28x::ACC)
-        .addReg(C28x::XAR7);
-    BuildMI(MBB, MI, DL, get(C28x::MOV_ACC_rr), C28x::XT)
-        .addReg(C28x::ACC);
-    BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
+    // XT = Rhs, unless already there or staged by the corner above.  ACC
+    // holds nothing live here, so the XAR->XT staging needs no push/pop;
+    // Rhs==ACC moves directly and does NOT clobber ACC.
+    const bool CornerLhsXtRhsAcc = (Lhs == C28x::XT && Rhs == C28x::ACC);
+    if (!CornerLhsXtRhsAcc && Rhs != C28x::XT) {
+      if (Rhs == C28x::ACC) {
+        BuildMI(MBB, MI, DL, get(C28x::MOV_ACC_rr), C28x::XT)
+            .addReg(C28x::ACC);
+      } else {
+        BuildMI(MBB, MI, DL, get(C28x::MOVL_ACC_XAR), C28x::ACC)
+            .addReg(Rhs);
+        BuildMI(MBB, MI, DL, get(C28x::MOV_ACC_rr), C28x::XT)
+            .addReg(C28x::ACC);
+        AccHoldsLhs = false; // ACC was overwritten with Rhs
+      }
+    }
+
+    // ACC = Lhs (already there when the Lhs staging passed through ACC).
+    if (!AccHoldsLhs)
+      BuildMI(MBB, MI, DL, get(C28x::MOVL_ACC_XAR), C28x::ACC)
+          .addReg(C28x::XAR7);
 
     if (IsAdd)
       BuildMI(MBB, MI, DL, get(C28x::ADD32rr), C28x::ACC)
@@ -653,8 +913,6 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       BuildMI(MBB, MI, DL, get(C28x::MOVL_XAR_ACC), Dst)
           .addReg(C28x::ACC);
     }
-    if (SaveACC)
-      BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
 
     MBB.erase(MI);
     return true;
@@ -676,6 +934,18 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     if (Rhs == C28x::ACC && Lhs != C28x::ACC) {
       BuildMI(MBB, MI, DL, get(C28x::MOVL_XAR_ACC), C28x::XAR7)
           .addReg(C28x::ACC);
+      RhsR = C28x::XAR7;
+    } else if (Rhs == C28x::XAR0) {
+      // XAR0 can only hold a DYING Rhs operand here (the pseudo defs XAR0,
+      // so no live-across value is assigned there).  The half extraction
+      // below writes AR0 — the low half of XAR0 — between the two Rhs reads,
+      // so a materialized constant in XAR0 would be zeroed before the second
+      // EmitLoadRhs() and the op would degenerate to Lhs&0.  Park Rhs in the
+      // reserved XAR7 scratch first.  Hardware symptom: is_some lowers to
+      // `and i32 tag, 1` with the 1 in XAR0 and returned 0 for Some(5).
+      // MOV32rr would encode "MOVL XAR7, @AR0" (memory read), not a copy.
+      BuildMI(MBB, MI, DL, get(C28x::PUSH32)).addReg(C28x::XAR0);
+      BuildMI(MBB, MI, DL, get(C28x::POP32), C28x::XAR7);
       RhsR = C28x::XAR7;
     }
 
@@ -715,8 +985,15 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       }
     };
 
-    BuildMI(MBB, MI, DL, get(C28x::PUSH_AR0));
-    // High half: extract Rhs high into AR0, apply to AH.
+    if (SaveScratchXAR0)
+
+      BuildMI(MBB, MI, DL, get(C28x::PUSH32)).addReg(C28x::XAR0);
+    // High half: extract Rhs high into AR0, apply to AH.  EmitLoadRhs()
+    // overwrites ACC with Rhs, so Lhs (currently in ACC) must be saved and
+    // restored around each half — same discipline as the *_HALF_PSEUDO
+    // expansion below.  Without this the op degenerates to Rhs&Rhs (==Rhs):
+    // observed on hardware as is_some reading 0 for Some (is_some lowers to
+    // `and i32 tag, 1` with tag in ACC and the constant 1 in XAR0).
     BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
     EmitLoadRhs();
     BuildMI(MBB, MI, DL, get(C28x::MOV16rr), C28x::AR0).addReg(C28x::AH);
@@ -730,7 +1007,8 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
     BuildMI(MBB, MI, DL, get(Op16), C28x::AL)
         .addReg(C28x::AL).addReg(C28x::AR0);
-    BuildMI(MBB, MI, DL, get(C28x::POP_AR0));
+    if (SaveScratchXAR0)
+      BuildMI(MBB, MI, DL, get(C28x::POP32), C28x::XAR0);
 
     // Route result (in ACC) to Dst.
     if (Dst == C28x::ACC) {
@@ -772,7 +1050,8 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     case C28x::OR32_HALF_PSEUDO:  Op16 = C28x::OR16rr;  break;
     default:                       Op16 = C28x::XOR16rr; break;
     }
-    BuildMI(MBB, MI, DL, get(C28x::PUSH_AR0));
+    if (SaveScratchXAR0)
+      BuildMI(MBB, MI, DL, get(C28x::PUSH32)).addReg(C28x::XAR0);
     // High half: AR0 = RHS high (AH of XT)
     BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
     BuildMI(MBB, MI, DL, get(C28x::MOV_ACC_rr), C28x::ACC).addReg(Rhs);
@@ -785,7 +1064,8 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     BuildMI(MBB, MI, DL, get(C28x::MOV16rr), C28x::AR0).addReg(C28x::AL);
     BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
     BuildMI(MBB, MI, DL, get(Op16), C28x::AL).addReg(C28x::AL).addReg(C28x::AR0);
-    BuildMI(MBB, MI, DL, get(C28x::POP_AR0));
+    if (SaveScratchXAR0)
+      BuildMI(MBB, MI, DL, get(C28x::POP32), C28x::XAR0);
     MBB.erase(MI);
     return true;
   }
@@ -882,7 +1162,8 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     // Only PUSH/POP ACC when it is already live (defined earlier in the
     // block or a live-in); otherwise the verifier flags an undefined read.
     Register Dst = MI.getOperand(0).getReg();
-    bool ACCLive = MBB.isLiveIn(C28x::ACC);
+    bool ACCLive = MBB.isLiveIn(C28x::ACC) || MBB.isLiveIn(C28x::AL) ||
+                   MBB.isLiveIn(C28x::AH);
     if (!ACCLive) {
       for (auto K = MI.getIterator(); K != MBB.begin(); ) {
         --K;
@@ -927,15 +1208,14 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     default:                  Op16 = C28x::XOR16rr; break;
     }
 
-    // RHS staging policy: always stage AL/AH RHS through reserved XAR7 so
-    // the emitted 16-bit ALU op uses an ARn loc16 (0xA0-0xA7) rather than
-    // the AH/AL register-direct encodings (0xA8/0xA9) that disassemble as
-    // "@AH"/"@AL" and are easily confused with direct memory addressing.
-    // Also stage when RHS == Dst (DstIsAcc): the "MOV Dst, Lhs" before the
-    // OP would clobber RHS before it is read.
+    // Keep accumulator-half operands in their native form whenever possible.
+    // The C28x AL/AH register-direct encodings are valid loc16 operands and
+    // avoid an unnecessary AR7 staging move.  Stage only the one aliasing
+    // case where copying Lhs into the working accumulator half would
+    // overwrite RHS first. Non-accumulator destinations compute in AL too.
     bool DstIsAcc = (Dst == C28x::AL || Dst == C28x::AH);
-    bool NeedStage =
-        (Rhs == C28x::AL || Rhs == C28x::AH) || (DstIsAcc && Rhs == Dst);
+    Register WorkReg = DstIsAcc ? Dst : Register(C28x::AL);
+    bool NeedStage = Rhs == WorkReg && Lhs != WorkReg;
     Register RhsReg = Rhs;
     if (NeedStage) {
       BuildMI(MBB, MI, DL, get(C28x::MOVL_XAR_AR), C28x::XAR7).addReg(Rhs);
@@ -952,13 +1232,19 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     } else {
       // Dst is AR0-6.  AL may hold a live-through value, so preserve ACC
       // around the computation and move the result to Dst before POP.
-      BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
+      // Only save when ACC (AL/AH) is actually live through this expansion;
+      // an unconditional PUSH_ACC would read an undefined ACC when the value
+      // is dead, which the machine verifier rejects.
+      bool SaveACC = AccLiveThrough();
+      if (SaveACC)
+        BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
       if (Lhs != C28x::AL)
         BuildMI(MBB, MI, DL, get(C28x::MOV16rr), C28x::AL).addReg(Lhs);
       BuildMI(MBB, MI, DL, get(Op16), C28x::AL)
           .addReg(C28x::AL).addReg(RhsReg);
       BuildMI(MBB, MI, DL, get(C28x::MOV16rr), Dst).addReg(C28x::AL);
-      BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
+      if (SaveACC)
+        BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
     }
     MBB.erase(MI);
     return true;
@@ -967,12 +1253,12 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     Register Dst = MI.getOperand(0).getReg();
     MachineOperand PtrOp = MI.getOperand(1);
     if (!PtrOp.isFI()) {
-      // Ptr is a byte address (ABI L1-1).  Convert to word address in XAR7:
-      //   ACC = Ptr; CLRC C; ROR ACC (>>=1); XAR7 = ACC
+      // Rust data pointers are logical byte addresses (ABI L1-1). Convert to
+      // the C28x word address consumed by MOV *XARn.
       Register Ptr = PtrOp.getReg();
       // Fast path: the result lands directly in an accumulator half (Dst) and
-      // the other half is dead, so we can clobber all of ACC for the byte->
-      // word conversion and leave the loaded value in Dst — no PUSH/POP.
+      // the other half is dead, so we can clobber all of ACC to move the
+      // pointer into XAR7 and leave the loaded value in Dst — no PUSH/POP.
       Register OtherHalf = 0;
       if (Dst == C28x::AL) OtherHalf = C28x::AH;
       else if (Dst == C28x::AH) OtherHalf = C28x::AL;
@@ -989,12 +1275,17 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
         MBB.erase(MI);
         return true;
       }
-      // General path: preserve both accumulator halves until the loaded result
-      // is ready, then write only Dst.
-      BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
-      BuildMI(MBB, MI, DL, get(C28x::MOVL_ACC_XAR), C28x::ACC).addReg(Ptr);
-      BuildMI(MBB, MI, DL, get(C28x::CLRC_C));
-      BuildMI(MBB, MI, DL, get(C28x::ROR_ACC), C28x::ACC).addReg(C28x::ACC);
+      // General path: preserve ACC only when a value survives this expansion.
+      // The old unconditional PUSH_ACC read an undefined ACC for a first
+      // sret-pointer access.  AccLiveThrough now also requires ACC to hold a
+      // value at MI; pass Dst so uses of the loaded value are not mistaken for
+      // an old ACC that needs saving.
+      bool SaveACC = AccLiveThrough(Dst);
+      if (SaveACC)
+        BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
+       BuildMI(MBB, MI, DL, get(C28x::MOVL_ACC_XAR), C28x::ACC).addReg(Ptr);
+       BuildMI(MBB, MI, DL, get(C28x::CLRC_C));
+       BuildMI(MBB, MI, DL, get(C28x::ROR_ACC), C28x::ACC).addReg(C28x::ACC);
       BuildMI(MBB, MI, DL, get(C28x::MOVL_XAR_ACC), C28x::XAR7)
           .addReg(C28x::ACC);
       BuildMI(MBB, MI, DL, get(C28x::MOV_ind_load), C28x::AL)
@@ -1002,7 +1293,8 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       // The address is dead after the load. Reuse its low half for the value
       // while POP restores unrelated live AL/AH, then write only Dst.
       BuildMI(MBB, MI, DL, get(C28x::MOV16rr), C28x::AR7).addReg(C28x::AL);
-      BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
+      if (SaveACC)
+        BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
       BuildMI(MBB, MI, DL, get(C28x::MOV16rr), Dst).addReg(C28x::AR7);
       MBB.erase(MI);
       return true;
@@ -1015,15 +1307,19 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     Register Src = MI.getOperand(1).getReg();
     if (!PtrOp.isFI()) {
       Register Ptr = PtrOp.getReg();
-      // Save all live ACC contents, not only an AL/AH store source.
+      // Save an AL/AH source because address conversion clobbers it.  For a
+      // source in another register, preserve ACC only if it is live through
+      // this expansion; otherwise an unconditional push would read garbage.
       bool SourceInAcc = (Src == C28x::AL || Src == C28x::AH);
-      BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
-      // byte address -> word address in XAR7
+      bool SaveACC = SourceInAcc || AccLiveThrough();
+      if (SaveACC)
+        BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
+       // Rust logical byte address -> C28x word address.
       BuildMI(MBB, MI, DL, get(C28x::MOVL_ACC_XAR), C28x::ACC).addReg(Ptr);
-      BuildMI(MBB, MI, DL, get(C28x::CLRC_C));
-      BuildMI(MBB, MI, DL, get(C28x::ROR_ACC), C28x::ACC).addReg(C28x::ACC);
+       BuildMI(MBB, MI, DL, get(C28x::CLRC_C));
+       BuildMI(MBB, MI, DL, get(C28x::ROR_ACC), C28x::ACC).addReg(C28x::ACC);
       BuildMI(MBB, MI, DL, get(C28x::MOVL_XAR_ACC), C28x::XAR7).addReg(C28x::ACC);
-      if (SourceInAcc)
+      if (SourceInAcc && SaveACC)
         BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
       // MOV *XARn, AX requires source in AL/AH.
       Register StgSrc = Src;
@@ -1034,7 +1330,7 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       BuildMI(MBB, MI, DL, get(C28x::MOV_ind_store))
           .addReg(C28x::XAR7)
           .addReg(StgSrc);
-      if (!SourceInAcc)
+      if (!SourceInAcc && SaveACC)
         BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
       MBB.erase(MI);
       return true;
@@ -1046,13 +1342,18 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     if (!PtrOp.isFI()) {
       Register Dst = MI.getOperand(0).getReg();
       Register Ptr = PtrOp.getReg();
-      bool Save = Dst != C28x::ACC;
+      // The load result itself is the only live value that must survive this
+      // expansion.  ACC may have been killed by the allocator immediately
+      // before the reload; saving it here would read an undefined physical
+      // register.  ACC preservation is handled by the surrounding value
+      // copies when it is genuinely live.
+      bool Save = Dst != C28x::ACC && AccLiveThrough();
       if (Save)
         BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
-      // byte address -> word address in XAR7 (clobbers ACC).
+       // Rust logical byte address -> C28x word address.
       BuildMI(MBB, MI, DL, get(C28x::MOVL_ACC_XAR), C28x::ACC).addReg(Ptr);
-      BuildMI(MBB, MI, DL, get(C28x::CLRC_C));
-      BuildMI(MBB, MI, DL, get(C28x::ROR_ACC), C28x::ACC).addReg(C28x::ACC);
+       BuildMI(MBB, MI, DL, get(C28x::CLRC_C));
+       BuildMI(MBB, MI, DL, get(C28x::ROR_ACC), C28x::ACC).addReg(C28x::ACC);
       BuildMI(MBB, MI, DL, get(C28x::MOVL_XAR_ACC), C28x::XAR7).addReg(C28x::ACC);
       // Load low word into AL, then high word from the NEXT word into AH.
       BuildMI(MBB, MI, DL, get(C28x::MOV_ind_load), C28x::AL)
@@ -1076,7 +1377,12 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       Register Src = MI.getOperand(1).getReg();
       // We clobber ACC and the reserved scratch XAR7.  Ptr and Src are only
       // read, never modified.
-      BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
+      // The source is first materialised in ACC and then saved below.  Do not
+      // save the pre-existing ACC: in spill-heavy blocks it can be undefined
+      // after a kill, and the store expansion is allowed to clobber it.
+      bool PreserveAcc = AccLiveThrough();
+      if (PreserveAcc)
+        BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
       // Bring the wide 32-bit value (ACC/XT/XARn) into ACC.
       if (Src == C28x::ACC) {
         // already in ACC
@@ -1091,14 +1397,14 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
         BuildMI(MBB, MI, DL, get(TargetOpcode::COPY), C28x::ACC)
             .addReg(Src);
       }
-      // The byte->word address conversion also uses ACC, so stash the value.
+      // Moving the address into XAR7 also uses ACC, so stash the value.
       BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
-      // byte address -> word address in XAR7
+       // Rust logical byte address -> C28x word address.
       BuildMI(MBB, MI, DL, get(C28x::MOVL_ACC_XAR), C28x::ACC)
           .addReg(Ptr);
-      BuildMI(MBB, MI, DL, get(C28x::CLRC_C));
-      BuildMI(MBB, MI, DL, get(C28x::ROR_ACC), C28x::ACC)
-          .addReg(C28x::ACC);
+       BuildMI(MBB, MI, DL, get(C28x::CLRC_C));
+       BuildMI(MBB, MI, DL, get(C28x::ROR_ACC), C28x::ACC)
+           .addReg(C28x::ACC);
       BuildMI(MBB, MI, DL, get(C28x::MOVL_XAR_ACC), C28x::XAR7)
           .addReg(C28x::ACC);
       BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
@@ -1108,7 +1414,8 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       BuildMI(MBB, MI, DL, get(C28x::ADDB_XAR7_imm)).addImm(1);
       BuildMI(MBB, MI, DL, get(C28x::MOV_ind_store_AH))
           .addReg(C28x::XAR7);
-      BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
+      if (PreserveAcc)
+        BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
       MBB.erase(MI);
       return true;
     }
@@ -1118,42 +1425,119 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     Register Dst = MI.getOperand(0).getReg();
     MachineOperand PtrOp = MI.getOperand(1);
     if (!PtrOp.isFI()) {
-      // MOVB expects a byte address in XARn — Ptr is already a byte address
-      // (ABI L1-1), so no conversion is needed.
       Register Ptr = PtrOp.getReg();
-      if (Dst != C28x::AL && Dst != C28x::AH) {
-        BuildMI(MBB, MI, DL, get(C28x::MOVB_ind_load_AL), C28x::AL)
-            .addReg(Ptr);
-        BuildMI(MBB, MI, DL, get(C28x::MOV16rr), Dst).addReg(C28x::AL);
-      } else {
-        BuildMI(MBB, MI, DL, get(C28x::MOVB_ind_load_AL), Dst)
-            .addReg(Ptr);
-      }
+      bool SaveACC = AccLiveThrough(Dst);
+      if (SaveACC)
+        BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
+      if (SaveScratchXAR0)
+        BuildMI(MBB, MI, DL, get(C28x::PUSH32)).addReg(C28x::XAR0);
+      EmitIndexedByteAddress(Ptr);
+      BuildMI(MBB, MI, DL, get(C28x::MOVB_ind_load_index_AL), C28x::AL)
+          .addReg(C28x::XAR7);
+      BuildMI(MBB, MI, DL, get(C28x::MOV16rr), C28x::AR7).addReg(C28x::AL);
+      if (SaveScratchXAR0)
+        BuildMI(MBB, MI, DL, get(C28x::POP32), C28x::XAR0);
+      if (SaveACC)
+        BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
+      BuildMI(MBB, MI, DL, get(C28x::MOV16rr), Dst).addReg(C28x::AR7);
       MBB.erase(MI);
       return true;
     }
     return false;
   }
+  case C28x::LOAD8_GLOBAL_PSEUDO:
+  case C28x::LOAD8_GLOBAL_ZEXT32_PSEUDO: {
+    const bool Wide = MI.getOpcode() == C28x::LOAD8_GLOBAL_ZEXT32_PSEUDO;
+    Register Dst = MI.getOperand(0).getReg();
+    bool SaveACC = Wide
+        ? !RI.regsOverlap(Dst, C28x::ACC) && AccLiveThrough()
+        : AccLiveThrough(Dst);
+    if (SaveACC)
+      BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
+    if (SaveScratchXAR0)
+      BuildMI(MBB, MI, DL, get(C28x::PUSH32)).addReg(C28x::XAR0);
+    auto Sym = BuildMI(MBB, MI, DL, get(C28x::MOVL_XAR_imm), C28x::XAR7);
+    Sym->addOperand(MI.getOperand(1));
+    BuildMI(MBB, MI, DL, get(C28x::MOV16_imm), C28x::AR0)
+        .addImm(MI.getOperand(2).getImm());
+    BuildMI(MBB, MI, DL, get(C28x::MOVB_ind_load_index_AL), C28x::AL)
+        .addReg(C28x::XAR7);
+    if (Wide)
+      BuildMI(MBB, MI, DL, get(C28x::MOV16_imm), C28x::AH).addImm(0);
+    else
+      BuildMI(MBB, MI, DL, get(C28x::MOV16rr), C28x::AR7).addReg(C28x::AL);
+    if (SaveScratchXAR0)
+      BuildMI(MBB, MI, DL, get(C28x::POP32), C28x::XAR0);
+    if (Wide)
+      RouteFromACC(Dst);
+    if (SaveACC)
+      BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
+    if (!Wide)
+      BuildMI(MBB, MI, DL, get(C28x::MOV16rr), Dst).addReg(C28x::AR7);
+    MBB.erase(MI);
+    return true;
+  }
+  case C28x::STORE8_GLOBAL_PSEUDO: {
+    Register Src = MI.getOperand(2).getReg();
+    // Staging a non-AL source is itself a clobber. Preserve before that move,
+    // so e.g. exchange(false -> true) returns the old AL, not the new byte.
+    bool SaveACC = Src != C28x::AL && AccLiveThrough();
+    if (SaveACC)
+      BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
+    if (Src != C28x::AL)
+      BuildMI(MBB, MI, DL, get(C28x::MOV16rr), C28x::AL).addReg(Src);
+    if (SaveScratchXAR0)
+      BuildMI(MBB, MI, DL, get(C28x::PUSH32)).addReg(C28x::XAR0);
+    auto Sym = BuildMI(MBB, MI, DL, get(C28x::MOVL_XAR_imm), C28x::XAR7);
+    Sym->addOperand(MI.getOperand(0));
+    BuildMI(MBB, MI, DL, get(C28x::MOV16_imm), C28x::AR0)
+        .addImm(MI.getOperand(1).getImm());
+    BuildMI(MBB, MI, DL, get(C28x::MOVB_ind_store_index_AL))
+        .addReg(C28x::XAR7);
+    if (SaveScratchXAR0)
+      BuildMI(MBB, MI, DL, get(C28x::POP32), C28x::XAR0);
+    if (SaveACC)
+      BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
+    MBB.erase(MI);
+    return true;
+  }
   case C28x::LOAD8_ZEXT32_PSEUDO: {
-    // Zero-extending i8 load to i32: byte -> AL low (MOVB clears AL high),
-    // then clear AH so ACC[31:8] = 0; route to the (any GPR32) destination.
     Register Dst = MI.getOperand(0).getReg();
     Register Ptr = MI.getOperand(1).getReg();
-    BuildMI(MBB, MI, DL, get(C28x::MOVB_ind_load_AL), C28x::AL)
-        .addReg(Ptr);
+    bool SaveACC = Dst != C28x::ACC && AccLiveThrough();
+    if (SaveACC)
+      BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
+    if (SaveScratchXAR0)
+      BuildMI(MBB, MI, DL, get(C28x::PUSH32)).addReg(C28x::XAR0);
+    EmitIndexedByteAddress(Ptr);
+    BuildMI(MBB, MI, DL, get(C28x::MOVB_ind_load_index_AL), C28x::AL)
+        .addReg(C28x::XAR7);
     BuildMI(MBB, MI, DL, get(C28x::MOV16_imm), C28x::AH).addImm(0);
+    if (SaveScratchXAR0)
+      BuildMI(MBB, MI, DL, get(C28x::POP32), C28x::XAR0);
     RouteFromACC(Dst);
+    if (SaveACC)
+      BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
     MBB.erase(MI);
     return true;
   }
   case C28x::LOAD1_ZEXT32_PSEUDO: {
-    // i1 bool (0/1 in a byte) extending to i32: identical to i8->i32 zext.
     Register Dst = MI.getOperand(0).getReg();
     Register Ptr = MI.getOperand(1).getReg();
-    BuildMI(MBB, MI, DL, get(C28x::MOVB_ind_load_AL), C28x::AL)
-        .addReg(Ptr);
+    bool SaveACC = Dst != C28x::ACC && AccLiveThrough();
+    if (SaveACC)
+      BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
+    if (SaveScratchXAR0)
+      BuildMI(MBB, MI, DL, get(C28x::PUSH32)).addReg(C28x::XAR0);
+    EmitIndexedByteAddress(Ptr);
+    BuildMI(MBB, MI, DL, get(C28x::MOVB_ind_load_index_AL), C28x::AL)
+        .addReg(C28x::XAR7);
     BuildMI(MBB, MI, DL, get(C28x::MOV16_imm), C28x::AH).addImm(0);
+    if (SaveScratchXAR0)
+      BuildMI(MBB, MI, DL, get(C28x::POP32), C28x::XAR0);
     RouteFromACC(Dst);
+    if (SaveACC)
+      BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
     MBB.erase(MI);
     return true;
   }
@@ -1164,11 +1548,18 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MachineOperand PtrOp = MI.getOperand(1);
     if (!PtrOp.isFI()) {
       Register Ptr = PtrOp.getReg();
-      BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
-      // Byte address -> word address: ACC = Ptr; CLRC C; ROR ACC; XAR7 = ACC
+      // Preserve ACC unless it is provably dead.  The forward "needed later"
+      // heuristic is not sufficient here: an incoming ACC argument can be
+      // live at this point while a later def hides it, and dropping the save
+      // silently corrupts that argument (observed on hardware: a mixed
+      // (i16,ptr,i32) callee returned a+*p+*p instead of a+*p+b).
+      bool SaveAcc = !AccProvablyDead();
+      if (SaveAcc)
+        BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
+       // Rust logical byte address -> C28x word address.
       BuildMI(MBB, MI, DL, get(C28x::MOVL_ACC_XAR), C28x::ACC).addReg(Ptr);
-      BuildMI(MBB, MI, DL, get(C28x::CLRC_C));
-      BuildMI(MBB, MI, DL, get(C28x::ROR_ACC), C28x::ACC).addReg(C28x::ACC);
+       BuildMI(MBB, MI, DL, get(C28x::CLRC_C));
+       BuildMI(MBB, MI, DL, get(C28x::ROR_ACC), C28x::ACC).addReg(C28x::ACC);
       BuildMI(MBB, MI, DL, get(C28x::MOVL_XAR_ACC), C28x::XAR7).addReg(C28x::ACC);
       BuildMI(MBB, MI, DL, get(C28x::MOV_ind_load), C28x::AL)
           .addReg(C28x::XAR7);
@@ -1176,7 +1567,8 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       // Park full 32-bit result in XAR7, restore saved ACC, bring result back
       // into ACC, then route to the (any GPR32) destination.
       BuildMI(MBB, MI, DL, get(C28x::MOVL_XAR_ACC), C28x::XAR7).addReg(C28x::ACC);
-      BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
+      if (SaveAcc)
+        BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
       BuildMI(MBB, MI, DL, get(C28x::MOVL_ACC_XAR), C28x::ACC)
           .addReg(C28x::XAR7);
       RouteFromACC(Dst);
@@ -1192,16 +1584,22 @@ bool C28xInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     Register Src = MI.getOperand(1).getReg();
     if (!PtrOp.isFI()) {
       Register Ptr = PtrOp.getReg();
-      Register StgSrc = Src;
-      if (Src != C28x::AL && Src != C28x::AH) {
+      bool SaveACC = Src != C28x::AL && AccLiveThrough();
+      if (SaveACC)
+        BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
+      if (Src != C28x::AL)
         BuildMI(MBB, MI, DL, get(C28x::MOV16rr), C28x::AL).addReg(Src);
-        StgSrc = C28x::AL;
-      }
-      if (StgSrc == C28x::AH) {
-        BuildMI(MBB, MI, DL, get(C28x::MOV16rr), C28x::AL).addReg(C28x::AH);
-      }
-      BuildMI(MBB, MI, DL, get(C28x::MOVB_ind_store_AL))
-          .addReg(Ptr);
+      if (SaveScratchXAR0)
+        BuildMI(MBB, MI, DL, get(C28x::PUSH32)).addReg(C28x::XAR0);
+      BuildMI(MBB, MI, DL, get(C28x::PUSH_ACC));
+      EmitIndexedByteAddress(Ptr);
+      BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
+      BuildMI(MBB, MI, DL, get(C28x::MOVB_ind_store_index_AL))
+          .addReg(C28x::XAR7);
+      if (SaveScratchXAR0)
+        BuildMI(MBB, MI, DL, get(C28x::POP32), C28x::XAR0);
+      if (SaveACC)
+        BuildMI(MBB, MI, DL, get(C28x::POP_ACC));
       MBB.erase(MI);
       return true;
     }
@@ -1271,6 +1669,14 @@ bool C28xInstrInfo::analyzeBranch(MachineBasicBlock &MBB,
                                   bool AllowModify) const {
   TBB = FBB = nullptr;
   Cond.clear();
+
+  // Before post-RA expansion the comparison is part of the terminator. Keep
+  // it opaque to branch folding: the legacy [cc] format cannot represent its
+  // operands. In particular, do not misread [CMPBR][JMP] as a plain JMP.
+  for (const MachineInstr &I : MBB.terminators())
+    if (I.getOpcode() == C28x::CMPBR16_PSEUDO ||
+        I.getOpcode() == C28x::CMPBR32_PSEUDO)
+      return true;
 
   auto I = MBB.getLastNonDebugInstr();
   if (I == MBB.end())

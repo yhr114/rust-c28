@@ -37,7 +37,18 @@ C28xTargetLowering::C28xTargetLowering(const TargetMachine &TM,
 
   computeRegisterProperties(STI.getRegisterInfo());
   setStackPointerRegisterToSaveRestore(C28x::SP);
-  setMaxAtomicSizeInBitsSupported(0);
+  // C28x is a single-core MCU with no atomic RMW instructions, but an aligned
+  // 16-bit load or store is indivisible on the bus, so a naturally-aligned
+  // 16-bit access is a legal atomic operation.  Declaring that width makes
+  // LLVM lower atomic load/store of i16/i8 to a plain MOV instead of an
+  // unsupported libcall.  Wider atomics and atomic RMW stay unsupported and
+  // are rejected at compile time rather than silently miscompiled.
+  setMaxAtomicSizeInBitsSupported(16);
+  // AtomicExpandPass drops the atomicity in IR (see shouldExpandAtomic*InIR),
+  // so no ATOMIC_LOAD/STORE node should reach isel.  Do NOT mark them Expand
+  // here: LegalizeDAG's expansion of an atomic load is a cmpxchg loop, which
+  // this target cannot select.  Explicit fences still need an action.
+  setOperationAction(ISD::ATOMIC_FENCE, MVT::Other, Expand);
 
   setMinFunctionAlignment(Align(2));
   setPrefFunctionAlignment(Align(2));
@@ -197,6 +208,7 @@ C28xTargetLowering::C28xTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::SDIVREM, MVT::i32, Expand);
   // sign_extend_inreg for i8 comparisons.
   setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i8, Expand);
+  setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i16, Expand);
 
   // Bit counting: expand to libcall/loop.
   setOperationAction(ISD::CTTZ, MVT::i32, Expand);
@@ -231,6 +243,55 @@ C28xTargetLowering::C28xTargetLowering(const TargetMachine &TM,
   setLibcallImpl(RTLIB::UDIV_I32, RTLIB::impl___udivsi3);
   setLibcallImpl(RTLIB::SREM_I32, RTLIB::impl___modsi3);
   setLibcallImpl(RTLIB::UREM_I32, RTLIB::impl___umodsi3);
+
+  // Inline `llvm.memcpy`/`memset`/`memmove` rather than calling the TI RTS.
+  // The RTS routine dereferences C word addresses; Rust code passes logical
+  // byte addresses, so a libcall copies from/to the wrong memory.  Raise the
+  // store-count budget so ordinary aggregate copies inline; see
+  // findOptimalMemOpLowering below for the type selection.
+  MaxStoresPerMemcpy = 16;
+  MaxStoresPerMemcpyOptSize = 16;
+  MaxStoresPerMemmove = 16;
+  MaxStoresPerMemmoveOptSize = 16;
+  MaxStoresPerMemset = 16;
+  MaxStoresPerMemsetOptSize = 16;
+}
+
+bool C28xTargetLowering::findOptimalMemOpLowering(
+    LLVMContext &Context, std::vector<EVT> &MemOps, unsigned Limit,
+    const MemOp &Op, unsigned DstAS, unsigned SrcAS,
+    const AttributeList &FuncAttributes, EVT *LargestVT) const {
+  // Prefer the generic chooser: it understands constant sources and the
+  // target's own alignment rules.
+  if (TargetLowering::findOptimalMemOpLowering(Context, MemOps, Limit, Op, DstAS,
+                                               SrcAS, FuncAttributes,
+                                               LargestVT))
+    return true;
+
+  // Fallback.  The generic chooser walks MVT::LAST_INTEGER_VALUETYPE down to
+  // the largest legal integer type and then rejects every candidate on this
+  // target, so without this fallback each memcpy becomes a TI RTS libcall.
+  // Emit the copy as i32 words, then one i16 word, then one i8 byte; the
+  // generic expander turns the illegal i8 into an EXTLOAD/TRUNCSTORE, which is
+  // the byte-offset path this backend already has.
+  uint64_t Size = Op.size();
+  if (Size == 0)
+    return false;
+  std::vector<EVT> Ops;
+  while (Size >= 4) {
+    Ops.push_back(MVT::i32);
+    Size -= 4;
+  }
+  if (Size >= 2) {
+    Ops.push_back(MVT::i16);
+    Size -= 2;
+  }
+  if (Size)
+    Ops.push_back(MVT::i8);
+  if (Ops.size() > Limit)
+    return false;
+  MemOps = Ops;
+  return true;
 }
 
 const char *C28xTargetLowering::getTargetNodeName(unsigned Opcode) const {
@@ -502,11 +563,10 @@ SDValue C28xTargetLowering::LowerOperation(SDValue Op,
         CC = ISD::SETNE;
       }
     }
-    SDValue Flag = EmitCMP(LHS, RHS, CC, DL, DAG);
     unsigned CondEnc = condToEnc(CC);
     SDValue CCOp = DAG.getConstant(CondEnc, DL, MVT::i16);
     return DAG.getNode(C28xISD::BRCOND, DL, MVT::Other,
-                      {Chain, TrueBB, CCOp, Flag});
+                      {Chain, TrueBB, CCOp, LHS, RHS});
   }
   case ISD::GlobalAddress: {
     const GlobalAddressSDNode *GA = cast<GlobalAddressSDNode>(Op);
@@ -552,10 +612,9 @@ SDValue C28xTargetLowering::LowerOperation(SDValue Op,
     SDValue FalseVal = Op.getOperand(3);
     ISD::CondCode CC = cast<CondCodeSDNode>(Op.getOperand(4))->get();
     SDLoc DL(Op);
-    SDValue Flag = EmitCMP(LHS, RHS, CC, DL, DAG);
     unsigned CondEnc = condToEnc(CC);
     SDValue CondOp = DAG.getConstant(CondEnc, DL, MVT::i16);
-    SDValue Ops[] = {TrueVal, FalseVal, CondOp, Flag};
+    SDValue Ops[] = {TrueVal, FalseVal, CondOp, LHS, RHS};
     return DAG.getNode(C28xISD::SELECT_CC, DL, Op.getValueType(), Ops);
   }
   case ISD::SETCC: {
@@ -563,12 +622,11 @@ SDValue C28xTargetLowering::LowerOperation(SDValue Op,
     SDValue RHS = Op.getOperand(1);
     ISD::CondCode CC = cast<CondCodeSDNode>(Op.getOperand(2))->get();
     SDLoc DL(Op);
-    SDValue Flag = EmitCMP(LHS, RHS, CC, DL, DAG);
     unsigned CondEnc = condToEnc(CC);
     SDValue CondOp = DAG.getConstant(CondEnc, DL, MVT::i16);
     SDValue One = DAG.getConstant(1, DL, Op.getValueType());
     SDValue Zero = DAG.getConstant(0, DL, Op.getValueType());
-    SDValue Ops[] = {One, Zero, CondOp, Flag};
+    SDValue Ops[] = {One, Zero, CondOp, LHS, RHS};
     return DAG.getNode(C28xISD::SELECT_CC, DL, Op.getValueType(), Ops);
   }
   case ISD::SHL_PARTS:
@@ -587,7 +645,13 @@ SDValue C28xTargetLowering::LowerOperation(SDValue Op,
     EVT VT = Op.getValueType();
     // i16 shifts: promote to i32, shift, truncate.
     if (VT == MVT::i16) {
-      SDValue Ext = DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i32, LHS);
+      // Right shifts can move the upper half into the observable low half.
+      // Preserve the i16 sign for SRA and clear the upper half for SRL;
+      // ANY_EXTEND is only safe for SHL, whose upper bits are discarded.
+      unsigned ExtOp = Op.getOpcode() == ISD::SRA ? ISD::SIGN_EXTEND
+                     : Op.getOpcode() == ISD::SRL ? ISD::ZERO_EXTEND
+                     : ISD::ANY_EXTEND;
+      SDValue Ext = DAG.getNode(ExtOp, DL, MVT::i32, LHS);
       SDValue Amt32 = (Amt.getValueType() == MVT::i32) ? Amt :
           DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i32, Amt);
       SDValue Shift = DAG.getNode(Op.getOpcode(), DL, MVT::i32, Ext, Amt32);
@@ -599,7 +663,7 @@ SDValue C28xTargetLowering::LowerOperation(SDValue Op,
     // i32 constant shifts: route through the hardware T-count shift pseudo so
     // any count is a few instructions instead of being unrolled one bit per
     // ADD (SHL) / ROR (SRL).  The VAR pseudo postRA materializes the constant
-    // count into T (MOV T,AR7) then runs LSL/LSRL/ASRL ACC,T.
+    // count into T (MOV T,AR7) then runs LSLL/LSRL/ASRL ACC,T.
     if (ConstantSDNode *C = dyn_cast<ConstantSDNode>(Amt)) {
       unsigned A = (unsigned)C->getZExtValue();
       if (A == 0)
@@ -618,7 +682,7 @@ SDValue C28xTargetLowering::LowerOperation(SDValue Op,
                          DAG.getConstant(A, DL, MVT::i32));
     }
     // i32 variable shift: mask the amount to 0..31 and use the hardware
-    // LSL/LSRL/ASRL ACC,T through the wide variable-shift pseudo.
+    // LSLL/LSRL/ASRL ACC,T through the wide variable-shift pseudo.
     SDValue Masked = DAG.getNode(ISD::AND, DL, MVT::i32, Amt,
                                  DAG.getConstant(31, DL, MVT::i32));
     unsigned Opc = Op.getOpcode() == ISD::SHL ? C28xISD::SHL32_VAR
@@ -775,15 +839,16 @@ void C28xTargetLowering::ReplaceNodeResults(SDNode *N,
 // Custom C28x argument calling convention.
 //
 // The TI C28x EABI (verified against cl2000 -v28 --abi=eabi disassembly) uses a
-// packed 16-bit slot model with a special rule for 32-bit arguments:
+// slot model with dedicated pools for pointers, 32-bit and 16-bit integers:
 //
-//   Slots:   0=AL   1=AH   2=AR4   3=AR5
-//   i32 arg: occupies ACC (slots 0-1) -- the ONLY 32-bit register.
+//   Pointer pool:  sret -> XAR6; pointer args -> XAR4, XAR5; overflow -> stack
+//   32-bit pool:   first i32 -> ACC; overflow -> stack (4 bytes)
+//   16-bit slots:  AL, AH, AR4, AR5 (shared with the pointer pool's AR4/AR5)
 //
-// The critical rule (confirmed by oracle): whenever the argument list contains
-// ANY 32-bit argument, the first 32-bit argument takes ACC, and ALL 16-bit
-// arguments skip slots 0-1 (AL/AH) entirely, starting at AR4.  This prevents a
-// 16-bit argument from stealing AL/AH and overlapping ACC.
+// The critical mixed rule (confirmed by oracle): whenever the argument list
+// contains ANY 32-bit argument, the first 32-bit argument takes ACC, and ALL
+// 16-bit arguments skip slots 0-1 (AL/AH) entirely, starting at AR4.  This
+// prevents a 16-bit argument from stealing AL/AH and overlapping ACC.
 //
 //   (i16 a, i32 b)          -> a=AR4, b=ACC
 //   (i32 a, i16 b)          -> a=ACC, b=AR4
@@ -791,8 +856,14 @@ void C28xTargetLowering::ReplaceNodeResults(SDNode *N,
 //   (i32 a, i16 b, i16 c)   -> a=ACC, b=AR4, c=AR5
 //   (i16 a, i32 b, i16 c)   -> a=AR4, b=ACC, c=AR5
 //
-// If the list has NO 32-bit argument, 16-bit args fill AL, AH, AR4, AR5.
-// The second 32-bit argument (and beyond) goes on the stack (4 bytes).
+// Pointer arguments (references, raw pointers, function pointers, and the
+// by-value struct pointer produced for aggregate arguments) never use ACC:
+//   (ptr a, i32 b)          -> a=XAR4, b=ACC
+//   (ptr a, ptr b)          -> a=XAR4, b=XAR5
+//   (ptr a, i16 b)          -> a=XAR4, b=AL        (no i32: AL/AH stay free)
+//   (i16 a, ptr p, i32 b)   -> a=AR5, p=XAR4, b=ACC (AR4 taken by pointer)
+//   sret (hidden return buffer) -> XAR6
+// Indirect calls load the callee from a pointer register: LCR *XARn.
 //
 // The generated CC_C28x from C28xCallingConv.td uses independent CCIfType
 // lists, so a leading i16 allocates AL (marking ACC as an alias), which then
@@ -805,6 +876,7 @@ struct C28xCCAllocState {
   bool HasI32Arg = false;  // pre-scanned: does the arg list contain i32?
   bool ACCTaken = false;   // has ACC been handed to the first i32 arg?
   unsigned Next16Slot = 0;  // index into the 16-bit slot table (0..3, then stack)
+  unsigned PtrSlotsUsed = 0; // pre-scanned pointer args (reserve XAR4/XAR5)
 };
 static thread_local C28xCCAllocState C28xCCState;
 } // namespace
@@ -819,6 +891,43 @@ static bool CC_C28x_Custom(unsigned ValNo, MVT ValVT, MVT LocVT,
                            CCValAssign::LocInfo LocInfo,
                            ISD::ArgFlagsTy ArgFlags, Type *OrigTy,
                            CCState &State) {
+  // Pointer pool.  A pointer argument is any argument whose ISel type is a
+  // pointer: references, raw pointers, function pointers and the implicit
+  // struct-by-value pointer.  ISD::ArgFlagsTy::isPointer() is set by
+  // SelectionDAGBuilder for both outgoing call operands and incoming formal
+  // arguments (SelectionDAGBuilder.cpp: setPointer() when ArgTy->isPointerTy()).
+  //
+  // The hidden sret pointer (struct return buffer) has a dedicated register,
+  // XAR6, separate from the XAR4/XAR5 argument pool (verified: cl2000
+  // materialises the return-buffer address with MOVL XAR6,#sym before LCR).
+  if (ArgFlags.isSRet()) {
+    if (!State.isAllocated(C28x::XAR6)) {
+      State.AllocateReg(C28x::XAR6);
+      State.addLoc(
+          CCValAssign::getReg(ValNo, ValVT, C28x::XAR6, LocVT, LocInfo));
+      return false;
+    }
+    // A second sret cannot happen in well-formed IR; fall through to the
+    // pointer pool instead of failing the whole function.
+  }
+
+  if (ArgFlags.isPointer()) {
+    static const MCPhysReg PtrSlots[] = {C28x::XAR4, C28x::XAR5};
+    for (MCPhysReg Reg : PtrSlots) {
+      if (!State.isAllocated(Reg)) {
+        State.AllocateReg(Reg); // marks Reg + aliases (AR4/AR5 subregs)
+        State.addLoc(
+            CCValAssign::getReg(ValNo, ValVT, Reg, LocVT, LocInfo));
+        return false;
+      }
+    }
+    // Out of pointer registers -> stack (4 bytes, 2-byte aligned).  The
+    // pointer never falls back to ACC: TI passes pointers in XAR4/XAR5 only.
+    int64_t Off = State.AllocateStack(4, Align(4));
+    State.addLoc(CCValAssign::getMem(ValNo, ValVT, Off, LocVT, LocInfo));
+    return false;
+  }
+
   if (LocVT == MVT::i32) {
     if (!C28xCCState.ACCTaken) {
       C28xCCState.ACCTaken = true;
@@ -828,7 +937,7 @@ static bool CC_C28x_Custom(unsigned ValNo, MVT ValVT, MVT LocVT,
       return false;
     }
     // Second+ 32-bit argument -> stack (4 bytes, 2-byte aligned).
-    int64_t Off = State.AllocateStack(4, Align(2));
+    int64_t Off = State.AllocateStack(4, Align(4));
     State.addLoc(CCValAssign::getMem(ValNo, ValVT, Off, LocVT, LocInfo));
     return false;
   }
@@ -837,6 +946,18 @@ static bool CC_C28x_Custom(unsigned ValNo, MVT ValVT, MVT LocVT,
     // If there's an i32 argument, AL/AH are reserved for ACC; start at AR4.
     if (C28xCCState.HasI32Arg && C28xCCState.Next16Slot < 2)
       C28xCCState.Next16Slot = 2;
+    // Skip slots taken by the pointer pool.  Pointers reserve XAR4/XAR5
+    // before any 16-bit argument is placed (oracle: a pointer always lands in
+    // XAR4 even when an earlier i16 argument exists), so the first
+    // PtrSlotsUsed pointer slots are occupied regardless of argument order.
+    // XAR4/XAR5 alias AR4/AR5, i.e. 16-bit slots 2 and 3.
+    while (C28xCCState.Next16Slot < 4) {
+      unsigned Slot = C28xCCState.Next16Slot;
+      bool PtrReserved = Slot >= 2 && (Slot - 2) < C28xCCState.PtrSlotsUsed;
+      if (!PtrReserved && !State.isAllocated(C28x16Slots[Slot]))
+        break;
+      C28xCCState.Next16Slot++;
+    }
     if (C28xCCState.Next16Slot < 4) {
       MCPhysReg Reg = C28x16Slots[C28xCCState.Next16Slot++];
       State.AllocateReg(Reg); // marks Reg + aliases
@@ -871,15 +992,50 @@ SDValue C28xTargetLowering::LowerCall(CallLoweringInfo &CLI,
   // return value).
   CLI.IsTailCall = false;
 
+  // Memory libcalls (c28x_memcpy / c28x_memmove / c28x_memset / c28x_memcmp /
+  // c28x_bcmp) are implemented by our runtime crate and receive 32-bit logical
+  // BYTE addresses, matching Rust's pointer model (see C28X_MEMORY_MODEL.md).
+  // Constant-size copies are expanded inline by findOptimalMemOpLowering; only
+  // a runtime-size copy reaches this call.  No byte->word address conversion is
+  // performed here: the pointer arguments are passed through unchanged so the
+  // byte-address implementation dereferences them correctly.  (Earlier code
+  // converted these to TI C WORD addresses, which only matched TI's rts2800
+  // memcpy; that corrupted every Rust-side runtime-size copy because our
+  // runtime memcpy is byte-address.)
+
   MachineFunction &MF = DAG.getMachineFunction();
   SmallVector<CCValAssign, 16> ArgLocs;
   CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
-  // Pre-scan: if any outgoing argument is i32, reserve AL/AH for ACC.
+  // Pre-scan: if any outgoing INTEGER argument is i32, reserve AL/AH for ACC.
+  // Pointer arguments also carry LocVT i32 but use the XAR4/XAR5/XAR6 pool,
+  // so they must NOT trigger the 16-bit skip rule.  Reserve the pointer slots
+  // up front: TI places pointer arguments in XAR4/XAR5 even when an earlier
+  // 16-bit argument exists (the i16 then moves to AR5).
   C28xCCState = C28xCCAllocState();
-  for (const ISD::OutputArg &Out : Outs)
-    if (Out.VT == MVT::i32)
+  for (const ISD::OutputArg &Out : Outs) {
+    if (Out.VT == MVT::i32 && !Out.Flags.isPointer() && !Out.Flags.isSRet())
       C28xCCState.HasI32Arg = true;
+    if (Out.Flags.isPointer())
+      C28xCCState.PtrSlotsUsed++;
+  }
   CCInfo.AnalyzeCallOperands(Outs, CC_C28x_Custom);
+
+  // Narrow IR arguments occupy an i16 ABI slot. Do not leak the upper bits
+  // of a promoted truncation (e.g. trunc i16 0x8000 to i8) into the callee.
+  // AExt permits either extension, so use zero extension unless the IR
+  // explicitly requests sign extension.
+  SmallVector<SDValue, 16> CallVals(OutVals.begin(), OutVals.end());
+  for (unsigned I = 0; I != Outs.size(); ++I) {
+    EVT ArgVT = Outs[I].ArgVT;
+    if (CallVals[I].getValueType() != MVT::i16 || !ArgVT.isScalarInteger() ||
+        ArgVT.getSizeInBits() >= 16)
+      continue;
+    if (Outs[I].Flags.isSExt())
+      CallVals[I] = DAG.getNode(ISD::SIGN_EXTEND_INREG, DL, MVT::i16,
+                               CallVals[I], DAG.getValueType(ArgVT));
+    else
+      CallVals[I] = DAG.getZeroExtendInReg(CallVals[I], DL, ArgVT);
+  }
 
   // Compute total outgoing stack area (bytes).
   unsigned StackBytes = 0;
@@ -890,26 +1046,62 @@ SDValue C28xTargetLowering::LowerCall(CallLoweringInfo &CLI,
     }
   }
 
-  // Reserve outgoing arg area on the stack.
+  // TI callers must present an even SP, including odd numbers of u16 args.
+  StackBytes = (StackBytes + 3) & ~3U;
+
+  // Reserve outgoing arg area on the stack.  The area is [SP-StackWords..SP-1]
+  // of the ADJUSTED SP (post-ADJCALLSTACKDOWN), which places the first stack
+  // word at SP_entry-3 -- the position measured for TI's own callers (see
+  // tools/probe-ti-stack.c).
+  // NOTE (tried and reverted 2026-10-20): reserving StackBytes + 4 to make room
+  // for the two-word return address also requires ALL the stack-argument
+  // store offsets to move, and desynchronises ADJCALLSTACKDOWN/UP; the arg
+  // positions are already correct without it.
   SDValue Glue;
   if (StackBytes > 0)
     Chain = DAG.getCALLSEQ_START(Chain, StackBytes, 0, DL);
 
   // Pass 1: stack arguments via target pseudo (post-RA address formation).
-  // CALLSEQ_START below raises SP by StackBytes; afterwards an argument at word
-  // offset w (0-based from the frame base) sits at SP-(StackWords-w), so the
-  // pseudo receives the signed SP-relative offset w-StackWords (always <= 0).
+  // TI EABI layout (measured on target with tools/probe-ti-stack.c + DSS
+  // dumps): the caller places the FIRST stack word at SP-1 (the return
+  // address is pushed ABOVE it by LCR, ending at SP_entry-1/-2), later words
+  // follow downward.  Writing them at SP-(StackWords-w) instead put the
+  // arguments on top of the return address (observed: the second i32 of
+  // make_pair never arrived, which is why the sret self-check failed).
   unsigned StackWords = StackBytes / 2;
   if (StackBytes > 0) {
     for (unsigned I = 0, E = ArgLocs.size(); I != E; ++I) {
       CCValAssign &VA = ArgLocs[I];
       if (!VA.isMemLoc()) continue;
-      int SignedOff = (int)(VA.getLocMemOffset() / 2) - (int)StackWords;
+      int SignedOff = -1 - (int)(VA.getLocMemOffset() / 2);
       // Encode the signed offset as its 16-bit two's-complement pattern.
       SDValue WordOff =
           DAG.getConstant((uint16_t)(int16_t)SignedOff, DL, MVT::i16);
-      Chain = DAG.getNode(C28xISD::STORE_STK16, DL, MVT::Other,
-                          Chain, OutVals[I], WordOff);
+      SDValue Val = CallVals[I];
+      if (VA.getLocVT() == MVT::i32) {
+        // A 32-bit stack argument occupies two words; STORE_STK16 stores one.
+        // Measured TI layout on target (driver probe rust_stk32_echo, value
+        // 0x12345678): the HIGH half sits at the first word (offset o, the
+        // one closest to the return address) and the LOW half one word below
+        // it -- byte-wise that is the value's low byte at the lower address,
+        // matching the C28x MOVL long access the TI callees use.
+        SDValue Lo = DAG.getNode(ISD::TRUNCATE, DL, MVT::i16, Val);
+        SDValue Hi = DAG.getNode(
+            ISD::TRUNCATE, DL, MVT::i16,
+            DAG.getNode(ISD::SRL, DL, MVT::i32, Val,
+                        DAG.getConstant(16, DL, MVT::i32)));
+        // The low half sits one word BELOW the high half (the stack grows up,
+        // so the next word of the argument is at a lower address).
+        SDValue WordOffLo = DAG.getConstant(
+            (uint16_t)(int16_t)(SignedOff - 1), DL, MVT::i16);
+        Chain = DAG.getNode(C28xISD::STORE_STK16, DL, MVT::Other, Chain, Hi,
+                            WordOff);
+        Chain = DAG.getNode(C28xISD::STORE_STK16, DL, MVT::Other, Chain, Lo,
+                            WordOffLo);
+      } else {
+        Chain = DAG.getNode(C28xISD::STORE_STK16, DL, MVT::Other, Chain, Val,
+                            WordOff);
+      }
     }
   }
 
@@ -917,7 +1109,7 @@ SDValue C28xTargetLowering::LowerCall(CallLoweringInfo &CLI,
   for (unsigned I = 0, E = ArgLocs.size(); I != E; ++I) {
     CCValAssign &VA = ArgLocs[I];
     if (!VA.isRegLoc()) continue;
-    Chain = DAG.getCopyToReg(Chain, DL, VA.getLocReg(), OutVals[I], Glue);
+    Chain = DAG.getCopyToReg(Chain, DL, VA.getLocReg(), CallVals[I], Glue);
     Glue = Chain.getValue(1);
   }
 
@@ -935,6 +1127,7 @@ SDValue C28xTargetLowering::LowerCall(CallLoweringInfo &CLI,
   SmallVector<SDValue, 8> Ops;
   Ops.push_back(Chain);
   Ops.push_back(Callee);
+  Ops.push_back(DAG.getRegisterMask(STI.getRegisterInfo()->getCallPreservedMask(MF, CallConv)));
   for (const CCValAssign &VA : ArgLocs)
     if (VA.isRegLoc())
       Ops.push_back(DAG.getRegister(VA.getLocReg(), VA.getLocVT()));
@@ -954,7 +1147,6 @@ SDValue C28xTargetLowering::LowerCall(CallLoweringInfo &CLI,
 
   SmallVector<CCValAssign, 4> RVLocs;
   CCState RVInfo(CallConv, IsVarArg, MF, RVLocs, *DAG.getContext());
-  const char *MARKER_RETCC_V3 = "C28X_RETCC_XT_FIX_V3";
   RVInfo.AnalyzeCallResult(Ins, RetCC_C28x);
   for (unsigned I = 0, E = RVLocs.size(); I != E; ++I) {
     CCValAssign &VA = RVLocs[I];
@@ -978,11 +1170,15 @@ SDValue C28xTargetLowering::LowerFormalArguments(
   MachineRegisterInfo &MRI = MF.getRegInfo();
   SmallVector<CCValAssign, 8> ArgLocs;
   CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
-  // Pre-scan: if any formal argument is i32, reserve AL/AH for ACC.
+  // Pre-scan: if any formal INTEGER argument is i32, reserve AL/AH for ACC.
+  // Pointer formals carry LocVT i32 as well but use the pointer pool.
   C28xCCState = C28xCCAllocState();
-  for (const ISD::InputArg &In : Ins)
-    if (In.VT == MVT::i32)
+  for (const ISD::InputArg &In : Ins) {
+    if (In.VT == MVT::i32 && !In.Flags.isPointer() && !In.Flags.isSRet())
       C28xCCState.HasI32Arg = true;
+    if (In.Flags.isPointer())
+      C28xCCState.PtrSlotsUsed++;
+  }
   CCInfo.AnalyzeFormalArguments(Ins, CC_C28x_Custom);
 
   for (const CCValAssign &VA : ArgLocs) {
@@ -999,6 +1195,23 @@ SDValue C28xTargetLowering::LowerFormalArguments(
     assert(VA.isMemLoc() && "unsupported C28x argument location");
     unsigned Size = LocVT.getStoreSize();
     int FI = MF.getFrameInfo().CreateFixedObject(Size, VA.getLocMemOffset(), true);
+    if (LocVT == MVT::i32) {
+      // A 32-bit stack argument occupies two words, and the caller writes the
+      // HIGH half at the first word (closest to the return address) and the
+      // LOW half one word BELOW it (measured: rust_stk32_echo with
+      // 0x12345678 reads hi at SP_entry-3, lo at SP_entry-4).  The generic
+      // 32-bit frame load reads its low word at the base and its high word
+      // one word UP, so anchoring the fixed object at byte offset+2 -- the
+      // LOW word -- makes the +1 land exactly on the high half.  Anchoring at
+      // offset+0 instead read the RETURN ADDRESS as the high half (measured:
+      // the sret sample's `len` came back with a code address).
+      int FI =
+          MF.getFrameInfo().CreateFixedObject(2, VA.getLocMemOffset() + 2, true);
+      SDValue FIN = DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout()));
+      InVals.push_back(DAG.getLoad(MVT::i32, DL, Chain, FIN,
+                                   MachinePointerInfo::getFixedStack(MF, FI)));
+      continue;
+    }
     SDValue FIN = DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout()));
     InVals.push_back(DAG.getLoad(LocVT, DL, Chain, FIN,
                                  MachinePointerInfo::getFixedStack(MF, FI)));
@@ -1036,9 +1249,8 @@ SDValue C28xTargetLowering::LowerReturn(
     RetOps.push_back(DAG.getRegister(VA.getLocReg(), VA.getLocVT()));
   }
   if (Glue) RetOps.push_back(Glue);
-  // Interrupt handlers return with IRET (restores full hardware context:
-  // ACC/P/XT/XAR0-7/ST0/ST1/DP/SP/PC) instead of LRETR (pops PC only).
-  // Triggered by the c28x-interrupt calling convention (CC 64) or the
+  // Interrupt handlers return with IRET after software context restoration.
+  // Triggered by the c28x-interrupt calling convention (CC 92) or the
   // LLVM "interrupt" function attribute.
   bool IsInterrupt =
       static_cast<unsigned>(CallConv) == C28xCC::Interrupt ||
@@ -1053,7 +1265,10 @@ MachineBasicBlock *C28xTargetLowering::EmitInstrWithCustomInserter(MachineInstr 
   switch (MI.getOpcode()) {
   default:
     return nullptr;
-  case C28x::SELECT_CC_PSEUDO: {
+  case C28x::SELECT_CC_PSEUDO:
+  case C28x::SELECT_CC32_PSEUDO:
+  case C28x::SELECT_WIDE_CC16_PSEUDO:
+  case C28x::SELECT_WIDE_CC32_PSEUDO: {
     MachineFunction &MF = *BB->getParent();
     const DebugLoc &DL = MI.getDebugLoc();
     Register Dst = MI.getOperand(0).getReg();
@@ -1070,6 +1285,16 @@ MachineBasicBlock *C28xTargetLowering::EmitInstrWithCustomInserter(MachineInstr 
     MachineFunction::iterator InsertPt = ++BB->getIterator();
     MachineBasicBlock *FalseBB = MF.CreateMachineBasicBlock(BB->getBasicBlock());
     MachineBasicBlock *EndBB = MF.CreateMachineBasicBlock(BB->getBasicBlock());
+    // A select can split the setup of an outgoing call. New blocks inherit
+    // the live call area, otherwise PEI (and MachineVerifier) assumes zero
+    // on entry and addresses incoming arguments/spills at the wrong SP.
+    int CallFrameBytes = BB->getCallFrameSize();
+    for (const MachineInstr &I : *BB) {
+      if (&I == &MI) break;
+      if (TII.isFrameInstr(I)) CallFrameBytes -= TII.getSPAdjust(I);
+    }
+    FalseBB->setCallFrameSize(CallFrameBytes);
+    EndBB->setCallFrameSize(CallFrameBytes);
     MF.insert(InsertPt, FalseBB);
     MF.insert(InsertPt, EndBB);
 
@@ -1097,22 +1322,14 @@ MachineBasicBlock *C28xTargetLowering::EmitInstrWithCustomInserter(MachineInstr 
     BB->addSuccessor(EndBB);
     FalseBB->addSuccessor(EndBB);
 
-    unsigned CondOp;
-    switch (Cond) {
-    case 0: CondOp = C28x::B_EQ; break;
-    case 1: CondOp = C28x::B_NE; break;
-    case 2: CondOp = C28x::B_GT; break;
-    case 3: CondOp = C28x::B_GE; break;
-    case 4: CondOp = C28x::B_LT; break;
-    case 5: CondOp = C28x::B_LE; break;
-    case 6: CondOp = C28x::B_HI; break;
-    case 7: CondOp = C28x::B_HIS; break;
-    case 8: CondOp = C28x::B_LO; break;
-    case 9: CondOp = C28x::B_LOS; break;
-    default: llvm_unreachable("invalid C28x condition code");
-    }
+    assert(Cond < 10 && "invalid C28x condition code");
     // On true branch to EndBB; on false fall through to FalseBB.
-    BuildMI(BB, DL, TII.get(CondOp)).addMBB(EndBB);
+    unsigned BranchOp = (MI.getOpcode() == C28x::SELECT_CC32_PSEUDO ||
+                         MI.getOpcode() == C28x::SELECT_WIDE_CC32_PSEUDO)
+                            ? C28x::CMPBR32_PSEUDO : C28x::CMPBR16_PSEUDO;
+    BuildMI(BB, DL, TII.get(BranchOp)).addMBB(EndBB)
+        .addReg(MI.getOperand(4).getReg())
+        .addReg(MI.getOperand(5).getReg()).addImm(Cond);
 
     // EndBB merges the two values directly with a PHI: FalseVal arrives via
     // FalseBB, TrueVal arrives directly from BB.  No intermediate value copies

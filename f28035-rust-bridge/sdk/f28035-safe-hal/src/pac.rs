@@ -3,11 +3,11 @@
 //! This is the first PAC layer, deliberately separate from the safe HAL in
 //! `lib.rs`.  Addresses are TI *physical word* addresses: they must never be
 //! converted to ordinary Rust byte pointers.  The [`MmioBus`] trait abstracts
-//! word read/write.  Host tests execute every register sequence through
-//! [`HostMmio`], a 64k-word register model, and the resulting side effects
-//! are cross-checked against the existing C bridge.  Direct C28x MMIO lowering
-//! of these primitives is the pending backend milestone -- until then the HAL
-//! keeps calling the C bridge, and nothing here runs on the target.
+//! word read/write. Host tests execute register sequences through [`HostMmio`],
+//! a 64k-word register model, and compare them with the C bridge's register
+//! effects. The audited MIR backend recognizes selected PAC calls and emits
+//! fixed MMIO instructions; the direct-object path uses the C28x MMIO bus.
+//! Other application paths still use the C bridge.
 #[cfg(test)]
 extern crate std;
 
@@ -40,6 +40,7 @@ impl TiWordAddress {
     /// and that the bus outlives the call.  On real hardware this lowers to a
     /// direct C28x word load once the backend accepts it; until then it only
     /// executes in host tests.
+    #[cfg_attr(feature = "direct-obj-mmio", inline(always))]
     pub unsafe fn read<B: MmioBus>(self, bus: &mut B) -> u16 {
         // SAFETY: forwarded contract from the caller.
         unsafe { bus.read_word(self) }
@@ -52,6 +53,7 @@ impl TiWordAddress {
     /// The caller must guarantee that `self` names a valid, writable register
     /// (never a read-only result register or an aliasing command register
     /// unless that aliasing is intended).
+    #[cfg_attr(feature = "direct-obj-mmio", inline(always))]
     pub unsafe fn write<B: MmioBus>(self, bus: &mut B, value: u16) {
         // SAFETY: forwarded contract from the caller.
         unsafe { bus.write_word(self, value) };
@@ -155,7 +157,7 @@ unsafe impl MmioBus for HostMmio {
 #[cfg(not(test))]
 pub struct C28xMmio;
 
-#[cfg(not(test))]
+#[cfg(all(not(test), not(feature = "direct-obj-mmio")))]
 // SAFETY: every `TiWordAddress` in this PAC is a valid physical C28x word
 // register; the backend selects them by constant and never dereferences a
 // computed address.
@@ -168,6 +170,60 @@ unsafe impl MmioBus for C28xMmio {
     unsafe fn write_word(&mut self, address: TiWordAddress, value: u16) {
         // SAFETY: forwarded by the PAC callers; lowered by the backend.
         unsafe { (usize::from(address.get()) as *mut u16).write_volatile(value) }
+    }
+}
+
+/// LLVM direct-object bus (`feature = "direct-obj-mmio"`, B-1 route).
+///
+/// The audited MIR backend above replaces recognized `f28035_*` calls with
+/// fixed MMIO sequences, so its `C28xMmio` bodies never execute.  The B-1
+/// route compiles the HAL with the patched rustc (`--emit=obj`) and the C28x
+/// LLVM backend *does* execute these bodies, so two target rules the MIR
+/// backend applies in its emitted sequences must be mirrored here:
+///
+/// 1. The frozen ABI makes every Rust pointer a 32-bit logical byte address
+///    and the backend halves it (`ROR`) before a word load/store.  A physical
+///    word address must therefore be doubled before it becomes a pointer,
+///    otherwise word `W` is accessed as word `W >> 1`.
+/// 2. Some control registers require EALLOW. GPIO configuration brackets its
+///    writes in the PAC; the SysCtrl range is handled by this bus. The MIR
+///    backend wraps the corresponding emitted sequences. `eallow_inst` and
+///    `edis_inst` are leaf functions from `crates/c28x-rt/asm.s`.
+///
+/// `core::intrinsics::volatile_*` is used because `ptr::read_volatile` /
+/// `write_volatile` instantiate `maybe_is_aligned` precondition helpers whose
+/// relocation expansion trips the TI linker (recorded in `docs/PATH_B.md`,
+/// gap5/6 section).
+#[cfg(all(not(test), feature = "direct-obj-mmio"))]
+unsafe impl MmioBus for C28xMmio {
+    #[inline(always)]
+    unsafe fn read_word(&mut self, address: TiWordAddress) -> u16 {
+        // SAFETY: forwarded by the PAC callers; the doubled word address is a
+        // valid logical byte pointer naming this register.
+        unsafe { core::intrinsics::volatile_load((usize::from(address.get()) << 1) as *const u16) }
+    }
+
+    #[inline(always)]
+    unsafe fn write_word(&mut self, address: TiWordAddress, value: u16) {
+        // SAFETY: same contract as the default bus above.
+        let word = usize::from(address.get());
+        // EALLOW-protected frames: SysCtrl (0x7000-0x70FF), ADC
+        // (0x7100-0x717F) and the ePWM trip-zone block (0x6812-0x6818:
+        // TZSEL/TZDCSEL/TZCTL/TZEINT/TZFLG/TZCLR/TZFRC). The TZ block was
+        // missing here, so every trip-zone write was silently dropped -- a
+        // forced OST never latched and fault protection did nothing.
+        let protected = (0x7000..=0x70FF).contains(&word)
+            || (0x7100..=0x717F).contains(&word)
+            || (0x6812..=0x6818).contains(&word);
+        if protected {
+            // SAFETY: leaf function from crates/c28x-rt/asm.s; no memory contract.
+            unsafe { super::eallow_inst() }
+        }
+        unsafe { core::intrinsics::volatile_store((word << 1) as *mut u16, value) }
+        if protected {
+            // SAFETY: leaf function from crates/c28x-rt/asm.s; no memory contract.
+            unsafe { super::edis_inst() }
+        }
     }
 }
 
@@ -193,6 +249,7 @@ impl Register32 {
     ///
     /// Same rules as [`TiWordAddress::read`]; the high word pair must also be
     /// a valid readable register.
+    #[cfg_attr(feature = "direct-obj-mmio", inline(always))]
     pub unsafe fn read_u32<B: MmioBus>(self, bus: &mut B) -> u32 {
         // SAFETY: forwarded contract from the caller.
         let low = unsafe { self.address.read(bus) } as u32;
@@ -206,6 +263,7 @@ impl Register32 {
     /// # Safety
     ///
     /// Same rules as [`TiWordAddress::write`] for both words of the pair.
+    #[cfg_attr(feature = "direct-obj-mmio", inline(always))]
     pub unsafe fn write_u32<B: MmioBus>(self, bus: &mut B, value: u32) {
         // SAFETY: forwarded contract from the caller.
         unsafe {
@@ -221,6 +279,7 @@ impl Register32 {
     /// # Safety
     ///
     /// Same rules as [`TiWordAddress::modify`] for both words of the pair.
+    #[cfg_attr(feature = "direct-obj-mmio", inline(always))]
     pub unsafe fn modify_u32<B: MmioBus>(self, bus: &mut B, mask: u32, bits: u32) {
         // SAFETY: forwarded contract from the caller.
         let current = unsafe { self.read_u32(bus) };
@@ -285,6 +344,65 @@ pub mod gpio {
         pub pin_mask: u32,
     }
 
+    /// The data-register field for one GPIO pin, independent of its direction.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    pub struct InputSample {
+        pub data: Register32,
+        pub pin_mask: u32,
+    }
+
+    impl InputSample {
+        /// # Safety
+        /// The data register must be readable on the supplied bus.
+        #[cfg_attr(feature = "direct-obj-mmio", inline(always))]
+        pub unsafe fn read<B: MmioBus>(self, bus: &mut B) -> bool {
+            // SAFETY: forwarded contract from the caller.
+            unsafe { self.data.read_u32(bus) & self.pin_mask != 0 }
+        }
+    }
+
+    /// The two-bit MUX field for one GPIO pin.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    pub struct MuxField {
+        pub register: Register32,
+        pub shift: u16,
+    }
+
+    impl MuxField {
+        /// Updates only this pin's MUX field; returns false for an invalid function.
+        ///
+        /// # Safety
+        /// The MUX register must support read-modify-write. On target, writes
+        /// to protected GPIO control registers also require EALLOW/EDIS.
+        #[cfg_attr(feature = "direct-obj-mmio", inline(always))]
+        pub unsafe fn set<B: MmioBus>(self, bus: &mut B, function: u16) -> bool {
+            if function > 3 {
+                return false;
+            }
+            #[cfg(all(not(test), feature = "direct-obj-mmio"))]
+            unsafe { crate::eallow_inst() };
+            // SAFETY: forwarded contract from the caller.
+            unsafe {
+                self.register.modify_u32(
+                    bus,
+                    3u32 << self.shift,
+                    u32::from(function) << self.shift,
+                );
+            }
+            #[cfg(all(not(test), feature = "direct-obj-mmio"))]
+            unsafe { crate::edis_inst() };
+            true
+        }
+
+        /// # Safety
+        /// The MUX register must be readable on the supplied bus.
+        #[cfg_attr(feature = "direct-obj-mmio", inline(always))]
+        pub unsafe fn read<B: MmioBus>(self, bus: &mut B) -> u16 {
+            // SAFETY: forwarded contract from the caller.
+            unsafe { ((self.register.read_u32(bus) >> self.shift) & 3) as u16 }
+        }
+    }
+
     impl OutputConfig {
         /// Programs the pin as a GPIO output through the bus: clears the
         /// 2-bit MUX field and sets the direction bit.  Mirrors the register
@@ -297,12 +415,17 @@ pub mod gpio {
         ///
         /// Same rules as [`Register32::modify_u32`]; MUX and DIR are
         /// read-modify-write configuration registers.
+        #[cfg_attr(feature = "direct-obj-mmio", inline(always))]
         pub unsafe fn apply<B: MmioBus>(self, bus: &mut B) {
+            #[cfg(all(not(test), feature = "direct-obj-mmio"))]
+            unsafe { crate::eallow_inst() };
             // SAFETY: forwarded contract from the caller.
             unsafe {
                 self.mux.modify_u32(bus, self.mux_mask, 0);
                 self.direction.modify_u32(bus, self.pin_mask, self.pin_mask);
             }
+            #[cfg(all(not(test), feature = "direct-obj-mmio"))]
+            unsafe { crate::edis_inst() };
         }
     }
 
@@ -313,6 +436,7 @@ pub mod gpio {
         ///
         /// The SET register is a write-only command; writing the pin mask is
         /// its entire semantics.
+        #[cfg_attr(feature = "direct-obj-mmio", inline(always))]
         pub unsafe fn set<B: MmioBus>(self, bus: &mut B) {
             // SAFETY: forwarded contract from the caller.
             unsafe { self.set.write_u32(bus, self.pin_mask) };
@@ -322,6 +446,7 @@ pub mod gpio {
         ///
         /// # Safety
         /// Same as [`Self::set`].
+        #[cfg_attr(feature = "direct-obj-mmio", inline(always))]
         pub unsafe fn clear<B: MmioBus>(self, bus: &mut B) {
             // SAFETY: forwarded contract from the caller.
             unsafe { self.clear.write_u32(bus, self.pin_mask) };
@@ -331,6 +456,7 @@ pub mod gpio {
         ///
         /// # Safety
         /// Same as [`Self::set`].
+        #[cfg_attr(feature = "direct-obj-mmio", inline(always))]
         pub unsafe fn toggle<B: MmioBus>(self, bus: &mut B) {
             // SAFETY: forwarded contract from the caller.
             unsafe { self.toggle.write_u32(bus, self.pin_mask) };
@@ -375,6 +501,7 @@ pub mod gpio {
         ///
         /// # Safety
         /// Same as [`Register32::read_u32`] for the data register.
+        #[cfg_attr(feature = "direct-obj-mmio", inline(always))]
         pub unsafe fn read<B: MmioBus>(self, bus: &mut B) -> bool {
             // SAFETY: forwarded contract from the caller.
             unsafe { (self.data.read_u32(bus) & self.pin_mask) != 0 }
@@ -389,7 +516,10 @@ pub mod gpio {
         ///
         /// Same rules as [`Register32::modify_u32`]; all four registers are
         /// read-modify-write configuration registers.
+        #[cfg_attr(feature = "direct-obj-mmio", inline(always))]
         pub unsafe fn apply<B: MmioBus>(self, bus: &mut B) {
+            #[cfg(all(not(test), feature = "direct-obj-mmio"))]
+            unsafe { crate::eallow_inst() };
             // SAFETY: forwarded contract from the caller.
             unsafe {
                 self.mux.modify_u32(bus, self.mux_mask, 0);
@@ -402,6 +532,8 @@ pub mod gpio {
                     self.qualification_bits,
                 );
             }
+            #[cfg(all(not(test), feature = "direct-obj-mmio"))]
+            unsafe { crate::edis_inst() };
         }
     }
 
@@ -456,6 +588,64 @@ pub mod gpio {
                 pin_mask: config.pin_mask,
             })
         }
+    }
+
+    /// Selects the same GPADAT/GPBDAT bit as `f28035_gpio_read` in the C bridge.
+    pub const fn input_sample(pin: u16) -> Option<InputSample> {
+        let config = match output_config(pin) {
+            Some(config) => config,
+            None => return None,
+        };
+        Some(InputSample {
+            data: if pin < 32 { GPA_DAT } else { GPB_DAT },
+            pin_mask: config.pin_mask,
+        })
+    }
+
+    /// Selects the same GPAMUX1/GPAMUX2/GPBMUX1 field as the C bridge.
+    pub const fn mux_field(pin: u16) -> Option<MuxField> {
+        if pin < 16 {
+            Some(MuxField { register: GPA_MUX1, shift: pin * 2 })
+        } else if pin < 32 {
+            Some(MuxField { register: GPA_MUX2, shift: (pin - 16) * 2 })
+        } else if pin <= 44 {
+            Some(MuxField { register: GPB_MUX1, shift: (pin - 32) * 2 })
+        } else {
+            None
+        }
+    }
+
+    /// Disables the internal pull-up on `pin` (PUD bit = 1).
+    ///
+    /// A pin handed to a peripheral (ePWM, SCI, ...) must not keep its GPIO
+    /// pull-up enabled; the C bridge clears it for GPIO0 before selecting
+    /// EPWM1A. Returns `false` for a pin outside 0..=44.
+    ///
+    /// # Safety
+    ///
+    /// `bus` must model the GPIO control block; the register write is
+    /// bracketed by EALLOW/EDIS on target.
+    pub unsafe fn disable_pullup<B: MmioBus>(bus: &mut B, pin: u16) -> bool {
+        let (register, bit) = if pin < 32 {
+            (GPA_PUD, 1u32 << pin)
+        } else if pin <= 44 {
+            (GPB_PUD, 1u32 << (pin - 32))
+        } else {
+            return false;
+        };
+        #[cfg(all(not(test), feature = "direct-obj-mmio"))]
+        // SAFETY: leaf EALLOW instruction; no memory contract.
+        unsafe {
+            crate::eallow_inst()
+        };
+        // SAFETY: forwarded contract from the caller.
+        unsafe { register.modify_u32(bus, bit, bit) };
+        #[cfg(all(not(test), feature = "direct-obj-mmio"))]
+        // SAFETY: leaf EDIS instruction; no memory contract.
+        unsafe {
+            crate::edis_inst()
+        };
+        true
     }
 
     pub const fn input_config(
@@ -597,24 +787,27 @@ pub mod spi {
     pub const SPICTL: TiWordAddress = SPIB_BASE.offset_words(1);
     /// SPI status (offset 2).
     pub const SPISTS: TiWordAddress = SPIB_BASE.offset_words(2);
-    /// SPI baud rate (offset 3).
-    pub const SPIBRR: TiWordAddress = SPIB_BASE.offset_words(3);
-    /// SPI emulation buffer (offset 4).
-    pub const SPIEMU: TiWordAddress = SPIB_BASE.offset_words(4);
-    /// SPI receive buffer (offset 5).
-    pub const SPIRXBUF: TiWordAddress = SPIB_BASE.offset_words(5);
-    /// SPI transmit buffer (offset 6).
-    pub const SPITXBUF: TiWordAddress = SPIB_BASE.offset_words(6);
-    /// SPI serial data (offset 7).
-    pub const SPIDAT: TiWordAddress = SPIB_BASE.offset_words(7);
-    /// SPI FIFO transmit (offset 9).
-    pub const SPIFFTX: TiWordAddress = SPIB_BASE.offset_words(9);
-    /// SPI FIFO receive (offset 10).
-    pub const SPIFFRX: TiWordAddress = SPIB_BASE.offset_words(10);
-    /// SPI FIFO control (offset 8).
-    pub const SPIFFCT: TiWordAddress = SPIB_BASE.offset_words(8);
-    /// SPI priority (offset 11).
-    pub const SPIPRI: TiWordAddress = SPIB_BASE.offset_words(11);
+    // Offset 3 is reserved in DSP2803x_Spi.h (SPI_REGS.rsvd1).
+    /// SPI baud rate (offset 4).
+    pub const SPIBRR: TiWordAddress = SPIB_BASE.offset_words(4);
+    // Offset 5 is reserved.
+    /// SPI emulation buffer (offset 6).
+    pub const SPIEMU: TiWordAddress = SPIB_BASE.offset_words(6);
+    /// SPI receive buffer (offset 7).
+    pub const SPIRXBUF: TiWordAddress = SPIB_BASE.offset_words(7);
+    /// SPI transmit buffer (offset 8).
+    pub const SPITXBUF: TiWordAddress = SPIB_BASE.offset_words(8);
+    /// SPI serial data (offset 9).
+    pub const SPIDAT: TiWordAddress = SPIB_BASE.offset_words(9);
+    /// SPI FIFO transmit (offset 10).
+    pub const SPIFFTX: TiWordAddress = SPIB_BASE.offset_words(10);
+    /// SPI FIFO receive (offset 11).
+    pub const SPIFFRX: TiWordAddress = SPIB_BASE.offset_words(11);
+    /// SPI FIFO control (offset 12).
+    pub const SPIFFCT: TiWordAddress = SPIB_BASE.offset_words(12);
+    // Offsets 13-14 are reserved.
+    /// SPI priority (offset 15).
+    pub const SPIPRI: TiWordAddress = SPIB_BASE.offset_words(15);
 
     /// The SPI-B status bit that indicates a non-FIFO transmit interrupt is
     /// pending (INT bit of SPISTS).  Mirrors `f28035_spi_wait_int_flag`, which
@@ -631,9 +824,11 @@ pub mod spi {
     /// The SPICCR word that also asserts `SWRSTN` to re-arm the block in
     /// loopback mode.
     pub const SPICCR_LB_8BIT_RESTART: u16 = 0x0097;
-    /// SPICTL value that enables the SPI block with interrupts on (the value
-    /// used by the C internal-loopback case).
-    pub const SPICTL_LB_RUN: u16 = 0x000E;
+    /// SPICTL for the loopback link: MASTER (bit 3), CLOCK POLARITY/PHASE
+    /// (bits 2/1) and **TALK (bit 4)**. TALK was missing from the value the C
+    /// case used (0x000E); with TALK = 0 the shifter never drives the internal
+    /// loopback, so SPISTS.INT never asserts and every frame times out.
+    pub const SPICTL_LB_RUN: u16 = 0x001E;
     /// Baud divider used by the internal-loopback case (SYSCLK/4).
     pub const SPIBRR_LB: u16 = 0x0003;
     /// SPIFFTX enable word: TXENA plus the level used by the non-FIFO case.
@@ -662,6 +857,70 @@ pub mod spi {
     #[inline]
     pub const fn unpack_rx_byte(rx_word: u16) -> u16 {
         (rx_word >> 8) & 0x00FF
+    }
+
+    /// One-time SPI-B internal-loopback configuration: 8-bit characters,
+    /// master, hardware loopback (`SPICCR.SPILBK`), FIFO as in the audited
+    /// case. The loopback is internal to the module, so no pins are involved
+    /// and a business path can prove real serial transmission on the bench.
+    ///
+    /// # Safety
+    /// All addresses are fixed SPI-B / SysCtrl register offsets.
+    pub unsafe fn configure_loopback<B: MmioBus>(bus: &mut B) -> bool {
+        // SAFETY: fixed SysCtrl / SPI-B register addresses.
+        unsafe {
+            super::sysctrl::PCLKCR0.modify_u32(
+                bus,
+                u32::from(super::sysctrl::PCLKCR0_SPIBENCLK),
+                u32::from(super::sysctrl::PCLKCR0_SPIBENCLK),
+            );
+            // Route GPIO16-19 (SPISOMIB/SIMOB/CLKB/STEB) to the SPI-B block.
+            // The loopback is internal, but the pins must belong to the
+            // peripheral for the shifter to be clocked.
+            for pin in [16u16, 17, 18, 19] {
+                if let Some(field) = super::gpio::mux_field(pin) {
+                    // SAFETY: pins 16-19 are valid F28035 pins; mux 1 = SPI-B.
+                    unsafe { field.set(bus, 1) };
+                }
+            }
+            SPICCR.write(bus, SPICCR_LB_8BIT);
+            SPICTL.write(bus, SPICTL_LB_RUN);
+            SPIBRR.write(bus, SPIBRR_LB);
+            SPIFFTX.write(bus, SPIFFTX_LB);
+            SPIFFRX.write(bus, SPIFFRX_LB);
+            SPICCR.write(bus, SPICCR_LB_8BIT_RESTART);
+        }
+        true
+    }
+
+    /// Exchanges one 8-bit frame through the hardware loopback.
+    ///
+    /// The completion wait lives in `c28x_rt_wait_spi_int` (assembly) because
+    /// the equivalent Rust poll is miscompiled; this helper only writes the
+    /// frame and reads the result back. Returns `0x8000` on timeout.
+    ///
+    /// # Safety
+    /// [`configure_loopback`] must have run; all addresses are fixed SPI-B
+    /// register offsets.
+    pub unsafe fn exchange_frame<B: MmioBus>(bus: &mut B, byte: u8, frame_done: bool) -> u16 {
+        if !frame_done {
+            return 0x8000;
+        }
+        // SAFETY: fixed SPI-B register address.
+        let rx = unsafe { SPIRXBUF.read(bus) };
+        if rx == 0 {
+            return 0x8000;
+        }
+        unpack_rx_byte(rx)
+    }
+
+    /// Writes one character into the transmit buffer.
+    ///
+    /// # Safety
+    /// [`configure_loopback`] must have run.
+    pub unsafe fn write_frame<B: MmioBus>(bus: &mut B, byte: u8) {
+        // SAFETY: fixed SPI-B register address.
+        unsafe { SPITXBUF.write(bus, u16::from(byte)) };
     }
 
     /// The outcome of a ported internal-loopback exchange.
@@ -851,6 +1110,142 @@ pub mod sci {
         let rd = unsafe { SCIPRI.read(bus) };
         if rd & 0x0010 != 0x0010 { return 0x0008 + rd; }
         0
+    }
+
+    /// SCICTL1 bit 5: software reset. On F2803x a **1 asserts reset** and a 0
+    /// releases the SCI; `SCICTL1 = 0x0003` is the "released, RX+TX enabled"
+    /// state TI's examples use.
+    pub const SCICTL1_SWRESET: u16 = 0x0020;
+    /// SCICTL1 RXENA | TXENA with SWRESET released (the operating state).
+    pub const SCICTL1_RXENA_TXENA: u16 = 0x0003;
+    /// SCICCR: 8-bit characters, one stop bit, no parity, internal loopback.
+    /// Bit 4 is LOOPBENA: TXD is routed back into RXD inside the module, so a
+    /// byte can be transmitted and received without any external wiring.
+    ///
+    /// SCICHAR is bits 2:0 and must be 7 for 8-bit characters.  The old value
+    /// (0x0010) left SCICHAR = 0 (1-bit characters), so the loopback received
+    /// nothing usable and every SCI loopback attempt looked "dead".
+    pub const SCICCR_LOOPBACK_8N1: u16 = 0x0007 | 0x0010;
+    /// SCIRXST bit 6: receiver ready.
+    pub const SCIRXST_RXRDY: u16 = 0x0040;
+
+    /// Configures SCI-A for internal loopback, 8-bit characters, 1 stop bit,
+    /// no parity, at `LSPCLK / (8 * baud_div)`.
+    ///
+    /// Mirrors the C bridge's `f28035_sci_basic_init_no_fifo(0x0010, ...)`:
+    /// enable the SCI-A clock, route GPIO28/GPIO29 to SCITXD/SCIRXD, program
+    /// the divisor, then release SWRESET. Returns `false` for a zero divisor.
+    ///
+    /// # Safety
+    ///
+    /// All addresses are fixed SCI-A / SysCtrl / GPIO register offsets.
+    pub unsafe fn configure_loopback<B: MmioBus>(bus: &mut B, baud_div: u16) -> bool {
+        if baud_div == 0 {
+            return false;
+        }
+        // SAFETY: fixed SysCtrl / GPIO register addresses.
+        unsafe {
+            super::sysctrl::PCLKCR0.modify_u32(
+                bus,
+                u32::from(super::sysctrl::PCLKCR0_SCIAENCLK),
+                u32::from(super::sysctrl::PCLKCR0_SCIAENCLK),
+            );
+            if let Some(field) = super::gpio::mux_field(28) {
+                // SAFETY: GPIO28 is a valid pin; mux 1 = SCITXD.
+                unsafe { field.set(bus, 1) };
+            }
+            if let Some(field) = super::gpio::mux_field(29) {
+                // SAFETY: GPIO29 is a valid pin; mux 1 = SCIRXD.
+                unsafe { field.set(bus, 1) };
+            }
+            // Mirrors the hardware-verified pac-hwtest-b1 sequence: reset with
+            // SWRESET=0, program 8-bit loopback + FIFO, then release with
+            // SWRESET=1 (0x0023).  Reading SCIRXBUF directly after a delay (not
+            // polling RXRDY) is what the probe used and what returns the byte.
+            SCICTL1.write(bus, 0);                                    // SWRESET=0 reset
+            SCICCR.write(bus, SCICCR_LOOPBACK_8N1);                   // LOOPBKENA + 8-bit
+            SCIHBAUD.write(bus, baud_div >> 8);
+            SCILBAUD.write(bus, baud_div & 0x00ff);
+            SCIFFTX.write(bus, 0xE000);                               // SCIRST+SCIFFENA+TXFIFORESET
+            SCIFFRX.write(bus, 0x2000);                               // RXFIFORESET
+            SCIFFCT.write(bus, 0x0000);
+            SCICTL2.write(bus, 0x0000);
+            SCICTL1.write(bus, SCICTL1_RXENA_TXENA | SCICTL1_SWRESET); // 0x0023 release
+        }
+        true
+    }
+
+    /// SCICTL2 bit 7: transmitter ready (buffer free).
+    pub const SCICTL2_TXRDY: u16 = 0x0080;
+    /// SCICTL2 bit 6: transmitter empty (shifter drained).
+    pub const SCICTL2_TXEMPTY: u16 = 0x0040;
+    /// SCICCR for 8-bit characters, one stop bit, no parity, no loopback.
+    pub const SCICCR_8N1: u16 = 0x0007;
+
+    /// Configures SCI-A as 8N1 at `LSPCLK / (8 * baud_div)`.
+    ///
+    /// Order matters on F2803x: SCICTL1.SWRESET = 1 **asserts** reset, so the
+    /// configuration words are written while it is held and the final write
+    /// releases it (SWRESET = 0). Writing the reset bit last instead holds the
+    /// module in reset and nothing is ever transmitted.
+    ///
+    /// # Safety
+    /// All addresses are fixed SCI-A / SysCtrl / GPIO register offsets.
+    pub unsafe fn configure_8n1<B: MmioBus>(bus: &mut B, baud_div: u16) -> bool {
+        if baud_div == 0 {
+            return false;
+        }
+        // SAFETY: fixed SysCtrl / GPIO register addresses.
+        unsafe {
+            super::sysctrl::PCLKCR0.modify_u32(
+                bus,
+                u32::from(super::sysctrl::PCLKCR0_SCIAENCLK),
+                u32::from(super::sysctrl::PCLKCR0_SCIAENCLK),
+            );
+            if let Some(field) = super::gpio::mux_field(28) {
+                // SAFETY: GPIO28 = SCITXD when muxed to function 1.
+                unsafe { field.set(bus, 1) };
+            }
+            if let Some(field) = super::gpio::mux_field(29) {
+                // SAFETY: GPIO29 = SCIRXD when muxed to function 1.
+                unsafe { field.set(bus, 1) };
+            }
+            SCICTL1.write(bus, 0);      // SWRESET=0 -> hold in reset
+            SCICCR.write(bus, SCICCR_8N1);
+            SCIHBAUD.write(bus, baud_div >> 8);
+            SCILBAUD.write(bus, baud_div & 0x00ff);
+            SCIFFTX.write(bus, 0);      // non-FIFO: deterministic TXRDY
+            // Release with SWRESET=1 (RXENA|TXENA|SWRESET = 0x0023).  The probe
+            // pac-hwtest-b1 proved on hardware that 1 releases and 0 holds the
+            // module in reset, so the old 0x0003 ending left the SCI in reset:
+            // TXRDY read 1 (false "send ok") and nothing was ever transmitted.
+            SCICTL1.write(bus, SCICTL1_RXENA_TXENA | SCICTL1_SWRESET);
+        }
+        true
+    }
+
+    /// Transmits one character and returns the byte received back.
+    ///
+    /// SCI-A's `LOOPBKENA` bit is documented but was never verified on this
+    /// board (see docs/PATH_B.md: "SCI 环回 … 真机回归待做"), and the Rust
+    /// poll form here is miscompiled by the current backend. The integrated
+    /// business loop therefore uses the SPI-B hardware loopback, which has an
+    /// audited sequence and an assembly completion wait. This helper is kept
+    /// for the register model only; `f28035_sci_loopback_xfer` is not exposed.
+    ///
+    /// # Safety
+    ///
+    /// [`configure_loopback`] must have run, and all addresses are fixed SCI-A
+    /// register offsets.
+    pub unsafe fn transfer_byte<B: MmioBus>(bus: &mut B, byte: u8, rx_ready: bool) -> u16 {
+        if !rx_ready {
+            return 0x8000;
+        }
+        // SAFETY: fixed SCI-A register addresses.
+        unsafe {
+            SCITXBUF.write(bus, u16::from(byte));
+            SCIRXBUF.read(bus) & 0x00ff
+        }
     }
 }
 /// I2C-A module registers (TI F2803x I2C reference).
@@ -1179,30 +1574,33 @@ pub mod epwm1 {
     pub const DBFED: TiWordAddress = EPWM1_BASE.offset_words(17);
     /// Trip-zone select register.
     pub const TZSEL: TiWordAddress = EPWM1_BASE.offset_words(18);
+    /// Trip-zone digital-compare select (offset 19). Missing from the earlier
+    /// map, which shifted every following TZ/ET register by one word.
+    pub const TZDCSEL: TiWordAddress = EPWM1_BASE.offset_words(19);
     /// Trip-zone control register.
-    pub const TZCTL: TiWordAddress = EPWM1_BASE.offset_words(19);
+    pub const TZCTL: TiWordAddress = EPWM1_BASE.offset_words(20);
     /// Trip-zone enable interrupt register.
-    pub const TZEINT: TiWordAddress = EPWM1_BASE.offset_words(20);
-    /// Event-trigger selection register.
-    pub const ETSEL: TiWordAddress = EPWM1_BASE.offset_words(24);
-    /// Event-trigger prescale register.
-    pub const ETPS: TiWordAddress = EPWM1_BASE.offset_words(25);
+    pub const TZEINT: TiWordAddress = EPWM1_BASE.offset_words(21);
+    /// Trip-zone flag register.
+    pub const TZFLG: TiWordAddress = EPWM1_BASE.offset_words(22);
     /// Trip-zone clear register.
-    pub const TZCLR: TiWordAddress = EPWM1_BASE.offset_words(22);
+    pub const TZCLR: TiWordAddress = EPWM1_BASE.offset_words(23);
     /// Trip-zone force register.
-    pub const TZFRC: TiWordAddress = EPWM1_BASE.offset_words(23);
+    pub const TZFRC: TiWordAddress = EPWM1_BASE.offset_words(24);
+    /// Event-trigger selection register (offset 25).
+    pub const ETSEL: TiWordAddress = EPWM1_BASE.offset_words(25);
+    /// Event-trigger prescale register (offset 26).
+    pub const ETPS: TiWordAddress = EPWM1_BASE.offset_words(26);
+    /// Event-trigger clear register (offset 28).
+    pub const ETCLR: TiWordAddress = EPWM1_BASE.offset_words(28);
     /// Action-qualifier register for output B.
     pub const AQCTLB: TiWordAddress = EPWM1_BASE.offset_words(12);
-    /// Trip-zone flag register.
-    pub const TZFLG: TiWordAddress = EPWM1_BASE.offset_words(21);
-    /// Event-trigger clear register.
-    pub const ETCLR: TiWordAddress = EPWM1_BASE.offset_words(27);
-    /// HRPWM configuration register (offset 30).
-    pub const HRCNFG: TiWordAddress = EPWM1_BASE.offset_words(30);
-    /// HRPWM power register (offset 31).
-    pub const HRPWR: TiWordAddress = EPWM1_BASE.offset_words(31);
-    /// HRPWM control register (offset 32).
-    pub const HRPCTL: TiWordAddress = EPWM1_BASE.offset_words(32);
+    /// HRPWM configuration register (offset 32; offset 31 is reserved).
+    pub const HRCNFG: TiWordAddress = EPWM1_BASE.offset_words(32);
+    /// HRPWM power register (offset 33).
+    pub const HRPWR: TiWordAddress = EPWM1_BASE.offset_words(33);
+    /// HRPWM control register (offset 36).
+    pub const HRPCTL: TiWordAddress = EPWM1_BASE.offset_words(36);
     /// HRPWM phase high-res register (offset 2).
     pub const TBPHSHR: TiWordAddress = EPWM1_BASE.offset_words(2);
     /// Time-base phase register (offset 3).
@@ -1229,13 +1627,38 @@ pub mod epwm1 {
 
     impl UpCountConfig {
         /// Writes the ePWM1 registers through the bus in the exact order used
-        /// by the C bridge.  GPIO0 mux and TBCLKSYNC are owned by the system
-        /// setup path and are not part of this sequence.
+        /// by the C bridge, including the three steps that actually make the
+        /// module run:
+        ///
+        /// 1. enable the ePWM1 peripheral clock in `PCLKCR1` (without it
+        ///    `TBCTR` never advances and a compare value has no effect);
+        /// 2. route GPIO0 to EPWM1A (mux 1) with the pull-up disabled;
+        /// 3. hold `TBCLKSYNC` low while programming, then release it so the
+        ///    time base starts from a known phase.
         ///
         /// # Safety
         ///
-        /// All addresses are fixed ePWM1 register offsets.
+        /// All addresses are fixed ePWM1 / SysCtrl / GPIO register offsets.
         pub unsafe fn apply<B: MmioBus>(self, bus: &mut B) {
+            // SAFETY: fixed SysCtrl / GPIO register addresses.
+            unsafe {
+                super::sysctrl::PCLKCR1.modify_u32(
+                    bus,
+                    super::sysctrl::PCLKCR1_EPWM1ENCLK,
+                    super::sysctrl::PCLKCR1_EPWM1ENCLK,
+                );
+                if let Some(field) = super::gpio::mux_field(0) {
+                    // SAFETY: GPIO0 is a valid F28035 pin; mux value 1 = EPWM1A.
+                    unsafe { field.set(bus, 1) };
+                }
+                // SAFETY: GPIO0 is within 0..=44.
+                unsafe { super::gpio::disable_pullup(bus, 0) };
+                super::sysctrl::PCLKCR0.modify_u32(
+                    bus,
+                    u32::from(super::sysctrl::PCLKCR0_TBCLKSYNC),
+                    0,
+                );
+            }
             // SAFETY: fixed ePWM1 register addresses.
             unsafe {
                 TBCTL.write(bus, 0);
@@ -1246,6 +1669,14 @@ pub mod epwm1 {
                 let aq = AQ_SET | (AQ_CLEAR << 4);
                 AQCTLA.write(bus, aq);
                 // CTRMODE stays 0 (up-counting) because TBCTL was zeroed.
+            }
+            // SAFETY: fixed SysCtrl register address; releases the time base.
+            unsafe {
+                super::sysctrl::PCLKCR0.modify_u32(
+                    bus,
+                    u32::from(super::sysctrl::PCLKCR0_TBCLKSYNC),
+                    u32::from(super::sysctrl::PCLKCR0_TBCLKSYNC),
+                );
             }
         }
     }
@@ -1276,28 +1707,58 @@ pub mod epwm1 {
         unsafe { CMPA.read(bus) }
     }
 
-    /// ePWM1A PWM-enable bit (TBCTL bit 9, `PWMENABLE`).
-    pub const TBCTL_PWMENABLE: u16 = 1 << 9;
-    /// ePWM1A idle-high flag (TBCTL bit 6, `SHDWDBLOAD`).  Idle-state
-    /// forcing is left to the caller's dead-band control; we only toggle the
-    /// enable bit here.
+    /// AQCTLA for a running waveform: ZRO=SET (bits 1:0), CAU=CLEAR (bits 5:4).
+    pub const AQCTLA_RUN: u16 = AQ_SET | (AQ_CLEAR << 4);
+    /// AQCTLA that parks the output low: ZRO=CLEAR, CAU=NO_ACTION.
+    pub const AQCTLA_FORCE_LOW: u16 = AQ_CLEAR;
 
-    /// Enables the ePWM1 time base output (sets TBCTL PWMENABLE).
+    /// ETSEL: SOCA enabled, SOCASEL = 0 (CTR = ZERO).
+    pub const ETSEL_SOCA_ON_ZERO: u16 = 0x0800;
+    /// ETPS: generate the SOCA event on every zero event.
+    pub const ETPS_SOCA_EVERY: u16 = 0x0001;
+
+    /// Makes ePWM1 generate a start-of-conversion pulse on every CTR = ZERO.
+    ///
+    /// This is the architecture a motor-control loop actually uses: the ADC is
+    /// triggered by the PWM time base instead of by a software force, so the
+    /// sample instant is locked to the waveform and no force/SOC race exists.
     ///
     /// # Safety
-    /// Same as [`TiWordAddress::write`] for TBCTL.
-    pub unsafe fn enable<B: MmioBus>(bus: &mut B) {
-        // SAFETY: fixed ePWM1 register address.
-        unsafe { TBCTL.modify(bus, TBCTL_PWMENABLE, TBCTL_PWMENABLE) };
+    /// All addresses are fixed ePWM1 register offsets.
+    pub unsafe fn enable_soca_trigger<B: MmioBus>(bus: &mut B) {
+        // SAFETY: fixed ePWM1 register addresses.
+        unsafe {
+            ETSEL.write(bus, ETSEL_SOCA_ON_ZERO);
+            ETPS.write(bus, ETPS_SOCA_EVERY);
+            ETCLR.write(bus, 0x0001);
+        }
     }
 
-    /// Disables the ePWM1 time base output (clears TBCTL PWMENABLE).
+    /// Starts driving the configured waveform on EPWM1A.
+    ///
+    /// C28x ePWM has no global output-enable bit: the pin is owned by the
+    /// peripheral once GPIO0 is muxed to EPWM1A (done by
+    /// [`UpCountConfig::apply`]) and the action qualifier decides the level.
+    /// This call therefore restores the running qualifier instead of touching
+    /// `TBCTL`.  (An earlier revision set `TBCTL` bit 9, which on F2803x is
+    /// part of `HSPCLKDIV`; it silently changed the time-base prescaler rather
+    /// than enabling anything.)
     ///
     /// # Safety
-    /// Same as [`TiWordAddress::write`] for TBCTL.
+    /// Same as [`TiWordAddress::write`] for AQCTLA.
+    pub unsafe fn enable<B: MmioBus>(bus: &mut B) {
+        // SAFETY: fixed ePWM1 register address.
+        unsafe { AQCTLA.write(bus, AQCTLA_RUN) };
+    }
+
+    /// Parks EPWM1A low: the next zero event clears the output and no further
+    /// set action follows, so the pin stays low until [`enable`] is called.
+    ///
+    /// # Safety
+    /// Same as [`TiWordAddress::write`] for AQCTLA.
     pub unsafe fn disable<B: MmioBus>(bus: &mut B) {
         // SAFETY: fixed ePWM1 register address.
-        unsafe { TBCTL.modify(bus, TBCTL_PWMENABLE, 0) };
+        unsafe { AQCTLA.write(bus, AQCTLA_FORCE_LOW) };
     }
 }
 
@@ -1314,22 +1775,28 @@ pub mod sysctrl {
     pub const PCLKCR0_ADCENCLK: u16 = 0x0008;
     /// ePWM time-base clock sync bit in PCLKCR0.
     pub const PCLKCR0_TBCLKSYNC: u16 = 0x0004;
-    /// SPI-B clock-enable bit in PCLKCR0.
-    pub const PCLKCR0_SPIBENCLK: u16 = 0x0100;
-    /// SCI-A clock-enable bit in PCLKCR0.
-    pub const PCLKCR0_SCIAENCLK: u16 = 0x0040;
-    /// I2C-A clock-enable bit in PCLKCR0.
-    pub const PCLKCR0_I2CAENCLK: u16 = 0x0400;
-    /// LIN-A clock-enable bit in PCLKCR0.
-    pub const PCLKCR0_LINAENCLK: u16 = 0x1000;
+    /// LIN-A clock-enable bit in PCLKCR0 (bit 1, DSP2803x_SysCtrl.h).
+    pub const PCLKCR0_LINAENCLK: u16 = 0x0002;
+    /// I2C-A clock-enable bit in PCLKCR0 (bit 4).
+    pub const PCLKCR0_I2CAENCLK: u16 = 0x0010;
+    /// SPI-A clock-enable bit in PCLKCR0 (bit 8).
+    pub const PCLKCR0_SPIAENCLK: u16 = 0x0100;
+    /// SPI-B clock-enable bit in PCLKCR0 (bit 9).
+    pub const PCLKCR0_SPIBENCLK: u16 = 0x0200;
+    /// SCI-A clock-enable bit in PCLKCR0 (bit 10).
+    ///
+    /// The previous value (0x0040, bit 6) is a reserved bit on F2803x, so an
+    /// SCI configured through this constant ran without a clock: the
+    /// transmitter shifted nothing and RXRDY never asserted.
+    pub const PCLKCR0_SCIAENCLK: u16 = 0x0400;
     /// Peripheral clock control register 1 (ePWM/eCAP/eQEP clock enables).
     pub const PCLKCR1: Register32 = Register32::at(SYSCTRL_BASE.offset_words(13));
     /// ePWM1 clock-enable bit in PCLKCR1.
     pub const PCLKCR1_EPWM1ENCLK: u32 = 0x0001;
-    /// eCAP1 clock-enable bit in PCLKCR1.
-    pub const PCLKCR1_ECAP1ENCLK: u32 = 0x0010;
-    /// eQEP1 clock-enable bit in PCLKCR1.
-    pub const PCLKCR1_EQEP1ENCLK: u32 = 0x0020;
+    /// eCAP1 clock-enable bit in PCLKCR1 (bit 8).
+    pub const PCLKCR1_ECAP1ENCLK: u32 = 0x0100;
+    /// eQEP1 clock-enable bit in PCLKCR1 (bit 14).
+    pub const PCLKCR1_EQEP1ENCLK: u32 = 0x4000;
     /// Peripheral clock control register 3 (CPU Timer0 clock enable).
     pub const PCLKCR3: TiWordAddress = SYSCTRL_BASE.offset_words(15);
     /// CPU Timer0 clock-enable bit in PCLKCR3.
@@ -1342,6 +1809,11 @@ pub mod adc {
 
     pub(crate) const ADC_BASE: TiWordAddress = TiWordAddress::new(0x7100);
 
+    /// Base of the ADC result mirror: 16 x 16-bit words at 0x0B00
+    /// (`ADC_RESULT` in DSP2803x_Headers_nonBIOS.cmd).  The results are *not*
+    /// inside the 0x7100 control frame; word 0x7108 is ADCINTSEL1N2.
+    pub const ADCRESULT_BASE: TiWordAddress = TiWordAddress::new(0x0b00);
+
     pub const ADCCTL1: TiWordAddress = ADC_BASE;
     pub const ADCCTL2: TiWordAddress = ADC_BASE.offset_words(1);
     pub const ADCINTFLG: TiWordAddress = ADC_BASE.offset_words(4);
@@ -1352,16 +1824,32 @@ pub mod adc {
     pub const ADCSOCOVF1: TiWordAddress = ADC_BASE.offset_words(28);
     pub const ADCSOCFRC1: TiWordAddress = ADC_BASE.offset_words(26);
     pub const ADCSOC0CTL: TiWordAddress = ADC_BASE.offset_words(32);
-
-    /// CHSEL field of ADCSOC0CTL (5 channel select bits, bits 0-4).
-    pub const SOC0_CHSEL_MASK: u16 = 0x001f;
-    /// ACQPS field shift in ADCSOC0CTL (bits 6-10).
-    pub const SOC0_ACQPS_SHIFT: u16 = 6;
+    /// ADC reference trim (offset 64), loaded from TI OTP by `Device_cal()`.
+    pub const ADCREFTRIM: TiWordAddress = ADC_BASE.offset_words(64);
+    /// ADC offset trim (offset 65, bits 8:0), loaded from TI OTP by
+    /// `Device_cal()`.  On a RAM/JTAG image the boot ROM is bypassed, so it
+    /// stays at its reset value until `Device_cal()` is called explicitly.
+    pub const ADCOFFTRIM: TiWordAddress = ADC_BASE.offset_words(65);
+    /// CHSEL field of ADCSOC0CTL: bits 9:6 (DSP2803x_Adc.h ADCSOCxCTL_BITS).
+    ///
+    /// The previous mask (0x001f, bits 0-4) was the ACQPS field, and ACQPS was
+    /// written to bits 6-10. A "channel 0, 6-cycle window" configuration
+    /// therefore landed as "channel 6, 1-cycle window", which is why roughly
+    /// half of the software-triggered conversions never reported EOC.
+    pub const SOC0_CHSEL_MASK: u16 = 0x03c0;
+    /// CHSEL field shift in ADCSOC0CTL (bits 9:6).
+    pub const SOC0_CHSEL_SHIFT: u16 = 6;
+    /// ACQPS field of ADCSOC0CTL: bits 5:0 (no shift).
+    pub const SOC0_ACQPS_MASK: u16 = 0x003f;
     /// TRIGSEL field of ADCSOC0CTL (5 trigger-source bits, bits 11-15).
     pub const SOC0_TRIGSEL_MASK: u16 = 0xf800;
     pub const SOC0_TRIGSEL_SHIFT: u16 = 11;
-    /// ADCINT1 result pending flag in ADCINTFLG / ADCINTFLGCLR.
-    pub const ADCINT1_FLAG: u16 = 0x0002;
+    /// ADCINT1 flag in ADCINTFLG / ADCINTFLGCLR.
+    ///
+    /// DSP2803x_Adc.h: ADCINT1 is bit 0 (bit 1 is ADCINT2). The previous value
+    /// (0x0002) polled and cleared ADCINT2, so the SOC0 end-of-conversion flag
+    /// was never observed and every sample looked like a timeout.
+    pub const ADCINT1_FLAG: u16 = 0x0001;
     /// SOC0 bit in ADCSOCFRC1 / ADCSOCFLG1 / ADCSOCOVF1.
     pub const SOC0_FORCE: u16 = 0x0001;
     /// CLKDIV2EN bit in ADCCTL2 (bit 0).
@@ -1378,10 +1866,28 @@ pub mod adc {
     pub unsafe fn trigger_soc0<B: MmioBus>(bus: &mut B, channel: u16) {
         // SAFETY: fixed ADC register addresses; channel is masked to 5 bits.
         unsafe {
-            ADCSOC0CTL.modify(bus, SOC0_CHSEL_MASK, channel);
+            ADCSOC0CTL.modify(bus, SOC0_CHSEL_MASK, channel << SOC0_CHSEL_SHIFT);
             ADCINTFLGCLR.write(bus, ADCINT1_FLAG);
             ADCSOCFRC1.write(bus, SOC0_FORCE);
         }
+    }
+
+    /// ADC trigger source: ePWM1 SOCA (DSP2803x TRM, ADCSOCxCTL.TRIGSEL = 7).
+    pub const TRIGSEL_EPWM1_SOCA: u16 = 7;
+
+    /// Points SOC0 at a hardware trigger instead of the software force bit.
+    ///
+    /// # Safety
+    /// `trigsel` must be a valid TRIGSEL code; all addresses are fixed.
+    pub unsafe fn set_soc0_trigger<B: MmioBus>(bus: &mut B, trigsel: u16) {
+        // SAFETY: fixed ADC register address.
+        unsafe {
+            ADCSOC0CTL.modify(
+                bus,
+                SOC0_TRIGSEL_MASK,
+                (trigsel << SOC0_TRIGSEL_SHIFT) & SOC0_TRIGSEL_MASK,
+            )
+        };
     }
 
     /// Clears the SOC0 EOC flag after a completed conversion.
@@ -1396,31 +1902,42 @@ pub mod adc {
     // -- ADC power-up constants (DSP2803x_Adc.h, mirrored from the audited
     //    backend sequence in emit_f28035_board_init) --------------------------
 
-    /// ADCCTL1 power-up bits: bit14 (refbuf), bit7/6/5 (power up).
-    const ADCCTL1_POWERUP_MASK: u16 = 0x40e0;
-    /// ADCCTL1 reset bit (bit2, ADCENABLE).
-    const ADCCTL1_RESET_BIT: u16 = 0x0004;
-    /// INTSEL1N2 low 5 bits: ADCINT1 source channel select.
+    /// ADCCTL1 bit 1: VSSA connection (reference conversion).
+    const ADCCTL1_VREFLOCONV: u16 = 0x0002;
+    /// ADCCTL1 bit 2: interrupt pulse position (late).
+    const ADCCTL1_INTPULSEPOS: u16 = 0x0004;
+    /// ADCCTL1 bit 3: internal (0) / external (1) reference select.
+    const ADCCTL1_ADCREFSEL: u16 = 0x0008;
+    /// ADCCTL1 bit 5: reference-buffer power down (0 = powered).
+    const ADCCTL1_ADCREFPWD: u16 = 0x0020;
+    /// ADCCTL1 bit 6: band-gap power down (0 = powered).
+    const ADCCTL1_ADCBGPWD: u16 = 0x0040;
+    /// ADCCTL1 bit 7: ADC core power down (0 = powered).
+    const ADCCTL1_ADCPWDN: u16 = 0x0080;
+    /// ADCCTL1 bit 14: ADC enable.
+    const ADCCTL1_ADCENABLE: u16 = 0x4000;
+    /// INTSEL1N2 bits 0-4: ADCINT1 EOC source select.
     const INTSEL1N2_SOURCE_MASK: u16 = 0x001f;
-    /// INTSEL1N2 bit5: ADCINT1 routed to SOC0.
-    const INTSEL1N2_ADCINT1_ON_SOC0: u16 = 0x0020;
-    /// INTSEL1N2 bit6: ADCINT1 interrupt enable.
-    const INTSEL1N2_ADCINT1_ENABLE: u16 = 0x0040;
+    /// INTSEL1N2 bit 5: ADCINT1 enable.
+    const INTSEL1N2_INT1E: u16 = 0x0020;
+    /// INTSEL1N2 bit 6: ADCINT1 continuous mode.
+    const INTSEL1N2_INT1CONT: u16 = 0x0040;
     /// ADCSOC0CTL reserved/upper bits above ACQPS.
     const SOC0CTL_UPPER_MASK: u16 = 0xf800;
-    /// ADCSOC0CTL acquisition-window prescale bits (bits 6..10).
-    pub const SOC0_ACQPS_MASK: u16 = 0x07c0;
     /// Acquisition window of 6 SYSCLK cycles, matching the audited sequence.
     const SOC0_ACQPS_6: u16 = 6;
 
-    /// Mirrors `emit_f28035_board_init`'s ADC block: enable ADC clock, power
-    /// up the ADC, (settle delay on target only), release reset, route
-    /// ADCINT1 to SOC0, and set a 6-cycle acquisition window.
+    /// Mirrors the C bridge's `f28035_adc_configure_soc0` prologue: enable the
+    /// ADC clock, halve the ADC input clock, power up reference/band-gap/core,
+    /// enable the converter, route the SOC0 EOC to ADCINT1 and program SOC0.
     ///
-    /// The ~60k-cycle `DSP28x_usDelay` settle loop is runtime timing and is
-    /// intentionally not part of this register sequence.  EALLOW/EDIS
-    /// bracketing is added by the backend on target; on the host it is a
-    /// no-op.
+    /// Two omissions in the previous Rust port broke conversions outright:
+    /// `ADCCTL2.CLKDIV2EN` was never set (the converter cannot run at full
+    /// SYSCLK) and the power-up masks were applied to the wrong bits.
+    ///
+    /// The ~1 ms reference settle delay is runtime timing and stays with the
+    /// caller (see `system_init` users); EALLOW/EDIS is added by the bus for
+    /// the SysCtrl range and by the backend for the rest.
     ///
     /// # Safety
     /// All addresses are fixed ADC / sysctrl register offsets.
@@ -1433,20 +1950,33 @@ pub mod adc {
                 super::sysctrl::PCLKCR0_ADCENCLK as u32,
                 super::sysctrl::PCLKCR0_ADCENCLK as u32,
             );
-            // 2. Power up the ADC reference and bandgap.
-            ADCCTL1.modify(bus, ADCCTL1_POWERUP_MASK, ADCCTL1_POWERUP_MASK);
-            ADCCTL1.modify(bus, ADCCTL1_RESET_BIT, 0);
-            // 3. (target-only: LCR #DSP28x_usDelay with ACC=59997)
-            // 4. Release the ADC from reset.
-            ADCCTL1.modify(bus, ADCCTL1_RESET_BIT, ADCCTL1_RESET_BIT);
-            // 5. Route ADCINT1 to SOC0 and enable the interrupt source.
+            // 1b. Load the factory ADC calibration.  A RAM/JTAG image that
+            //     forces PC to code_start bypasses the boot ROM, so Device_cal
+            //     (which copies ADCREFTRIM/ADCOFFTRIM from OTP) never ran.
+            //     Without this the converter uses its reset trim and readings
+            //     are out of spec.  Requires the ADC clock enabled (above).
+            #[cfg(not(test))]
+            unsafe { super::ffi::f28035_adc_device_cal() };
+            // 2. ADC input clock /2 and late interrupt pulse.
+            ADCCTL2.modify(bus, ADCCTL2_CLKDIV2EN, ADCCTL2_CLKDIV2EN);
+            ADCCTL1.modify(bus, ADCCTL1_INTPULSEPOS, ADCCTL1_INTPULSEPOS);
+            // 3. Internal reference; power up reference, band gap and core;
+            //    then enable the converter.
+            ADCCTL1.modify(bus, ADCCTL1_ADCREFSEL, 0);
+            ADCCTL1.modify(bus, ADCCTL1_ADCREFPWD, ADCCTL1_ADCREFPWD);
+            ADCCTL1.modify(bus, ADCCTL1_ADCBGPWD, ADCCTL1_ADCBGPWD);
+            ADCCTL1.modify(bus, ADCCTL1_ADCPWDN, ADCCTL1_ADCPWDN);
+            ADCCTL1.modify(bus, ADCCTL1_ADCENABLE, ADCCTL1_ADCENABLE);
+            // 4. SOC0 EOC -> ADCINT1 (source 0, enabled, non-continuous).
             INTSEL1N2.modify(bus, INTSEL1N2_SOURCE_MASK, 0);
-            INTSEL1N2.modify(bus, INTSEL1N2_ADCINT1_ON_SOC0, INTSEL1N2_ADCINT1_ON_SOC0);
-            INTSEL1N2.modify(bus, INTSEL1N2_ADCINT1_ENABLE, 0);
-            // 6. SOC0: clear upper reserved bits and set ACQPS=6.
-            ADCSOC0CTL.modify(bus, SOC0CTL_UPPER_MASK, 0);
-            ADCSOC0CTL.modify(bus, 0x003f, 0);
-            ADCSOC0CTL.modify(bus, SOC0_ACQPS_MASK, SOC0_ACQPS_6 << 6);
+            INTSEL1N2.modify(bus, INTSEL1N2_INT1E, INTSEL1N2_INT1E);
+            INTSEL1N2.modify(bus, INTSEL1N2_INT1CONT, 0);
+            // 5. VSSA connection and SOC0: software trigger, channel 0,
+            //    6-cycle acquisition window.
+            ADCCTL1.modify(bus, ADCCTL1_VREFLOCONV, ADCCTL1_VREFLOCONV);
+            ADCSOC0CTL.modify(bus, SOC0_TRIGSEL_MASK, 0);
+            ADCSOC0CTL.modify(bus, SOC0_CHSEL_MASK, 0);
+            ADCSOC0CTL.modify(bus, SOC0_ACQPS_MASK, SOC0_ACQPS_6);
         }
     }
 }
@@ -1562,7 +2092,56 @@ pub mod ffi {
 
     #[cfg(not(test))]
     unsafe extern "C" {
+        /// Save the INTM state (0 = enabled, 1 = disabled) and disable global
+        /// interrupts. Defined in crates/c28x-rt/asm.s.
+        fn c28x_rt_enter_critical() -> u16;
+        /// Restore the INTM state returned by [`c28x_rt_enter_critical`].
+        fn c28x_rt_exit_critical(saved: u16);
+        /// Replace the CPU IER mask (bit 0 enables PIE group 1).
+        fn c28x_rt_set_ier(mask: u16);
+        /// Enable global maskable interrupts (CLRC INTM).
+        fn c28x_rt_enable_interrupts();
+        /// Bounded wait for ADCINTFLG.ADCINT1 (bit 0); 1 = seen, 0 = timeout.
+        /// Implemented in crates/c28x-rt/asm.s because the equivalent Rust
+        /// loop is miscompiled by the current backend.
+        fn c28x_rt_wait_adc_eoc() -> u16;
+        /// Bounded wait for SPISTS.INT (bit 6); 1 = frame done, 0 = timeout.
+        fn c28x_rt_wait_spi_int() -> u16;
+        /// Bounded wait for SCICTL2.TXRDY (bit 7); 1 = ready, 0 = timeout.
+        fn c28x_rt_wait_sci_txrdy() -> u16;
+        /// Raw SCICTL2 low byte, read by the assembly helper.
+        fn c28x_rt_read_scictl2() -> u16;
+        /// Calls the F2803x boot-ROM `Device_cal()` (0x3D7C80) that copies the
+        /// factory ADC calibration from TI OTP.  Defined in
+        /// platform/runtime/device_cal.c.
+        fn f28035_device_cal();
     }
+
+    /// Runs `Device_cal()` with the ADC clock already enabled and records the
+    /// `ADCOFFTRIM` value before/after so the verifier can prove the factory
+    /// calibration was actually loaded (a RAM/JTAG image bypasses the boot ROM).
+    #[cfg(not(test))]
+    static mut ADC_OFFTRIM_BEFORE: u16 = 0;
+    #[cfg(not(test))]
+    static mut ADC_OFFTRIM_AFTER: u16 = 0;
+
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_adc_device_cal() {
+        let mut bus = C28xMmio;
+        ADC_OFFTRIM_BEFORE = unsafe { adc::ADCOFFTRIM.read(&mut bus) } & 0x01ff;
+        // SAFETY: ADC clock enabled by the caller; the ROM function only
+        // touches ADCREFTRIM/ADCOFFTRIM.
+        unsafe { f28035_device_cal() };
+        ADC_OFFTRIM_AFTER = unsafe { adc::ADCOFFTRIM.read(&mut bus) } & 0x01ff;
+    }
+
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_adc_offtrim_before() -> u16 { ADC_OFFTRIM_BEFORE }
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_adc_offtrim_after() -> u16 { ADC_OFFTRIM_AFTER }
 
     // Target path: these are ordinary Rust fn definitions (not extern "C"
     // imports).  The audited MIR backend recognizes each call **by item_name**
@@ -1616,10 +2195,10 @@ pub mod ffi {
     #[inline(never)]
     pub unsafe fn f28035_gpio_read(pin: u16) -> u16 {
         let mut bus = C28xMmio;
-        match gpio::input_config(pin, true, gpio::Qualification::Sync) {
-            Some(config) => {
+        match gpio::input_sample(pin) {
+            Some(sample) => {
                 // SAFETY: pin validated by the HAL.
-                unsafe { u16::from(config.read(&mut bus)) }
+                unsafe { u16::from(sample.read(&mut bus)) }
             }
             None => 0,
         }
@@ -1682,20 +2261,14 @@ pub mod ffi {
     #[cfg(not(test))]
     #[inline(never)]
     pub unsafe fn f28035_gpio_set_mux(pin: u16, function: u16) -> u16 {
-        if pin > 44 || function > 3 {
-            return 0;
-        }
         let mut bus = C28xMmio;
-        let (mux, shift) = if pin < 16 {
-            (gpio::GPA_MUX1, pin * 2)
-        } else if pin < 32 {
-            (gpio::GPA_MUX2, (pin - 16) * 2)
-        } else {
-            (gpio::GPB_MUX1, (pin - 32) * 2)
-        };
-        // SAFETY: pin/function validated by the HAL before this call.
-        unsafe { mux.modify_u32(&mut bus, 3u32 << shift, (function as u32) << shift) };
-        1
+        match gpio::mux_field(pin) {
+            Some(field) => {
+                // SAFETY: the PAC field names a GPIO MUX configuration register.
+                unsafe { u16::from(field.set(&mut bus, function)) }
+            }
+            None => 0,
+        }
     }
 
     /// Reads back the GPIO MUX field for pin (0 = GPIO, 1..3 = peripheral).
@@ -1704,38 +2277,97 @@ pub mod ffi {
     #[cfg(not(test))]
     #[inline(never)]
     pub unsafe fn f28035_gpio_mux(pin: u16) -> u16 {
-        if pin > 44 {
-            return 0xffff;
-        }
         let mut bus = C28xMmio;
-        let (mux, shift) = if pin < 16 {
-            (gpio::GPA_MUX1, pin * 2)
-        } else if pin < 32 {
-            (gpio::GPA_MUX2, (pin - 16) * 2)
-        } else {
-            (gpio::GPB_MUX1, (pin - 32) * 2)
-        };
-        // SAFETY: pin validated by the HAL before this call.
-        unsafe { ((mux.read_u32(&mut bus) >> shift) & 3) as u16 }
+        match gpio::mux_field(pin) {
+            Some(field) => {
+                // SAFETY: the PAC field names a readable GPIO MUX register.
+                unsafe { field.read(&mut bus) }
+            }
+            None => 0xffff,
+        }
     }
 
     #[cfg(not(test))]
     #[inline(never)]
     pub unsafe fn f28035_adc_result(result_index: u16) -> u16 {
         let mut bus = C28xMmio;
-        // ADCRESULTn lives at 0x7108 + n*2 (n in 0..=15).
-        let addr = TiWordAddress::new(0x7108 + result_index * 2);
+        // Results live in their own mirror at 0x0B00, one word per channel.
+        let addr = adc::ADCRESULT_BASE.offset_words(result_index);
         // SAFETY: result_index validated by the HAL.
         unsafe { addr.read(&mut bus) }
     }
 
+    /// Triggers SOC0, waits for the conversion to finish (bounded), clears the
+    /// EOC flag and returns `ADCRESULT0`.
+    ///
+    /// The C bridge's `f28035_adc_sample` does exactly this; an earlier Rust
+    /// port only forced the SOC and returned immediately, so `sample()` handed
+    /// back the *previous* conversion.  A closed ADC->compute->PWM loop cannot
+    /// be verified against such a stale value, hence the wait lives here.
+    /// Returns `0xFFFF` when the EOC flag never arrives (counted by
+    /// [`f28035_adc_timeouts`]).
+    #[cfg(not(test))]
+    #[inline(never)]
+    /// One trigger + bounded EOC wait + result read.
+    ///
+    /// Kept as a straight-line helper (no loop variable) because the current
+    /// backend does not preserve a Rust loop counter across the assembly call:
+    /// `while attempt < 3 { ... c28x_rt_wait_adc_eoc() ... }` either ran once or
+    /// spun, which is why a bounded retry did not change the alternating
+    /// success/failure pattern. The retry is therefore fully unrolled.
+    #[cfg(not(test))]
+    #[inline(never)]
+    unsafe fn adc_sample_once(bus: &mut C28xMmio, channel: u16) -> u16 {
+        // SAFETY: channel masked to 5 bits by trigger_soc0.
+        unsafe { adc::trigger_soc0(bus, channel) };
+        // SAFETY: leaf poll routine from crates/c28x-rt/asm.s.
+        if unsafe { c28x_rt_wait_adc_eoc() } == 0 {
+            return 0xFFFF;
+        }
+        // Freshness: trigger_soc0 cleared ADCINT1, so a set flag can only come
+        // from THIS conversion's end-of-conversion.  If it is still clear the
+        // SOC was dropped and ADCRESULT0 would be a stale value from a
+        // previous tick -- report a timeout instead of a stale sample.
+        if unsafe { adc::ADCINTFLG.read(bus) } & adc::ADCINT1_FLAG == 0 {
+            return 0xFFFF;
+        }
+        // SAFETY: single-writer counter; interrupts are disabled on this path.
+        unsafe { ADC_EOC_SEEN = ADC_EOC_SEEN.wrapping_add(1) };
+        // SAFETY: fixed ADC flag-clear register.
+        unsafe { adc::clear_eoc(bus) };
+        // SAFETY: SOC0 result index 0 is valid.
+        unsafe { f28035_adc_result(0) }
+    }
+
+    /// Triggers SOC0, waits for the conversion and returns `ADCRESULT0`.
+    ///
+    /// Up to three unrolled attempts: clearing the EOC flag and forcing the
+    /// next conversion back-to-back occasionally drops the force, which showed
+    /// up on hardware as an alternating pattern (607 ok / 606 timeout over
+    /// 1214 ticks). Returns `0xFFFF` only when every attempt misses the flag.
     #[cfg(not(test))]
     #[inline(never)]
     pub unsafe fn f28035_adc_sample(channel: u16) -> u16 {
         let mut bus = C28xMmio;
-        // SAFETY: channel masked to 5 bits by trigger_soc0.
-        unsafe { adc::trigger_soc0(&mut bus, channel) };
-        1
+        // SAFETY: fixed ADC registers; see adc_sample_once.
+        let first = unsafe { adc_sample_once(&mut bus, channel) };
+        if first != 0xFFFF {
+            return first;
+        }
+        // SAFETY: same contract.
+        let second = unsafe { adc_sample_once(&mut bus, channel) };
+        if second != 0xFFFF {
+            return second;
+        }
+        // SAFETY: same contract.
+        let third = unsafe { adc_sample_once(&mut bus, channel) };
+        if third != 0xFFFF {
+            return third;
+        }
+        // SAFETY: single-writer counter; interrupts are disabled while this
+        // ISR-side path runs (it is called from the control ISR).
+        unsafe { ADC_TIMEOUTS = ADC_TIMEOUTS.wrapping_add(1) };
+        0xFFFF
     }
 
     /// Reconfigures SOC0 channel and acquisition window.
@@ -1755,8 +2387,8 @@ pub mod ffi {
         // SAFETY: channel/acqps validated above; ADCSOC0CTL is a fixed ADC
         // register already powered up by system_init.
         unsafe {
-            adc::ADCSOC0CTL.modify(&mut bus, adc::SOC0_CHSEL_MASK, channel);
-            adc::ADCSOC0CTL.modify(&mut bus, adc::SOC0_ACQPS_MASK, acqps << 6);
+            adc::ADCSOC0CTL.modify(&mut bus, adc::SOC0_CHSEL_MASK, channel << adc::SOC0_CHSEL_SHIFT);
+            adc::ADCSOC0CTL.modify(&mut bus, adc::SOC0_ACQPS_MASK, acqps);
         }
         1
     }
@@ -1764,17 +2396,202 @@ pub mod ffi {
     #[cfg(not(test))]
     #[inline(never)]
     pub unsafe fn f28035_adc_timeouts() -> u16 {
-        // The bounded EOC poll is runtime loop behavior; the typed PAC only
-        // owns the trigger sequence, so this counter is model state on host.
-        0
+        // SAFETY: an aligned u16 load is atomic on C28x.
+        unsafe { ADC_TIMEOUTS }
+    }
+
+    /// Counts bounded-EOC-poll failures so a control loop can report a dead
+    /// ADC instead of silently reusing an old sample.
+    #[cfg(not(test))]
+    static mut ADC_TIMEOUTS: u16 = 0;
+
+    /// Counts samples whose end-of-conversion flag was actually observed after
+    /// the trigger, proving each accepted sample is a fresh conversion (not a
+    /// stale ADCRESULT0 from a dropped SOC).
+    #[cfg(not(test))]
+    static mut ADC_EOC_SEEN: u16 = 0;
+
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_adc_eoc_count() -> u16 {
+        // SAFETY: an aligned u16 load is atomic on C28x.
+        unsafe { ADC_EOC_SEEN }
+    }
+
+    /// SCI-A internal-loopback self-test: transmit a known pattern and require
+    /// the exact bytes to come back.  This proves the TX/RX path and the byte
+    /// *content*, not merely that TXRDY was set.  Requires the corrected 8-bit
+    /// loopback SCICCR (SCICHAR=7 | LOOPBKENA).
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_sci_loopback_selftest() {
+        let mut bus = C28xMmio;
+        SCI_TX_COUNT = 0;
+        SCI_RX_COUNT = 0;
+        SCI_MISMATCH = 0;
+        SCI_FIFO_RX = 0;
+        SCI_FIFO_MISMATCH = 0;
+        SCI_TIMEOUT_OK = 0;
+        let pattern: [u16; 8] = [0x0000, 0x0001, 0x0055, 0x00AA, 0x000F, 0x00F0, 0x005A, 0x00A5];
+
+        // --- 1. Single-byte loopback (proven): 0x5A must echo ---
+        if !unsafe { sci::configure_loopback(&mut bus, 1) } {
+            return;
+        }
+        unsafe { sci_delay(&mut bus, 300) };
+        let _ = unsafe { sci::SCIRXBUF.read(&mut bus) }; // flush stale byte
+        unsafe { sci::SCITXBUF.write(&mut bus, 0x005A) };
+        SCI_TX_COUNT = 1;
+        unsafe { sci_delay(&mut bus, 600) };
+        let got = unsafe { sci::SCIRXBUF.read(&mut bus) } & 0x00ff;
+        SCI_RX_COUNT = 1;
+        if got != 0x005A {
+            SCI_MISMATCH = 1;
+        }
+
+        // --- 2. FIFO mode: enable the FIFO, send 8 bytes, read 8 back ---
+        unsafe {
+            sci::SCICTL1.write(&mut bus, 0);
+            sci::SCICCR.write(&mut bus, sci::SCICCR_LOOPBACK_8N1);
+            sci::SCIHBAUD.write(&mut bus, 0);
+            sci::SCILBAUD.write(&mut bus, 1);
+            sci::SCIFFTX.write(&mut bus, 0xE000); // SCIRST+SCIFFENA+TXFIFORESET
+            sci::SCIFFRX.write(&mut bus, 0x2000); // RXFIFORESET
+            sci::SCIFFCT.write(&mut bus, 0);
+            sci::SCICTL2.write(&mut bus, 0);
+            sci::SCICTL1.write(&mut bus, sci::SCICTL1_RXENA_TXENA | sci::SCICTL1_SWRESET);
+        }
+        unsafe { sci_delay(&mut bus, 300) };
+        let mut j: usize = 0;
+        while j < 8 {
+            let mut n: u16 = 0;
+            while n < 3000 {
+                if unsafe { sci::SCICTL2.read(&mut bus) } & sci::SCICTL2_TXRDY != 0 {
+                    break;
+                }
+                n = n.wrapping_add(1);
+            }
+            unsafe { sci::SCITXBUF.write(&mut bus, pattern[j] & 0x00ff) };
+            j += 1;
+        }
+        unsafe { sci_delay(&mut bus, 4000) };
+        let mut k: usize = 0;
+        while k < 8 {
+            let got = unsafe { sci::SCIRXBUF.read(&mut bus) } & 0x00ff;
+            SCI_FIFO_BYTES[k] = got;
+            SCI_FIFO_RX = SCI_FIFO_RX.wrapping_add(1);
+            if got != (pattern[k] & 0x00ff) {
+                SCI_FIFO_MISMATCH = SCI_FIFO_MISMATCH.wrapping_add(1);
+            }
+            k += 1;
+        }
+
+        // --- 3. Timeout recovery: no loopback, no peer -> bounded RXRDY wait
+        //     must time out and return (not hang), then the caller reconfigures.
+        unsafe {
+            sci::SCICTL1.write(&mut bus, 0);
+            sci::SCICCR.write(&mut bus, 0x0007); // 8N1, NO loopback
+            sci::SCIHBAUD.write(&mut bus, 0);
+            sci::SCILBAUD.write(&mut bus, 1);
+            sci::SCIFFTX.write(&mut bus, 0);
+            sci::SCIFFRX.write(&mut bus, 0);
+            sci::SCICTL2.write(&mut bus, 0);
+            sci::SCICTL1.write(&mut bus, sci::SCICTL1_RXENA_TXENA | sci::SCICTL1_SWRESET);
+        }
+        unsafe { sci_delay(&mut bus, 300) };
+        unsafe { sci::SCITXBUF.write(&mut bus, 0x005A) };
+        let mut t: u16 = 0;
+        while t < 5000 {
+            if unsafe { sci::SCIRXST.read(&mut bus) } & sci::SCIRXST_RXRDY != 0 {
+                break;
+            }
+            t = t.wrapping_add(1);
+        }
+        if t >= 5000 {
+            SCI_TIMEOUT_OK = 1; // bounded wait expired and returned -> no hang
+        }
     }
 
     #[cfg(not(test))]
     #[inline(never)]
+    pub unsafe fn f28035_sci_loopback_tx() -> u16 { SCI_TX_COUNT }
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_sci_loopback_rx() -> u16 { SCI_RX_COUNT }
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_sci_loopback_mismatch() -> u16 { SCI_MISMATCH }
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_sci_fifo_rx() -> u16 { SCI_FIFO_RX }
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_sci_fifo_mismatch() -> u16 { SCI_FIFO_MISMATCH }
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_sci_timeout_ok() -> u16 { SCI_TIMEOUT_OK }
+
+    /// Busy delay measured in SCIRXST reads (no timer needed).
+    #[cfg(not(test))]
+    #[inline(always)]
+    unsafe fn sci_delay(bus: &mut C28xMmio, n: u16) {
+        let mut i: u16 = 0;
+        while i < n {
+            let _ = unsafe { sci::SCIRXST.read(bus) };
+            i = i.wrapping_add(1);
+        }
+    }
+
+    #[cfg(not(test))]
+    static mut SCI_TX_COUNT: u16 = 0;
+    #[cfg(not(test))]
+    static mut SCI_RX_COUNT: u16 = 0;
+    #[cfg(not(test))]
+    static mut SCI_MISMATCH: u16 = 0;
+    #[cfg(not(test))]
+    static mut SCI_FIFO_RX: u16 = 0;
+    #[cfg(not(test))]
+    static mut SCI_FIFO_MISMATCH: u16 = 0;
+    #[cfg(not(test))]
+    static mut SCI_TIMEOUT_OK: u16 = 0;
+    #[cfg(not(test))]
+    static mut SCI_FIFO_BYTES: [u16; 8] = [0; 8];
+
+    /// One FIFO-mode received byte, for diagnosis.
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_sci_fifo_byte(i: u16) -> u16 {
+        if i < 8 { SCI_FIFO_BYTES[i as usize] } else { 0 }
+    }
+
+    /// One-time peripheral ownership latch shared by the real-device
+    /// [`f28035_take_peripherals`]. Non-zero means the peripherals were already
+    /// handed out; the critical section makes the check-and-set atomic with
+    /// respect to interrupts.
+    #[cfg(not(test))]
+    static mut PERIPHERALS_TAKEN: u16 = 0;
+
+    #[cfg(not(test))]
+    #[inline(never)]
     pub unsafe fn f28035_take_peripherals() -> u16 {
-        // Peripheral ownership lock is a host/HAL type-state concept; on the
-        // real device the MMIO bus is directly addressable.
-        1
+        // Direct-object (LLVM) path: a real interrupt-safe one-time take.
+        // The c28x-mir route classifies the entry by its MIR body and inlines a
+        // fixed sequence by name, so it keeps the historical simple body.
+        #[cfg(feature = "direct-obj-mmio")]
+        {
+            let saved = unsafe { c28x_rt_enter_critical() };
+            let already = unsafe { PERIPHERALS_TAKEN };
+            if already == 0 {
+                unsafe { PERIPHERALS_TAKEN = 1 };
+            }
+            unsafe { c28x_rt_exit_critical(saved) };
+            u16::from(already == 0)
+        }
+        #[cfg(not(feature = "direct-obj-mmio"))]
+        {
+            // MIR route: the driver inlines a fixed sequence for this function.
+            1
+        }
     }
 
     #[cfg(not(test))]
@@ -1814,6 +2631,23 @@ pub mod ffi {
         let mut bus = C28xMmio;
         // SAFETY: fixed PIE register address.
         unsafe { timer0::ack_pie_group1(&mut bus) };
+    }
+
+    /// Enables the CPU Timer0 interrupt end-to-end: the CPU IER group-1 bit
+    /// (PIE group 1 carries TINT0) and then global maskable interrupts.
+    /// `f28035_timer0_start_periodic_ms` has already enabled PIEIER1 INT7 and
+    /// the timer's TIE, so after this call the TINT0 handler runs every period.
+    /// The handler only needs to call [`f28035_timer0_ack`].
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_enable_timer0_interrupt() -> u16 {
+        // SAFETY: Timer0 is uniquely owned by the caller; IER is set to group 1
+        // (bit 0) and global interrupts are then enabled.
+        unsafe {
+            c28x_rt_set_ier(1);
+            c28x_rt_enable_interrupts();
+        }
+        1
     }
 
     #[cfg(not(test))]
@@ -1892,6 +2726,160 @@ pub mod ffi {
         let mut bus = C28xMmio;
         // SAFETY: fixed ePWM1 register address.
         unsafe { epwm1::disable(&mut bus) };
+    }
+
+    /// Configures SCI-A internal loopback. Returns 1 on success, 0 for a zero
+    /// baud divisor.
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_sci_loopback_configure(baud_div: u16) -> u16 {
+        let mut bus = C28xMmio;
+        // SAFETY: fixed SCI-A / SysCtrl / GPIO register addresses.
+        u16::from(unsafe { sci::configure_loopback(&mut bus, baud_div) })
+    }
+
+    /// Enables the ePWM1 SOCA trigger (CTR = ZERO, every event). Returns 1.
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_epwm1_enable_soca_trigger() -> u16 {
+        let mut bus = C28xMmio;
+        // SAFETY: fixed ePWM1 register addresses.
+        unsafe { epwm1::enable_soca_trigger(&mut bus) };
+        1
+    }
+
+    /// Points ADC SOC0 at the ePWM1 SOCA trigger. Returns 1.
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_adc_soc0_use_epwm1_soca() -> u16 {
+        let mut bus = C28xMmio;
+        // SAFETY: fixed ADC register address.
+        unsafe { adc::set_soc0_trigger(&mut bus, adc::TRIGSEL_EPWM1_SOCA) };
+        1
+    }
+
+    /// Waits for a hardware-triggered conversion, clears EOC and returns
+    /// `ADCRESULT0` (0xFFFF when the flag never arrives).
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_adc_wait_result() -> u16 {
+        let mut bus = C28xMmio;
+        // SAFETY: leaf poll routine from crates/c28x-rt/asm.s.
+        if unsafe { c28x_rt_wait_adc_eoc() } == 0 {
+            // SAFETY: single-writer counter.
+            unsafe { ADC_TIMEOUTS = ADC_TIMEOUTS.wrapping_add(1) };
+            return 0xFFFF;
+        }
+        // SAFETY: fixed ADC flag-clear register.
+        unsafe { adc::clear_eoc(&mut bus) };
+        // SAFETY: SOC0 result index 0 is valid.
+        unsafe { f28035_adc_result(0) }
+    }
+
+    /// Diagnostics: returns `c28x_rt_wait_sci_txrdy()` verbatim (1 = ready).
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_diag_wait_txrdy() -> u16 {
+        // SAFETY: leaf poll routine from crates/c28x-rt/asm.s.
+        unsafe { c28x_rt_wait_sci_txrdy() }
+    }
+
+    /// Diagnostics: SCICTL2 as read by the assembly helper (low byte only).
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_diag_asm_scictl2() -> u16 {
+        // SAFETY: leaf read from crates/c28x-rt/asm.s.
+        unsafe { c28x_rt_read_scictl2() & 0x00ff }
+    }
+
+    /// Diagnostics: reads SCICTL2 (0x7054) through the CPU MMIO path so the
+    /// value can be compared with a JTAG read of the same register.
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_diag_scictl2() -> u16 {
+        let mut bus = C28xMmio;
+        // SAFETY: fixed SCI-A status register.
+        unsafe { sci::SCICTL2.read(&mut bus) }
+    }
+
+    /// Diagnostics: reads ADCCTL1 (0x7100) through the CPU MMIO path.
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_diag_adcctl1() -> u16 {
+        let mut bus = C28xMmio;
+        // SAFETY: fixed ADC control register.
+        unsafe { adc::ADCCTL1.read(&mut bus) }
+    }
+
+    /// Configures SCI-A as 8N1. Returns 1 on success.
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_sci_configure(baud_div: u16) -> u16 {
+        let mut bus = C28xMmio;
+        // SAFETY: fixed SCI-A / SysCtrl / GPIO register addresses.
+        u16::from(unsafe { sci::configure_8n1(&mut bus, baud_div) })
+    }
+
+    /// Sends one byte: waits for `TXRDY`, then writes `SCITXBUF`.
+    ///
+    /// TXRDY is the hardware handshake - it is clear while the buffer holds a
+    /// byte and set once the byte has moved into the shifter. Waiting *before*
+    /// the write is therefore the complete contract; waiting again right after
+    /// the write would have to cover one full character time (~93 us at
+    /// 107 kbaud, ~5600 cycles) and a short poll window there is what made
+    /// every frame report a failure. Because the control loop calls this once
+    /// per few milliseconds, the pre-write wait of the *next* frame also
+    /// proves the previous one left the buffer.
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_sci_send(byte: u16) -> u16 {
+        let mut bus = C28xMmio;
+        // SAFETY: leaf poll routine from crates/c28x-rt/asm.s.
+        if unsafe { c28x_rt_wait_sci_txrdy() } == 0 {
+            return 0;
+        }
+        // SAFETY: fixed SCI-A transmit buffer.
+        unsafe { sci::SCITXBUF.write(&mut bus, byte & 0x00ff) };
+        1
+    }
+
+    /// Configures the SPI-B hardware loopback. Always returns 1.
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_spi_loopback_configure() -> u16 {
+        let mut bus = C28xMmio;
+        // SAFETY: fixed SPI-B / SysCtrl register addresses.
+        u16::from(unsafe { spi::configure_loopback(&mut bus) })
+    }
+
+    /// Exchanges one 8-bit SPI-B frame through the hardware loopback.
+    ///
+    /// The completion wait is the assembly helper `c28x_rt_wait_spi_int`;
+    /// returns 0x8000 when the frame never completes.
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_spi_loopback_xfer(byte: u16) -> u16 {
+        let mut bus = C28xMmio;
+        let data = (byte & 0x00ff) as u8;
+        // Unrolled for the same reason as the ADC path: a Rust loop counter is
+        // not preserved across the assembly wait call.
+        // SAFETY: the caller configured loopback before the first transfer.
+        unsafe { spi::write_frame(&mut bus, data) };
+        // SAFETY: leaf poll routine from crates/c28x-rt/asm.s.
+        let done = unsafe { c28x_rt_wait_spi_int() } != 0;
+        // SAFETY: same configured SPI-B block.
+        let first = unsafe { spi::exchange_frame(&mut bus, data, done) };
+        if first != 0x8000 {
+            return first;
+        }
+        // SAFETY: second attempt, same contract.
+        unsafe { spi::write_frame(&mut bus, data) };
+        let done = unsafe { c28x_rt_wait_spi_int() } != 0;
+        let second = unsafe { spi::exchange_frame(&mut bus, data, done) };
+        if second != 0x8000 {
+            return second;
+        }
+        0x8000
     }
 
     // === Sunk C-bridge test cases (auto-generated, 2026-09-23) ===
@@ -2859,6 +3847,46 @@ pub mod ffi {
         unsafe { epwm1::TZCLR.write(&mut bus, 0x0005) };
     }
 
+    /// Configures the trip-zone for a fail-safe, mirroring the audited C bridge
+    /// `f28035_epwm1_configure_software_trip`: TZCTL forces EPWM1A/1B low on a
+    /// trip, TZEINT enables the OST interrupt, and any stale flags are cleared.
+    /// The ePWM TZ frame is EALLOW-protected (handled by the MMIO bus).
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_epwm1_tz_force_low_config() {
+        let mut bus = C28xMmio;
+        unsafe {
+            epwm1::TZSEL.write(&mut bus, 0);
+            epwm1::TZCTL.write(&mut bus, 0x000A); // TZA=TZB=force low
+            epwm1::TZEINT.write(&mut bus, 0x0004); // OST interrupt enable
+            epwm1::TZCLR.write(&mut bus, 0x0005); // clear INT + OST
+        }
+    }
+
+    /// Fires the one-shot trip (TZFRC bit2 = OST force, matching the C bridge).
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_epwm1_tz_ost_force() {
+        let mut bus = C28xMmio;
+        unsafe { epwm1::TZFRC.write(&mut bus, 0x0004) };
+    }
+
+    /// Releases the one-shot trip (TZCLR bit0 INT + bit2 OST = 0x0005).
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_epwm1_tz_ost_clear() {
+        let mut bus = C28xMmio;
+        unsafe { epwm1::TZCLR.write(&mut bus, 0x0005) };
+    }
+
+    /// Reads the trip-zone flag register (bit2 = OST one-shot trip).
+    #[cfg(not(test))]
+    #[inline(never)]
+    pub unsafe fn f28035_epwm1_tz_flags() -> u16 {
+        let mut bus = C28xMmio;
+        unsafe { epwm1::TZFLG.read(&mut bus) }
+    }
+
         // === ePWM1 event-trigger status readers: direct Rust PAC (2026-09-29) ===
 
     #[cfg(not(test))]
@@ -2957,16 +3985,16 @@ pub mod ffi {
     #[inline(never)]
     pub unsafe fn f28035_adc_ctl1_configured() -> u16 {
         let mut bus = C28xMmio;
-        // ADCCTL1 bits: ADCENABLE(0), ADCREFSEL(2), INTPULSEPOS(3),
-        // VREFLOCONV(4), ADCBGPWD(7), ADCREFPWD(8), ADCPWDN(9)
+        // ADCCTL1 (DSP2803x_Adc.h): VREFLOCONV(1), INTPULSEPOS(2),
+        // ADCREFSEL(3), ADCREFPWD(5), ADCBGPWD(6), ADCPWDN(7), ADCENABLE(14).
         let ctl1 = unsafe { adc::ADCCTL1.read(&mut bus) };
-        let ok = (ctl1 & 0x0001) != 0      // ADCENABLE
-            && (ctl1 & 0x0004) == 0        // ADCREFSEL == 0
-            && (ctl1 & 0x0008) != 0        // INTPULSEPOS
-            && (ctl1 & 0x0010) != 0        // VREFLOCONV
-            && (ctl1 & 0x0080) != 0        // ADCBGPWD
-            && (ctl1 & 0x0100) != 0        // ADCREFPWD
-            && (ctl1 & 0x0200) != 0;       // ADCPWDN
+        let ok = (ctl1 & 0x4000) != 0      // ADCENABLE
+            && (ctl1 & 0x0008) == 0        // ADCREFSEL == 0 (internal reference)
+            && (ctl1 & 0x0004) != 0        // INTPULSEPOS
+            && (ctl1 & 0x0002) != 0        // VREFLOCONV
+            && (ctl1 & 0x0040) != 0        // ADCBGPWD
+            && (ctl1 & 0x0020) != 0        // ADCREFPWD
+            && (ctl1 & 0x0080) != 0;       // ADCPWDN
         u16::from(ok)
     }
 
@@ -2974,11 +4002,11 @@ pub mod ffi {
     #[inline(never)]
     pub unsafe fn f28035_adc_int1_configured() -> u16 {
         let mut bus = C28xMmio;
-        // INTSEL1N2 bits: INT1SEL(0-2), INT1E(3), INT1CONT(4)
+        // INTSEL1N2: INT1SEL(4:0), INT1E(5), INT1CONT(6).
         let sel = unsafe { adc::INTSEL1N2.read(&mut bus) };
-        let ok = (sel & 0x0007) == 0       // INT1SEL == 0 (EOC0)
-            && (sel & 0x0008) != 0         // INT1E
-            && (sel & 0x0010) == 0;        // INT1CONT == 0
+        let ok = (sel & 0x001f) == 0       // INT1SEL == 0 (EOC0)
+            && (sel & 0x0020) != 0         // INT1E
+            && (sel & 0x0040) == 0;        // INT1CONT == 0
         u16::from(ok)
     }
 
@@ -3030,16 +4058,16 @@ pub mod ffi {
     #[inline(never)]
     pub unsafe fn f28035_adc_soc0_channel() -> u16 {
         let mut bus = C28xMmio;
-        // SAFETY: fixed ADC register; CHSEL is bits 0-4 of ADCSOC0CTL.
-        unsafe { adc::ADCSOC0CTL.read(&mut bus) & adc::SOC0_CHSEL_MASK }
+        // SAFETY: fixed ADC register; CHSEL is bits 9:6 of ADCSOC0CTL.
+        unsafe { (adc::ADCSOC0CTL.read(&mut bus) & adc::SOC0_CHSEL_MASK) >> adc::SOC0_CHSEL_SHIFT }
     }
 
     #[cfg(not(test))]
     #[inline(never)]
     pub unsafe fn f28035_adc_soc0_acqps() -> u16 {
         let mut bus = C28xMmio;
-        // SAFETY: fixed ADC register; ACQPS is bits 6-10 of ADCSOC0CTL.
-        unsafe { (adc::ADCSOC0CTL.read(&mut bus) & adc::SOC0_ACQPS_MASK) >> adc::SOC0_ACQPS_SHIFT }
+        // SAFETY: fixed ADC register; ACQPS is bits 5:0 of ADCSOC0CTL.
+        unsafe { adc::ADCSOC0CTL.read(&mut bus) & adc::SOC0_ACQPS_MASK }
     }
 
     #[cfg(not(test))]
@@ -3220,6 +4248,9 @@ pub mod ffi {
         }
 
         pub unsafe fn f28035_timer0_ack() {}
+        pub unsafe fn f28035_enable_timer0_interrupt() -> u16 {
+            1
+        }
         pub unsafe fn f28035_timer0_stop() {}
         pub unsafe fn f28035_timer0_restart() {}
         pub unsafe fn f28035_timer0_set_period_ms(period_ms: u16) -> u16 {
@@ -3291,6 +4322,62 @@ pub mod ffi {
         pub unsafe fn f28035_lin_tx_checksum_ext_real_basic() {}
         pub unsafe fn f28035_lin_wakeup_break_flag_route_basic() {}
         pub unsafe fn f28035_sci_baud_program_basic() {}
+
+        /// Host model: configuration always succeeds.
+        pub unsafe fn f28035_sci_loopback_configure(_baud_div: u16) -> u16 {
+            1
+        }
+
+        /// Host model diagnostics: ready, and the configured SCICTL2 value.
+        pub unsafe fn f28035_diag_wait_txrdy() -> u16 {
+            1
+        }
+
+        pub unsafe fn f28035_diag_asm_scictl2() -> u16 {
+            0x00c0
+        }
+
+        /// Host model diagnostics: report the configured values.
+        pub unsafe fn f28035_diag_scictl2() -> u16 {
+            0x00c0
+        }
+
+        pub unsafe fn f28035_diag_adcctl1() -> u16 {
+            0x40e6
+        }
+
+        /// Host model: SCI-A configuration and TX always succeed.
+        pub unsafe fn f28035_sci_configure(_baud_div: u16) -> u16 {
+            1
+        }
+
+        pub unsafe fn f28035_sci_send(_byte: u16) -> u16 {
+            1
+        }
+
+        /// Host model: ePWM1 SOCA trigger and SOC0 routing always succeed.
+        pub unsafe fn f28035_epwm1_enable_soca_trigger() -> u16 {
+            1
+        }
+
+        pub unsafe fn f28035_adc_soc0_use_epwm1_soca() -> u16 {
+            1
+        }
+
+        /// Host model: a triggered conversion returns a fixed sample.
+        pub unsafe fn f28035_adc_wait_result() -> u16 {
+            0x0400
+        }
+
+        /// Host model: configuration always succeeds.
+        pub unsafe fn f28035_spi_loopback_configure() -> u16 {
+            1
+        }
+
+        /// Host model: the SPI hardware loopback echoes the transmitted byte.
+        pub unsafe fn f28035_spi_loopback_xfer(byte: u16) -> u16 {
+            byte & 0x00ff
+        }
         pub unsafe fn f28035_sci_fifo_reset_then_loopback_basic() {}
         pub unsafe fn f28035_sci_fifo_rx_basic() {}
         pub unsafe fn f28035_sci_internal_loopback_basic() {}
@@ -3875,9 +4962,75 @@ mod tests {
     }
 
     #[test]
+    fn gpio_pac_matches_c_bridge_at_bank_boundaries() {
+        // C bridge: 0..15 -> GPAMUX1, 16..31 -> GPAMUX2, 32..44 -> GPBMUX1;
+        // GPADAT/GPBDAT and GPA/GPB SET/CLEAR follow the same bank split.
+        let cases: [(u16, u16, u16, u16, u16, u16, u16, u32, u16); 6] = [
+            (0, 0x6f86, 0x6f8a, 0x6fc0, 0x6fc2, 0x6fc4, 0x6f82, 0x0000_0001, 0),
+            (15, 0x6f86, 0x6f8a, 0x6fc0, 0x6fc2, 0x6fc4, 0x6f82, 0x0000_8000, 30),
+            (16, 0x6f88, 0x6f8a, 0x6fc0, 0x6fc2, 0x6fc4, 0x6f84, 0x0001_0000, 0),
+            (31, 0x6f88, 0x6f8a, 0x6fc0, 0x6fc2, 0x6fc4, 0x6f84, 0x8000_0000, 30),
+            (32, 0x6f96, 0x6f9a, 0x6fc8, 0x6fca, 0x6fcc, 0x6f94, 0x0000_0001, 0),
+            (44, 0x6f96, 0x6f9a, 0x6fc8, 0x6fca, 0x6fcc, 0x6f94, 0x0000_1000, 24),
+        ];
+        for (pin, mux_addr, dir_addr, data_addr, set_addr, clear_addr, qsel_addr, bit, shift) in cases {
+            let output = gpio::output_config(pin).unwrap();
+            let command = gpio::output_command(pin).unwrap();
+            let sample = gpio::input_sample(pin).unwrap();
+            let mux = gpio::mux_field(pin).unwrap();
+            let input = gpio::input_config(pin, true, gpio::Qualification::Sample6).unwrap();
+            assert_eq!(output.mux.address().get(), mux_addr, "pin {pin}");
+            assert_eq!(output.direction.address().get(), dir_addr, "pin {pin}");
+            assert_eq!(command.set.address().get(), set_addr, "pin {pin}");
+            assert_eq!(command.clear.address().get(), clear_addr, "pin {pin}");
+            assert_eq!(sample.data.address().get(), data_addr, "pin {pin}");
+            assert_eq!(input.qualification.address().get(), qsel_addr, "pin {pin}");
+            assert_eq!(output.pin_mask, bit, "pin {pin}");
+            assert_eq!(mux.shift, shift, "pin {pin}");
+
+            let mut bus = HostMmio::new();
+            // MUX/DIR read-modify-write must preserve every other GPIO field.
+            unsafe { output.mux.write_u32(&mut bus, u32::MAX) };
+            unsafe { output.apply(&mut bus) };
+            assert_eq!(unsafe { output.mux.read_u32(&mut bus) }, u32::MAX & !(3u32 << shift));
+            assert_eq!(unsafe { output.direction.read_u32(&mut bus) }, bit);
+
+            // C bridge writes to command aliases; HostMmio records the write
+            // without pretending that it simulates the resulting pin voltage.
+            unsafe { command.set(&mut bus) };
+            unsafe { command.clear(&mut bus) };
+            assert_eq!(unsafe { command.set.read_u32(&mut bus) }, bit);
+            assert_eq!(unsafe { command.clear.read_u32(&mut bus) }, bit);
+
+            unsafe { sample.data.write_u32(&mut bus, bit) };
+            assert!(unsafe { sample.read(&mut bus) }, "pin {pin}");
+            unsafe { sample.data.write_u32(&mut bus, 0) };
+            assert!(!unsafe { sample.read(&mut bus) }, "pin {pin}");
+
+            unsafe { input.pullup_disable.write_u32(&mut bus, u32::MAX) };
+            unsafe { input.qualification.write_u32(&mut bus, u32::MAX) };
+            unsafe { input.apply(&mut bus) };
+            assert_eq!(unsafe { input.direction.read_u32(&mut bus) } & bit, 0);
+            assert_eq!(unsafe { input.pullup_disable.read_u32(&mut bus) } & bit, 0);
+            assert_eq!(unsafe { input.qualification.read_u32(&mut bus) } >> shift & 3, 2);
+
+            assert!(unsafe { mux.set(&mut bus, 1) });
+            assert_eq!(unsafe { mux.read(&mut bus) }, 1);
+            let before_invalid = unsafe { mux.register.read_u32(&mut bus) };
+            assert!(!unsafe { mux.set(&mut bus, 4) });
+            assert_eq!(unsafe { mux.register.read_u32(&mut bus) }, before_invalid);
+            assert!(unsafe { mux.set(&mut bus, 0) });
+            assert_eq!(unsafe { mux.read(&mut bus) }, 0);
+        }
+    }
+
+    #[test]
     fn invalid_gpio_has_no_pac_mapping() {
         assert!(gpio::output_config(45).is_none());
         assert!(gpio::output_command(45).is_none());
+        assert!(gpio::input_config(45, true, gpio::Qualification::Sync).is_none());
+        assert!(gpio::input_sample(45).is_none());
+        assert!(gpio::mux_field(45).is_none());
     }
 
     #[test]
@@ -3916,10 +5069,18 @@ mod tests {
         use super::{HostMmio, adc};
         let mut bus = HostMmio::new();
         unsafe { adc::power_up_and_configure_soc0(&mut bus) };
+        // PCLKCR0.ADCENCLK (bit 3).
         assert_eq!(bus.words[0x701c], 0x0008);
-        assert_eq!(bus.words[0x7100], 0x40e4);
+        // ADCCTL2.CLKDIV2EN (bit 0): the converter cannot run at full SYSCLK.
+        assert_eq!(bus.words[0x7101], 0x0001);
+        // ADCCTL1: ADCENABLE | ADCPWDN | ADCBGPWD | ADCREFPWD | INTPULSEPOS |
+        // VREFLOCONV, internal reference.
+        assert_eq!(bus.words[0x7100], 0x40e6);
+        // INTSEL1N2: INT1SEL = 0 (SOC0 EOC), INT1E = 1, INT1CONT = 0.
         assert_eq!(bus.words[0x7108], 0x0020);
-        assert_eq!(bus.words[0x7120], 0x0180);
+        // ADCSOC0CTL: software trigger, channel 0 (bits 9:6), ACQPS = 6
+        // (bits 5:0). The old expectation 0x0180 put 6 into CHSEL.
+        assert_eq!(bus.words[0x7120], 0x0006);
     }
 
     #[test]
@@ -3939,7 +5100,7 @@ mod tests {
         assert_eq!(super::epwm1::AQCTLA.get(), 0x680b);
         assert_eq!(super::epwm1::DBCTL.get(), 0x680f);
         assert_eq!(super::epwm1::TZSEL.get(), 0x6812);
-        assert_eq!(super::epwm1::ETSEL.get(), 0x6818);
+        assert_eq!(super::epwm1::ETSEL.get(), 0x6819);
     }
 
     #[test]

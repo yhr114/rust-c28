@@ -1,0 +1,16 @@
+# RUN: not llc -mtriple=c28x-ti-none -mcpu=c28x -start-before=prolog-epilog -filetype=obj %s -o %t 2>&1 | FileCheck %s
+# CHECK: C28x: frame object FI=0 of function 'frame_offset_zero' is not below SP
+# CHECK-SAME: delta from SP=0
+--- |
+  target triple = "c28x-ti-none"
+  define void @frame_offset_zero() { ret void }
+...
+---
+name: frame_offset_zero
+stack:
+  - { id: 0, size: 4, alignment: 4 }
+body: |
+  bb.0:
+    $xar0 = MOV32fi_off %stack.0, 4
+    LRETR
+...

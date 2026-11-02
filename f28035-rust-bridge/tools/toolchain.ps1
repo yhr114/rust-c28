@@ -1,4 +1,4 @@
-# ============================================================
+﻿# ============================================================
 # tools/toolchain.ps1 — 工具链路径集中管理
 # ============================================================
 # 本文件定义所有脚本共用的工具链路径，消除散落在 60+ 脚本
@@ -44,6 +44,26 @@ $script:Toolchain.Cargo = if ($env:CARGO_BIN) {
 } else {
     'C:\Users\61987\.cargo\bin\cargo.exe'
 }
+
+# MIR 翻译器（backend/c28x-mir）与宿主测试的 cargo。
+# 两者都用 D 盘 GNU 自含工具链（nightly-2026-09-14，rustc 1.100.0-nightly
+# 2026-09-13）：本机 MSVC 无 Windows SDK 导入库（kernel32.lib 全盘缺失），
+# 任何 MSVC host 链接都不可用；GNU 目标经 rust-mingw 自含链接器可完整
+# 链接（2026-10-27 实测 c28x-mir 与 rust-api 测试均编译链接通过）。
+# 注意：GNU 测试可执行文件在本沙箱内启动报 0xC0000139（DLL 入口点），
+# 疑为沙箱 DLL 加载限制，需在真实 shell 复核；GNU 测试目标为
+# x86_64-pc-windows-gnu。滚动 nightly 1.101 已改 MIR API，c28x-mir 源码
+# 适配补丁见 docs/c28x-mir-nightly-1.101-adaptation.patch。
+$script:Toolchain.GnuCargo = if ($env:TI_GNU_CARGO) {
+    $env:TI_GNU_CARGO
+} elseif (Test-Path 'D:\c28x-toolchain\rustup-gnu\toolchains\nightly-2026-09-14-x86_64-pc-windows-gnu\bin\cargo.exe') {
+    'D:\c28x-toolchain\rustup-gnu\toolchains\nightly-2026-09-14-x86_64-pc-windows-gnu\bin\cargo.exe'
+} else {
+    $null
+}
+$script:Toolchain.MirCargo = if ($Toolchain.GnuCargo) { $Toolchain.GnuCargo } else { $script:Toolchain.Cargo }
+$script:Toolchain.HostTestCargo = if ($Toolchain.GnuCargo) { $Toolchain.GnuCargo } else { $script:Toolchain.Cargo }
+$script:Toolchain.HostTestTarget = if ($Toolchain.GnuCargo) { 'x86_64-pc-windows-gnu' } else { 'x86_64-pc-windows-msvc' }
 
 $script:Toolchain.LlvmRoot = if ($env:LLVM_PROJECT_ROOT) {
     $env:LLVM_PROJECT_ROOT

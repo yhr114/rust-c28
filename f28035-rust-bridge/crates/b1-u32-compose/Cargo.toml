@@ -1,0 +1,17 @@
+[package]
+name = "b1-u32-compose"
+version = "0.1.0"
+edition = "2021"
+description = "Minimal B-1 repro: two-u16-to-u32 compose and compare"
+
+[lib]
+name = "b1_u32_compose"
+path = "src/lib.rs"
+
+[profile.dev]
+panic = "abort"
+debug-assertions = false
+
+[profile.release]
+panic = "abort"
+opt-level = "s"

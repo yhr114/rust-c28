@@ -1,0 +1,17 @@
+[package]
+name = "b1-u32-min"
+version = "0.1.0"
+edition = "2021"
+description = "Minimal B-1 repro: single u16-compose vs 32-bit literal compare"
+
+[lib]
+name = "b1_u32_min"
+path = "src/lib.rs"
+
+[profile.dev]
+panic = "abort"
+debug-assertions = false
+
+[profile.release]
+panic = "abort"
+opt-level = "s"

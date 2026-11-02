@@ -1,51 +1,53 @@
-From: Rust on C28x
-Subject: [PATCH] Add C28x target (c28x-none-elf)
-
-Add TI C2000 C28x support to rustc 1.100 (nightly-2026-09-14).
-FROZEN ABI: 32-bit logical byte pointers (see ABI_FREEZE.md).
-
-Changes:
-  compiler/rustc_llvm/build.rs                            |  1 +
-  compiler/rustc_llvm/src/lib.rs                          |  7 +
-  compiler/rustc_target/src/callconv/mod.rs               |  2 +
-  compiler/rustc_target/src/spec/targets/c28x_none_elf.rs | 47 +++++++++++
-  compiler/rustc_target/src/spec/mod.rs                   |  1 +
-  5 files changed, 58 insertions(+)
-
 diff --git a/compiler/rustc_llvm/build.rs b/compiler/rustc_llvm/build.rs
 --- a/compiler/rustc_llvm/build.rs
 +++ b/compiler/rustc_llvm/build.rs
-@@ -11,3 +11,4 @@
+@@ -9,6 +9,7 @@
+ use shlex::Shlex;
+ 
  const OPTIONAL_COMPONENTS: &[&str] = &[
 +    "c28x",
      "x86",
      "arm",
+     "aarch64",
 diff --git a/compiler/rustc_llvm/src/lib.rs b/compiler/rustc_llvm/src/lib.rs
 --- a/compiler/rustc_llvm/src/lib.rs
 +++ b/compiler/rustc_llvm/src/lib.rs
-@@ -97,3 +97,10 @@
-         LLVMInitializeX86AsmParser
+@@ -88,6 +88,13 @@
+         } }
      );
-+    init_target!(
+     init_target!(
 +        llvm_component = "c28x",
 +        LLVMInitializeC28xTargetInfo,
 +        LLVMInitializeC28xTarget,
 +        LLVMInitializeC28xTargetMC,
 +        LLVMInitializeC28xAsmPrinter
 +    );
-     init_target!(
++    init_target!(
+         llvm_component = "x86",
+         LLVMInitializeX86TargetInfo,
+         LLVMInitializeX86Target,
 diff --git a/compiler/rustc_target/src/callconv/mod.rs b/compiler/rustc_target/src/callconv/mod.rs
 --- a/compiler/rustc_target/src/callconv/mod.rs
 +++ b/compiler/rustc_target/src/callconv/mod.rs
-@@ -724,6 +724,8 @@
+@@ -724,6 +724,7 @@
              Arch::RiscV32 | Arch::RiscV64 => riscv::compute_abi_info(cx, self),
              Arch::Wasm32 | Arch::Wasm64 => wasm::compute_abi_info(cx, self),
              Arch::Bpf => bpf::compute_abi_info(cx, self),
-+            // C28x currently exposes only scalar C ABI calls through the backend.
 +            Arch::Other(name) if name.as_ref() == "c28x" => {},
              arch @ (Arch::SpirV | Arch::Other(_)) => {
                  panic!("no lowering implemented for {arch}")
              }
+diff --git a/compiler/rustc_target/src/spec/mod.rs b/compiler/rustc_target/src/spec/mod.rs
+--- a/compiler/rustc_target/src/spec/mod.rs
++++ b/compiler/rustc_target/src/spec/mod.rs
+@@ -1531,6 +1531,7 @@
+     ("thumbv7a-vex-v5", thumbv7a_vex_v5),
+ 
+     ("msp430-none-elf", msp430_none_elf),
++    ("c28x-none-elf", c28x_none_elf),
+ 
+     ("aarch64_be-unknown-hermit", aarch64_be_unknown_hermit),
+     ("aarch64-unknown-hermit", aarch64_unknown_hermit),
 diff --git a/compiler/rustc_target/src/spec/targets/c28x_none_elf.rs b/compiler/rustc_target/src/spec/targets/c28x_none_elf.rs
 new file mode 100644
 --- /dev/null
@@ -78,7 +80,7 @@ new file mode 100644
 +        },
 +        pointer_width: 32,
 +        data_layout:
-+            "e-m:e-p:32:32-i32:32-i64:32-f32:32-f64:32-a:8:8-n8:16-S16".into(),
++            "e-m:e-p:32:32-i1:8:8-i32:32-i64:32-f32:32-f64:32-a:8:8-n8:16-S16".into(),
 +        arch: Arch::Other("c28x".into()),
 +        options: TargetOptions {
 +            c_int_width: 16,
@@ -98,11 +100,222 @@ new file mode 100644
 +        },
 +    }
 +}
-diff --git a/compiler/rustc_target/src/spec/mod.rs b/compiler/rustc_target/src/spec/mod.rs
---- a/compiler/rustc_target/src/spec/mod.rs
-+++ b/compiler/rustc_target/src/spec/mod.rs
-@@ -1533,3 +1533,4 @@
-     ("msp430-none-elf", msp430_none_elf),
-+    ("c28x-none-elf", c28x_none_elf),
+diff --git a/compiler/rustc_abi/src/extern_abi.rs b/compiler/rustc_abi/src/extern_abi.rs
+--- a/compiler/rustc_abi/src/extern_abi.rs
++++ b/compiler/rustc_abi/src/extern_abi.rs
+@@ -91,6 +91,7 @@
+     AvrInterrupt,
+     AvrNonBlockingInterrupt,
+     Msp430Interrupt,
++    C28xInterrupt,
+     RiscvInterruptM,
+     RiscvInterruptS,
+     X86Interrupt,
+@@ -197,6 +198,7 @@
+             GpuKernel =><= "gpu-kernel",
+             LlvmIntrinsic =><= "llvm-intrinsic",
+             Msp430Interrupt =><= "msp430-interrupt",
++            C28xInterrupt =><= "c28x-interrupt",
+             PtxKernel =><= "ptx-kernel",
+             RiscvInterruptM =><= "riscv-interrupt-m",
+             RiscvInterruptS =><= "riscv-interrupt-s",
+@@ -328,6 +330,7 @@
+             Self::AvrInterrupt
+             | Self::AvrNonBlockingInterrupt
+             | Self::Msp430Interrupt
++            | Self::C28xInterrupt
+             | Self::RiscvInterruptM
+             | Self::RiscvInterruptS
+             | Self::X86Interrupt => {
+diff --git a/compiler/rustc_abi/src/canon_abi.rs b/compiler/rustc_abi/src/canon_abi.rs
+--- a/compiler/rustc_abi/src/canon_abi.rs
++++ b/compiler/rustc_abi/src/canon_abi.rs
+@@ -98,6 +98,7 @@
+                 InterruptKind::Avr => ExternAbi::AvrInterrupt,
+                 InterruptKind::AvrNonBlocking => ExternAbi::AvrNonBlockingInterrupt,
+                 InterruptKind::Msp430 => ExternAbi::Msp430Interrupt,
++                InterruptKind::C28x => ExternAbi::C28xInterrupt,
+                 InterruptKind::RiscvMachine => ExternAbi::RiscvInterruptM,
+                 InterruptKind::RiscvSupervisor => ExternAbi::RiscvInterruptS,
+                 InterruptKind::X86 => ExternAbi::X86Interrupt,
+@@ -127,6 +128,7 @@
+     Avr,
+     AvrNonBlocking,
+     Msp430,
++    C28x,
+     RiscvMachine,
+     RiscvSupervisor,
+     X86,
+diff --git a/compiler/rustc_ast_lowering/src/stability.rs b/compiler/rustc_ast_lowering/src/stability.rs
+--- a/compiler/rustc_ast_lowering/src/stability.rs
++++ b/compiler/rustc_ast_lowering/src/stability.rs
+@@ -117,6 +117,11 @@
+         ExternAbi::PtxKernel => {
+             Err(UnstableAbi { abi, feature: sym::abi_ptx, explain: GateReason::Experimental })
+         }
++        ExternAbi::C28xInterrupt => Err(UnstableAbi {
++            abi,
++            feature: sym::abi_c28x_interrupt,
++            explain: GateReason::Experimental,
++        }),
+         ExternAbi::Msp430Interrupt => Err(UnstableAbi {
+             abi,
+             feature: sym::abi_msp430_interrupt,
+diff --git a/compiler/rustc_feature/src/unstable.rs b/compiler/rustc_feature/src/unstable.rs
+--- a/compiler/rustc_feature/src/unstable.rs
++++ b/compiler/rustc_feature/src/unstable.rs
+@@ -345,6 +345,7 @@
+     (unstable, aarch64_ver_target_feature, "1.27.0", Some(150245)),
+     /// Allows `extern "avr-interrupt" fn()` and `extern "avr-non-blocking-interrupt" fn()`.
+     (unstable, abi_avr_interrupt, "1.45.0", Some(69664)),
++    (unstable, abi_c28x_interrupt, "1.100.0", None),
+     /// Allows `extern "cmse-nonsecure-call" fn()`.
+     (unstable, abi_cmse_nonsecure_call, "1.90.0", Some(81391)),
+     /// Allows `extern "gpu-kernel" fn()`.
+diff --git a/compiler/rustc_span/src/symbol.rs b/compiler/rustc_span/src/symbol.rs
+--- a/compiler/rustc_span/src/symbol.rs
++++ b/compiler/rustc_span/src/symbol.rs
+@@ -383,6 +383,7 @@
+         abi_custom,
+         abi_efiapi,
+         abi_gpu_kernel,
++        abi_c28x_interrupt,
+         abi_msp430_interrupt,
+         abi_ptx,
+         abi_riscv_interrupt,
+diff --git a/compiler/rustc_target/src/spec/abi_map.rs b/compiler/rustc_target/src/spec/abi_map.rs
+--- a/compiler/rustc_target/src/spec/abi_map.rs
++++ b/compiler/rustc_target/src/spec/abi_map.rs
+@@ -58,6 +58,7 @@
+             Arch::Avr => ArchKind::Avr,
+             Arch::LoongArch32 | Arch::LoongArch64 => ArchKind::LoongArch,
+             Arch::Msp430 => ArchKind::Msp430,
++            Arch::Other(ref name) if name.as_ref() == "c28x" => ArchKind::C28x,
+             Arch::Nvptx64 => ArchKind::Nvptx,
+             Arch::RiscV32 | Arch::RiscV64 => ArchKind::Riscv,
+             Arch::SpirV => ArchKind::Spirv,
+@@ -187,6 +188,9 @@
+             (ExternAbi::AvrNonBlockingInterrupt, ArchKind::Avr) => {
+                 CanonAbi::Interrupt(InterruptKind::AvrNonBlocking)
+             }
++            (ExternAbi::C28xInterrupt, ArchKind::C28x) => {
++                CanonAbi::Interrupt(InterruptKind::C28x)
++            }
+             (ExternAbi::Msp430Interrupt, ArchKind::Msp430) => {
+                 CanonAbi::Interrupt(InterruptKind::Msp430)
+             }
+@@ -203,6 +207,7 @@
+                 ExternAbi::AvrInterrupt
+                 | ExternAbi::AvrNonBlockingInterrupt
+                 | ExternAbi::Msp430Interrupt
++                | ExternAbi::C28xInterrupt
+                 | ExternAbi::RiscvInterruptM
+                 | ExternAbi::RiscvInterruptS
+                 | ExternAbi::X86Interrupt,
+@@ -222,6 +227,7 @@
+     Avr,
+     LoongArch,
+     Msp430,
++    C28x,
+     Nvptx,
+     Riscv,
+     X86,
+diff --git a/compiler/rustc_middle/src/ty/layout.rs b/compiler/rustc_middle/src/ty/layout.rs
+--- a/compiler/rustc_middle/src/ty/layout.rs
++++ b/compiler/rustc_middle/src/ty/layout.rs
+@@ -1318,6 +1318,7 @@
+         | SysV64 { unwind } => unwind,
+         PtxKernel
+         | Msp430Interrupt
++        | C28xInterrupt
+         | X86Interrupt
+         | GpuKernel
+         | EfiApi
+diff --git a/compiler/rustc_codegen_llvm/src/llvm/ffi.rs b/compiler/rustc_codegen_llvm/src/llvm/ffi.rs
+--- a/compiler/rustc_codegen_llvm/src/llvm/ffi.rs
++++ b/compiler/rustc_codegen_llvm/src/llvm/ffi.rs
+@@ -181,6 +181,7 @@
+     AvrNonBlockingInterrupt = 84,
+     AvrInterrupt = 85,
+     AmdgpuKernel = 91,
++    C28xIntr = 92,
+ }
  
-     ("aarch64_be-unknown-hermit", aarch64_be_unknown_hermit),
+ /// Must match the layout of `LLVMLinkage`.
+diff --git a/compiler/rustc_codegen_llvm/src/abi.rs b/compiler/rustc_codegen_llvm/src/abi.rs
+--- a/compiler/rustc_codegen_llvm/src/abi.rs
++++ b/compiler/rustc_codegen_llvm/src/abi.rs
+@@ -746,6 +746,7 @@
+             InterruptKind::Avr => llvm::AvrInterrupt,
+             InterruptKind::AvrNonBlocking => llvm::AvrNonBlockingInterrupt,
+             InterruptKind::Msp430 => llvm::Msp430Intr,
++            InterruptKind::C28x => llvm::C28xIntr,
+             InterruptKind::RiscvMachine | InterruptKind::RiscvSupervisor => llvm::CCallConv,
+             InterruptKind::X86 => llvm::X86_Intr,
+         },
+diff --git a/compiler/rustc_codegen_gcc/src/abi.rs b/compiler/rustc_codegen_gcc/src/abi.rs
+--- a/compiler/rustc_codegen_gcc/src/abi.rs
++++ b/compiler/rustc_codegen_gcc/src/abi.rs
+@@ -275,6 +275,7 @@
+             InterruptKind::Avr => FnAttribute::AvrSignal,
+             InterruptKind::AvrNonBlocking => FnAttribute::AvrInterrupt,
+             InterruptKind::Msp430 => FnAttribute::Msp430Interrupt,
++            InterruptKind::C28x => unreachable!(),
+             InterruptKind::RiscvMachine => FnAttribute::RiscvInterrupt("machine"),
+             InterruptKind::RiscvSupervisor => FnAttribute::RiscvInterrupt("supervisor"),
+             InterruptKind::X86 => FnAttribute::X86Interrupt,
+diff --git a/compiler/rustc_public/src/ty/tys.rs b/compiler/rustc_public/src/ty/tys.rs
+--- a/compiler/rustc_public/src/ty/tys.rs
++++ b/compiler/rustc_public/src/ty/tys.rs
+@@ -858,6 +858,7 @@
+     SysV64 { unwind: bool },
+     PtxKernel,
+     Msp430Interrupt,
++    C28xInterrupt,
+     X86Interrupt,
+     GpuKernel,
+     EfiApi,
+diff --git a/compiler/rustc_public/src/unstable/convert/stable/ty.rs b/compiler/rustc_public/src/unstable/convert/stable/ty.rs
+--- a/compiler/rustc_public/src/unstable/convert/stable/ty.rs
++++ b/compiler/rustc_public/src/unstable/convert/stable/ty.rs
+@@ -1026,6 +1026,7 @@
+             ExternAbi::PtxKernel => Abi::PtxKernel,
+             ExternAbi::GpuKernel => Abi::GpuKernel,
+             ExternAbi::Msp430Interrupt => Abi::Msp430Interrupt,
++            ExternAbi::C28xInterrupt => Abi::C28xInterrupt,
+             ExternAbi::X86Interrupt => Abi::X86Interrupt,
+             ExternAbi::EfiApi => Abi::EfiApi,
+             ExternAbi::AvrInterrupt => Abi::AvrInterrupt,
+diff --git a/compiler/rustc_public/src/unstable/convert/internal.rs b/compiler/rustc_public/src/unstable/convert/internal.rs
+--- a/compiler/rustc_public/src/unstable/convert/internal.rs
++++ b/compiler/rustc_public/src/unstable/convert/internal.rs
+@@ -607,6 +607,7 @@
+             Abi::SysV64 { unwind } => rustc_abi::ExternAbi::SysV64 { unwind },
+             Abi::PtxKernel => rustc_abi::ExternAbi::PtxKernel,
+             Abi::Msp430Interrupt => rustc_abi::ExternAbi::Msp430Interrupt,
++            Abi::C28xInterrupt => rustc_abi::ExternAbi::C28xInterrupt,
+             Abi::X86Interrupt => rustc_abi::ExternAbi::X86Interrupt,
+             Abi::GpuKernel => rustc_abi::ExternAbi::GpuKernel,
+             Abi::EfiApi => rustc_abi::ExternAbi::EfiApi,
+diff --git a/compiler/rustc_public/src/abi.rs b/compiler/rustc_public/src/abi.rs
+--- a/compiler/rustc_public/src/abi.rs
++++ b/compiler/rustc_public/src/abi.rs
+@@ -471,6 +471,7 @@
+     CCmseNonSecureEntry,
+ 
+     Msp430Intr,
++    C28xIntr,
+ 
+     PtxKernel,
+ 
+diff --git a/compiler/rustc_public/src/unstable/convert/stable/abi.rs b/compiler/rustc_public/src/unstable/convert/stable/abi.rs
+--- a/compiler/rustc_public/src/unstable/convert/stable/abi.rs
++++ b/compiler/rustc_public/src/unstable/convert/stable/abi.rs
+@@ -138,6 +138,7 @@
+                 InterruptKind::Avr => CallConvention::AvrInterrupt,
+                 InterruptKind::AvrNonBlocking => CallConvention::AvrNonBlockingInterrupt,
+                 InterruptKind::Msp430 => CallConvention::Msp430Intr,
++                InterruptKind::C28x => CallConvention::C28xIntr,
+                 InterruptKind::RiscvMachine | InterruptKind::RiscvSupervisor => {
+                     CallConvention::RiscvInterrupt
+                 }

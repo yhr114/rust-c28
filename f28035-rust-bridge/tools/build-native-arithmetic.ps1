@@ -4,6 +4,8 @@
 )
 
 . (Join-Path $PSScriptRoot 'toolchain.ps1')
+. (Join-Path $PSScriptRoot '_internal\image-stamp.ps1')
+. (Join-Path $PSScriptRoot '_internal\standalone-image-keys.ps1')
 if (-not $Compiler) { $Compiler = $Toolchain.Compiler }
 if (-not $Cargo) { $Cargo = $Toolchain.Cargo }
 
@@ -41,13 +43,13 @@ $mapFile = Join-Path $outputDirectory 'native_arithmetic_test.map'
 
 New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
 
-& $Cargo test --manifest-path $rustManifest
+& $Toolchain.HostTestCargo test --manifest-path $rustManifest --target $Toolchain.HostTestTarget
 if ($LASTEXITCODE -ne 0) { throw 'Native arithmetic Rust tests failed.' }
-& $Cargo test --manifest-path $memoryModelManifest
+& $Toolchain.HostTestCargo test --manifest-path $memoryModelManifest --target $Toolchain.HostTestTarget
 if ($LASTEXITCODE -ne 0) { throw 'C28x logical-byte memory model tests failed.' }
-& $Cargo test --manifest-path (Join-Path $PSScriptRoot 'rust-to-ti-c\Cargo.toml')
+& $Toolchain.HostTestCargo test --manifest-path (Join-Path $PSScriptRoot 'rust-to-ti-c\Cargo.toml') --target $Toolchain.HostTestTarget
 if ($LASTEXITCODE -ne 0) { throw 'Native subset backend tests failed.' }
-& (Join-Path $PSScriptRoot 'dump-c28x-mir.ps1') -InputFile $rustSource -Cargo $Cargo
+& (Join-Path $PSScriptRoot 'dump-c28x-mir.ps1') -InputFile $rustSource -Cargo $Toolchain.MirCargo
 if ($LASTEXITCODE -ne 0) { throw 'rustc MIR extraction failed.' }
 & (Join-Path $PSScriptRoot 'dump-c28x-mir.ps1') `
     -InputFile $callChainSource `
@@ -97,3 +99,8 @@ Write-Output "Rust $rustSource"
 Write-Output "Asm  $generatedAssembly"
 Write-Output "Obj  $nativeObject"
 Write-Output "Out  $firmwareOut"
+
+# 新鲜度戳：两个映像（native + MIR）共用同一输入集，flash-and-verify-*.ps1 上板前断言
+$arithKey = Get-NativeArithmeticImageKey -Compiler $Compiler -ProjectRoot $projectRoot
+Set-ImageStamp -Image $firmwareOut -Key $arithKey
+Set-ImageStamp -Image $mirFirmwareOut -Key $arithKey

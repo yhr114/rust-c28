@@ -126,19 +126,27 @@ def ACCOnly : RegisterClass<"C28x", [i32], 32, (add ACC)>;
 def ACC32NoACC : RegisterClass<"C28x", [i32], 32, (add XT)>;
 
 // Wide 32-bit class for non-pointer i32 values: data may live in ACC/XT or in
-// auxiliary registers XAR0-7.  Arithmetic patterns constrain their operands
-// and results to ACCOnly/ACC32 (subclasses); the register allocator inserts
-// MOVL copies (MOVL_ACC_XAR / MOVL_XAR_ACC, already supported by copyPhysReg)
-// to move a value between an XAR register and ACC.  This relieves the
-// 2-register (ACC,XT) i32 bottleneck that exhausted registers around calls.
+// Auxiliary registers XAR0-7 are also legal homes for long-lived i32 values.
+// Arithmetic expansions still route their actual operation through ACC/XT;
+// the post-RA inserter handles the required MOVL copies.  Including XAR here
+// is important for expressions such as ptr + (index << 1), where the pointer,
+// index, and hardware shift temporaries cannot all fit in ACC/XT.
 def GPR32 : RegisterClass<"C28x", [i32], 32,
-  (add ACC, XT)>;
+  (add ACC, XT, XAR0, XAR1, XAR2, XAR3, XAR4, XAR5, XAR6, XAR7)>;
+
+// P as a 32-bit value.  Deliberately NOT part of GPR32: P is the product /
+// scratch register used by every multiply and by several expansion sequences,
+// so letting the allocator treat it as general-purpose would collide with those
+// uses.  It exists only so the return convention can hand back the low half of
+// an i64 in P, which is where the TI EABI puts it (see RetCC_C28x).
+def PRC32 : RegisterClass<"C28x", [i32], 32, (add P)>;
 
 // Remap ptr_rc (used by StandardPseudoInstruction) to GR32.
 defm : RemapAllTargetPseudoPointerOperands<GR32>;
 
-// Callee-saved registers: AR4-AR6 (16-bit halves). XAR7 is reserved as the
-// scratch pointer register for load/store addressing and is NOT preserved.
-// We save only the low 16-bit halves because GR16 allocation never touches
-// AR4H/AR5H/AR6H in the current backend.
-def CSR_C28x : CalleeSavedRegs<(add AR4, AR5, AR6)>;
+// TI EABI preserves the FULL XAR1/XAR2/XAR3, not AR4/AR5/AR6.
+def CSR_C28x : CalleeSavedRegs<(add XAR1, XAR2, XAR3)>;
+// Hardware does not save the extended auxiliary/XT register file. Include
+// late-expansion scratch XAR7 and registers clobbered by ordinary callees.
+def CSR_C28x_Interrupt : CalleeSavedRegs<(add XAR0, XAR1, XAR2, XAR3,
+                                           XAR4, XAR5, XAR6, XAR7, XT)>;

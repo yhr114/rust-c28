@@ -3560,10 +3560,18 @@ void f28035_test_fail(f28035_u16 code)
     f28035_test_status = 2U;
 }
 // Read GPIO input level (returns 0 or 1).
+// The current input level lives in the DATA register file (GPIO_DATA_REGS,
+// GpioDataRegs), not the control register file: GPADAT (0x6FC0, 32-bit,
+// GPIO0-31) and GPBDAT (0x6FC8, GPIO32-34, bits 0-2).  The F28035 has only
+// GPIO0-34.
 Uint16 f28035_gpio_read_input(Uint16 pin) {
-    if (pin > 63) return 0;
-    volatile Uint16 *gpiodata = (volatile Uint16 *)(0x6F80 + (pin >> 3) * 32);
-    return (*gpiodata >> (pin & 7)) & 1;
+    if (pin <= 31U) {
+        return (Uint16)((GpioDataRegs.GPADAT.all >> pin) & 1U);
+    }
+    if (pin <= 34U) {
+        return (Uint16)((GpioDataRegs.GPBDAT.all >> (pin - 32U)) & 1U);
+    }
+    return 0U;
 }
 // Read ADC result from given channel (returns 0-4095).
 Uint16 f28035_adc_read_channel(Uint16 channel) {
@@ -3645,7 +3653,34 @@ float f28035_float_div(float a, float b) { return a / b; }
 Uint16 f28035_float_gt(float a, float b) { return a > b ? 1 : 0; }
 Uint16 f28035_float_lt(float a, float b) { return a < b ? 1 : 0; }
 Uint16 f28035_float_eq(float a, float b) { return a == b ? 1 : 0; }
+/* Global interrupt (INTM) state.
+ *
+ * INTM lives in ST1 bit 0, which is NOT reachable as a __cregister (TI only
+ * maps IER/IFR).  We therefore track the task-level INTM state in software:
+ * every entry/exit goes through f28035_enable/disable_interrupts below, so
+ * the shadow is exact for task-level code.  ISRs auto-set INTM on entry and
+ * restore it on IRET — that transient state is intentionally invisible here
+ * (CriticalSection is a task-level construct).
+ *
+ * The old implementation returned IER & 1 (the CPU INT1 line enable), which
+ * made CriticalSection::drop skip re-enabling interrupts whenever INT1 was
+ * not routed, leaving the CPU globally locked afterwards.
+ */
+static volatile f28035_u16 f28035_intm_shadow = 0U; /* reset state: INTM=1 */
+
+void f28035_enable_interrupts(void)
+{
+    f28035_intm_shadow = 1U;
+    asm(" CLRC INTM");
+}
+
+void f28035_disable_interrupts(void)
+{
+    f28035_intm_shadow = 0U;
+    asm(" SETC INTM");
+}
+
 f28035_u16 f28035_interrupts_enabled(void)
 {
-    return (f28035_u16)(IER & 0x1U);
+    return f28035_intm_shadow;
 }

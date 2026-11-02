@@ -23,6 +23,63 @@
 using namespace llvm;
 
 void C28xDAGToDAGISel::Select(SDNode *N) {
+  // Direct byte globals: the linker relocates a TI word address.  Only
+  // offsets 0 and 1 can be represented as a lane in the same word; all
+  // other/escaped pointers keep the normal byte-pointer conversion.
+  auto DirectGlobalByte = [&](SDValue Ptr, SDValue &Symbol,
+                              unsigned &Lane) -> bool {
+    Lane = 0;
+    if (Ptr.getOpcode() == ISD::ADD) {
+      SDValue Base = Ptr.getOperand(0), Off = Ptr.getOperand(1);
+      if (!isa<ConstantSDNode>(Off)) {
+        Base = Ptr.getOperand(1);
+        Off = Ptr.getOperand(0);
+      }
+      if (!isa<ConstantSDNode>(Off) ||
+          cast<ConstantSDNode>(Off)->getZExtValue() > 1)
+        return false;
+      Lane = cast<ConstantSDNode>(Off)->getZExtValue();
+      Ptr = Base;
+    }
+    if (Ptr.getOpcode() != C28xISD::WRAPPER ||
+        Ptr.getOperand(0).getOpcode() != ISD::TargetGlobalAddress)
+      return false;
+    Symbol = Ptr.getOperand(0);
+    return true;
+  };
+  if (N->getOpcode() == ISD::LOAD) {
+    auto *L = cast<LoadSDNode>(N);
+    SDValue Symbol;
+    unsigned Lane;
+    if (L->getMemoryVT() == MVT::i8 &&
+        DirectGlobalByte(L->getBasePtr(), Symbol, Lane) &&
+        (N->getValueType(0) == MVT::i16 ||
+         N->getValueType(0) == MVT::i32)) {
+      unsigned Opc = N->getValueType(0) == MVT::i16
+                         ? C28x::LOAD8_GLOBAL_PSEUDO
+                         : C28x::LOAD8_GLOBAL_ZEXT32_PSEUDO;
+      SDValue Ops[] = {Symbol,
+                       CurDAG->getTargetConstant(Lane, SDLoc(N), MVT::i16),
+                       L->getChain()};
+      CurDAG->SelectNodeTo(N, Opc, N->getVTList(), Ops);
+      return;
+    }
+  }
+  if (N->getOpcode() == ISD::STORE) {
+    auto *S = cast<StoreSDNode>(N);
+    SDValue Symbol;
+    unsigned Lane;
+    if (S->getMemoryVT() == MVT::i8 &&
+        S->getValue().getValueType() == MVT::i16 &&
+        DirectGlobalByte(S->getBasePtr(), Symbol, Lane)) {
+      SDValue Ops[] = {Symbol,
+                       CurDAG->getTargetConstant(Lane, SDLoc(N), MVT::i16),
+                       S->getValue(), S->getChain()};
+      CurDAG->SelectNodeTo(N, C28x::STORE8_GLOBAL_PSEUDO,
+                           N->getVTList(), Ops);
+      return;
+    }
+  }
   // Materialize a frame index (alloca local) into a GR16 pointer.
   if (N->getOpcode() == ISD::FrameIndex) {
     int FI = cast<FrameIndexSDNode>(N)->getIndex();
@@ -30,14 +87,14 @@ void C28xDAGToDAGISel::Select(SDNode *N) {
     CurDAG->SelectNodeTo(N, C28x::MOV32fi, MVT::i32, TFI);
     return;
   }
-  // Materialize an arbitrary i32 constant that does not fit the imm16s
-  // (-32768..65535) or imm22 (0..0x3FFFFF) patterns, e.g. 0x7FFFFFFF.  The
-  // wide MOV32_imm32 pseudo builds it from two 16-bit halves in ACC.
+  // Values outside the unsigned imm22 range use a wide register pseudo.
+  // In particular, never constrain -1 to ACC: a compare can already have its
+  // other operand there. Fast RA cannot allocate two distinct ACCOnly values
+  // and can otherwise emit a self-compare in signed division overflow checks.
   if (N->getOpcode() == ISD::Constant && N->getValueType(0) == MVT::i32) {
     int64_t V = cast<ConstantSDNode>(N)->getSExtValue();
-    bool Fits16 = (V >= -32768 && V <= 65535);
     bool Fits22 = (V >= 0 && V <= 0x3FFFFF);
-    if (!Fits16 && !Fits22) {
+    if (!Fits22) {
       // Fail-closed: if this constant is used as a pointer (inttoptr, or as the
       // address of a load/store/atomic), it must map to a reachable 22-bit
       // physical word address.  A logical byte address B maps to word B>>1, so
@@ -118,18 +175,34 @@ void C28xDAGToDAGISel::Select(SDNode *N) {
       return;
     }
   }
-  // C28xISD::SELECT_CC: (trueval, falseval, cond, glue) -> dst
+  // Branch comparisons remain atomic through register allocation.
+  if (N->getOpcode() == C28xISD::BRCOND) {
+    SDValue LHS = N->getOperand(3), RHS = N->getOperand(4);
+    unsigned Opc = LHS.getValueType() == MVT::i32
+                       ? C28x::CMPBR32_PSEUDO : C28x::CMPBR16_PSEUDO;
+    SDValue Ops[] = {N->getOperand(1), LHS, RHS,
+        CurDAG->getTargetConstant(cast<ConstantSDNode>(N->getOperand(2))->getZExtValue(),
+                                  SDLoc(N), MVT::i16), N->getOperand(0)};
+    CurDAG->SelectNodeTo(N, Opc, MVT::Other, Ops);
+    return;
+  }
+  // C28xISD::SELECT_CC: (trueval, falseval, cond, lhs, rhs) -> dst
   if (N->getOpcode() == C28xISD::SELECT_CC) {
     SDValue TrueVal = N->getOperand(0);
     SDValue FalseVal = N->getOperand(1);
     ConstantSDNode *CondCN = cast<ConstantSDNode>(N->getOperand(2));
     unsigned Cond = CondCN->getZExtValue();
-    SDValue Glue = N->getOperand(3);
-    // Build SELECT_CC_PSEUDO dst, trueval, falseval, cond
+    bool WideCompare = N->getOperand(3).getValueType() == MVT::i32;
+    bool WideResult = N->getValueType(0) == MVT::i32;
+    unsigned Opc = WideResult
+        ? (WideCompare ? C28x::SELECT_WIDE_CC32_PSEUDO
+                       : C28x::SELECT_WIDE_CC16_PSEUDO)
+        : (WideCompare ? C28x::SELECT_CC32_PSEUDO
+                       : C28x::SELECT_CC_PSEUDO);
     SDValue Ops[] = {TrueVal, FalseVal,
                      CurDAG->getTargetConstant(Cond, SDLoc(N), MVT::i16),
-                     Glue};
-    CurDAG->SelectNodeTo(N, C28x::SELECT_CC_PSEUDO, MVT::i16, Ops);
+                     N->getOperand(3), N->getOperand(4)};
+    CurDAG->SelectNodeTo(N, Opc, N->getValueType(0), Ops);
     return;
   }
   // C28xISD::SRL32: (src, amt) -> dst

@@ -33,6 +33,10 @@ rmetaIbfUum/
 
 # ===== 归档目录 =====
 _archive/
+.attic/
+.workbuddy-ai/
+f28035-rust-bridge-b1/
+f28035-rust-bridge-b2-archive/
 
 # ===== 系统文件 =====
 .DS_Store

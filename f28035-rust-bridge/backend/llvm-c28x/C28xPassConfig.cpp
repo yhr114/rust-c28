@@ -23,6 +23,16 @@ C28xTargetMachine &C28xPassConfig::getC28xTargetMachine() const {
       static_cast<const C28xTargetMachine &>(*TM));
 }
 
+void C28xPassConfig::addIRPasses() {
+  // AtomicExpandPass is what applies C28xTargetLowering::shouldExpandAtomic*
+  // InIR, i.e. the decision that an aligned 16-bit atomic load/store on this
+  // single-core part is just a MOV.  The generic pipeline does not add it for
+  // this target, so without this every `load atomic` reached instruction
+  // selection as an ATOMIC_LOAD node and died with "Cannot select".
+  addPass(createAtomicExpandLegacyPass());
+  TargetPassConfig::addIRPasses();
+}
+
 bool C28xPassConfig::addInstSelector() {
   addPass(createC28xISelDag(getC28xTargetMachine(), getOptLevel()));
   return false;

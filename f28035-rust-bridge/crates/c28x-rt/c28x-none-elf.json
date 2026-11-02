@@ -12,5 +12,7 @@
   "relocation-model": "static",
   "target-c-int-width": 16,
   "target-pointer-width": 32,
-  "trap-unreachable": false
+  "trap-unreachable": false,
+  "dll-prefix": "",
+  "dll-suffix": ".dll"
 }

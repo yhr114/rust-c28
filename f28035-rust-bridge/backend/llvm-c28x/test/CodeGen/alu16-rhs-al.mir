@@ -1,0 +1,67 @@
+# RUN: llc -mtriple=c28x-ti-none -run-pass=postrapseudos %s -o - | FileCheck %s
+# An AR destination still computes in AL. Park an AL rhs before loading lhs,
+# otherwise the operation becomes lhs OP lhs (B2 zip sum 44 instead of 30).
+---
+name: add_rhs_al
+tracksRegLiveness: false
+body: |
+  bb.0:
+    $ar0 = ADD16_PSEUDO $ar1, $al
+    $ar2 = MOV16rr $al
+    LRETR
+...
+# CHECK-LABEL: name: add_rhs_al
+# CHECK: $xar7 = MOVL_XAR_AR $al
+# CHECK-NEXT: PUSH_ACC
+# CHECK-NEXT: $al = MOV16rr $ar1
+# CHECK-NEXT: $al = ADD16rr $al, $ar7
+# CHECK-NEXT: $ar0 = MOV16rr $al
+# CHECK-NEXT: POP_ACC
+---
+name: sub_rhs_al
+tracksRegLiveness: false
+body: |
+  bb.0:
+    $ar0 = SUB16_PSEUDO $ar1, $al
+    LRETR
+...
+# CHECK-LABEL: name: sub_rhs_al
+# CHECK: $xar7 = MOVL_XAR_AR $al
+# CHECK: $al = MOV16rr $ar1
+# CHECK-NEXT: $al = SUB16rr $al, $ar7
+---
+name: and_rhs_al
+tracksRegLiveness: false
+body: |
+  bb.0:
+    $ar0 = AND16_PSEUDO $ar1, $al
+    LRETR
+...
+# CHECK-LABEL: name: and_rhs_al
+# CHECK: $xar7 = MOVL_XAR_AR $al
+# CHECK: $al = MOV16rr $ar1
+# CHECK-NEXT: $al = AND16rr $al, $ar7
+---
+name: or_rhs_al
+tracksRegLiveness: false
+body: |
+  bb.0:
+    $ar0 = OR16_PSEUDO $ar1, $al
+    LRETR
+...
+# CHECK-LABEL: name: or_rhs_al
+# CHECK: $xar7 = MOVL_XAR_AR $al
+# CHECK: $al = MOV16rr $ar1
+# CHECK-NEXT: $al = OR16rr $al, $ar7
+---
+name: xor_rhs_al
+tracksRegLiveness: false
+body: |
+  bb.0:
+    $ar0 = XOR16_PSEUDO $ar1, $al
+    LRETR
+...
+# CHECK-LABEL: name: xor_rhs_al
+# CHECK: $xar7 = MOVL_XAR_AR $al
+# CHECK: $al = MOV16rr $ar1
+# CHECK-NEXT: $al = XOR16rr $al, $ar7

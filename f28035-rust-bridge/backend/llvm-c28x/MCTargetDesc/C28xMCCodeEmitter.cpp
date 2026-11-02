@@ -264,6 +264,14 @@ public:
     // out, below.
     uint16_t Word = 0;
 
+    // Intentional instruction-local loop for llvm.trap. No unresolved symbol
+    // or fixup is involved: B's displacement is measured from its first word.
+    if (MI.getOpcode() == C28x::B_SELF) {
+      emit16(CB, 0xFFEF);
+      emit16(CB, 0);
+      return;
+    }
+
     // --- Two-word branches -------------------------------------------------
     // "B 16bitOffset, COND" is the only two-word form in the verified set:
     //   word 0: 1111 1111 1110 CCCC   (CCCC = condition, 1111 = UNC)
@@ -291,6 +299,15 @@ public:
     }
 
     switch (MI.getOpcode()) {
+    case C28x::IRQ_ENTER:
+      emit16(CB, 0x761B); // ASP, TI cl2000 interrupt prologue oracle
+      emit16(CB, 0xFF69); // SPM #0
+      emit16(CB, 0x2942); // CLRC OVM|PAGE0
+      emit16(CB, 0x5616); // CLRC AMODE
+      return;
+    case C28x::IRQ_LEAVE:
+      Word = 0x7617; // NASP
+      break;
     case C28x::TRUNC32_16: {
       // mov GR16, AL = 1001 0110 LLLL LLLL (MOV loc16, AL; A=0 for AL).
       // MCInst: [dst(GR16), src(ACC32 tied)].
@@ -316,6 +333,20 @@ public:
       report_fatal_error(Twine("C28x: MOV_ACC_rr unsupported dst=") +
         Twine(Dst) + " src=" + Twine(Src));
     }
+    case C28x::PUSH32:
+      if (MI.getOperand(0).getReg() == C28x::XT) { Word = 0xABBD; break; }
+      if (MI.getOperand(0).getReg() == C28x::ACC) { Word = 0x1EBD; break; }
+      // TI oracle: PUSH XAR0/1/2/3 = 3ABD/B2BD/AABD/A2BD.
+      Word = xarOpcode(MI.getOperand(0).getReg(), XAR_OP_MOVL_FROM_XAR,
+                       "PUSH32") | 0xBD;
+      break;
+    case C28x::POP32:
+      if (MI.getOperand(0).getReg() == C28x::XT) { Word = 0x87BE; break; }
+      if (MI.getOperand(0).getReg() == C28x::ACC) { Word = 0x06BE; break; }
+      // TI oracle: POP XAR3/2/1/0 = 82BE/86BE/8BBE/8EBE.
+      Word = xarOpcode(MI.getOperand(0).getReg(), XAR_OP_MOVL_TO_XAR,
+                       "POP32") | 0xBE;
+      break;
     case C28x::PUSH_ACC:
       // PUSH ACC = 0001 1110 1011 1101  (SPRU430F "PUSH ACC"; equivalent to
       // MOVL *SP++, ACC). Verified: asm2000/dis2000 -> 1EBD, memory "BD 1E".
@@ -332,8 +363,8 @@ public:
       Word = 0x0006;
       break;
     case C28x::IRET_Real:
-      // IRET = 0111 0110 0000 0010 (SPRU430F "IRET"). Restores full hardware
-      // context (ACC/P/XT/XAR0-7/ST0/ST1/DP/SP/PC) saved on interrupt entry.
+        // IRET restores the hardware frame. Software-saved XT and extended
+        // auxiliary registers must already have been restored by the epilogue.
       // Verified: asm2000 -v28 / dis2000 -> 7602, memory "02 76".
       Word = 0x7602;
       break;
@@ -450,9 +481,18 @@ public:
       if (Imm >= 0 && Imm <= 255) {
         Word = (IsAdd ? 0x0900 : 0x1900) | uint16_t(Imm);
       } else {
+        // `ADD/SUB ACC,#16bit` zero-extend the immediate (hardware-verified on
+        // F28035), so a negative immediate must be encoded as the opposite
+        // operation with a positive magnitude.  Kept as a two-word form so the
+        // instruction length is unchanged; expandPostRAPseudo already
+        // normalises the value, this is the defensive backstop.
+        if (Imm < 0) {
+          IsAdd = !IsAdd;
+          Imm = -Imm;
+        }
         // Two-word form: opcode first, then immediate.
-        emit16(CB, 0xFF10);
-        emit16(CB, uint16_t(int16_t(Imm)));
+        emit16(CB, IsAdd ? 0xFF10 : 0xFF00);
+        emit16(CB, uint16_t(Imm));
         (void)STI;
         return;
       }
@@ -606,6 +646,17 @@ public:
       Word = (uint16_t(0x96 | A) << 8) | Ptr;
       break;
     }
+    case C28x::MOV_ind_store_AR: {
+      // TI asm2000/dis2000 oracle: MOV *XAR7,AR0 = 0x78C7,
+      // MOV *XAR7,AR5 = 0x7DC7.
+      assert(numExplicitOperands(MI, MCII) == 2 &&
+             "MOV_ind_store_AR expects [ptr, src] operands");
+      uint8_t Ptr = indirectXarField(MI.getOperand(0).getReg(),
+                                     "MOV_ind_store_AR");
+      uint8_t Src = arIndexOf(MI.getOperand(1).getReg());
+      Word = 0x7800 | (uint16_t(Src) << 8) | Ptr;
+      break;
+    }
     case C28x::MOVL_ACC_ind_load: {
       // MOVL ACC, *XARn = 0x0600 | (0xC0 | n)
       // Verified: MOVL ACC, *XAR4 = 0x06C4
@@ -625,23 +676,63 @@ public:
       Word = Base | Ptr;
       break;
     }
-    case C28x::MOVB_ind_load_AL: {
+    case C28x::MOVB_ind_load_AL:
+    case C28x::MOVB_ind_load_index_AL: {
       // MOVB AL, *XARn = 0xC600 | (0xC0|n). Byte load: XARn holds byte
       // address, hardware selects low/high byte by LSB. Verified with
       // asm2000/dis2000: MOVB AL,*XAR0 = C6C0, MOVB AL,*XAR7 = C6C7.
+      // The AR0-indexed byte form is 0xC600 | (0x90|n):
+      //   asm2000 -v28: movb al, *+xar7[ar0] = C697, *+xar7[1] = C6CF,
+      //                  *+xar7[2] = C6D7, *xar7 = C6C7.
+      // indirectXarField returns 0xC0|n (the plain-form loc16 field); OR-ing
+      // that into a 0xC690 base double-counts bits 0x80/0x10 (0x90|0xC7 =
+      // 0xD7) and silently assembles the *+XAR7[2] DISPLACEMENT form instead
+      // of the intended indexed form -- byte accesses then ignored AR0 and
+      // read/wrote word_addr+2 instead of word_addr+lane.  Build the field
+      // from the AR index instead.
       assert(numExplicitOperands(MI, MCII) == 2 &&
              "MOVB_ind_load_AL expects [dst, ptr] operands");
-      uint8_t Ptr = indirectXarField(MI.getOperand(1).getReg(), "MOVB_ind_load");
+      MCRegister PtrReg = MI.getOperand(1).getReg();
+      uint8_t Ptr = indirectXarField(PtrReg, "MOVB_ind_load");
+      if (MI.getOpcode() == C28x::MOVB_ind_load_index_AL)
+        Ptr = uint8_t(0x90) | (Ptr & 0x0F);
       Word = 0xC600 | Ptr;
       break;
     }
-    case C28x::MOVB_ind_store_AL: {
+    case C28x::MOVB_ind_store_AL:
+    case C28x::MOVB_ind_store_index_AL: {
       // MOVB *XARn, AL = 0x3C00 | (0xC0|n). Byte store: only one byte is
       // written, adjacent byte is preserved. Verified: MOVB *XAR0,AL = 3CC0.
+      // Same field fix as the load above: the indexed form's loc16 field is
+      // 0x90|n (asm2000: movb *+xar7[ar0], al = 3C97), not 0xC0|n OR-ed into
+      // a 0x3C90 base (which yields 3CD7 = *+XAR7[2]).
       assert(numExplicitOperands(MI, MCII) == 1 &&
              "MOVB_ind_store_AL expects [ptr] operand");
-      uint8_t Ptr = indirectXarField(MI.getOperand(0).getReg(), "MOVB_ind_store");
+      MCRegister PtrReg = MI.getOperand(0).getReg();
+      uint8_t Ptr = indirectXarField(PtrReg, "MOVB_ind_store");
+      if (MI.getOpcode() == C28x::MOVB_ind_store_index_AL)
+        Ptr = uint8_t(0x90) | (Ptr & 0x0F);
       Word = 0x3C00 | Ptr;
+      break;
+    }
+    case C28x::MOVB_disp_load_AL:
+    case C28x::MOVB_disp_store_AL: {
+      // Fixed-lane byte form: the plain loc16 field (0xC0|n) plus the 2-bit
+      // displacement in bits [4:3].  asm2000 -v28 gives
+      //   movb al, *+xar7[0] = C6C7, *+xar7[1] = C6CF, *+xar7[2] = C6D7
+      //   movb *+xar7[0], al = 3CC7, *+xar7[1], al = 3CCF
+      // so lane 0 is the plain form and lane 1 sets bit 3.  Frame-index byte
+      // accesses use this because their lane is a compile-time constant.
+      const bool IsLoad = MI.getOpcode() == C28x::MOVB_disp_load_AL;
+      unsigned PtrOp = IsLoad ? 1 : 0;
+      unsigned LaneOp = IsLoad ? 2 : 1;
+      assert(numExplicitOperands(MI, MCII) == (IsLoad ? 3u : 2u) &&
+             "MOVB_disp_*_AL expects [dst,] ptr, lane operands");
+      int64_t Lane = MI.getOperand(LaneOp).getImm();
+      if (Lane < 0 || Lane > 1)
+        report_fatal_error(Twine("C28x: byte lane out of range: ") + Twine(Lane));
+      uint8_t Ptr = indirectXarField(MI.getOperand(PtrOp).getReg(), "MOVB_disp");
+      Word = (IsLoad ? 0xC600 : 0x3C00) | Ptr | uint8_t(Lane << 3);
       break;
     }
     case C28x::ADDB_SP:
@@ -704,23 +795,23 @@ public:
             Twine("C28x: MOVL_XAR_imm constant ") + Twine(Imm) +
             " does not fit the 22-bit word-address field (0..0x3FFFFF)");
       emit16(CB, uint16_t(xarOpcode(Dst, XAR_OP_MOVL_IMM, "MOVL_XAR_imm") |
-                          (uint16_t(Imm) >> 16)));
+                          uint16_t(uint64_t(Imm) >> 16)));
       emit16(CB, uint16_t(Imm & 0xFFFF));
       (void)STI;
       return;
     }
     case C28x::MOV32rr: {
-      // MOVL XARn, XARm = <XARn opcode> 1010 0mmm  (low byte = @ARm).
-      // SPRU430F 6-308; the destination opcodes are the MOVL-XARn-loc32 table.
-      // Verified for all 64 (n, m) pairs with asm2000 -v28 / dis2000:
-      //   MOVL XAR0,XAR0 -> 8EA0   MOVL XAR0,XAR7 -> 8EA7
-      //   MOVL XAR7,XAR0 -> C5A0   MOVL XAR7,XAR7 -> C5A7
-      assert(numExplicitOperands(MI, MCII) == 2 && "MOV32rr expects [dst, src] operands");
-      MCRegister Dst = MI.getOperand(0).getReg();
-      MCRegister Src = MI.getOperand(1).getReg();
-      Word = xarOpcode(Dst, XAR_OP_MOVL_TO_XAR, "MOV32rr") |
-             loc32RegEncoding(Src, "MOV32rr");
-      break;
+      // DEPRECATED -- MUST NOT BE EMITTED.  C28x has no XAR-to-XAR 32-bit
+      // register-copy instruction.  The encoding below (<XARn opcode> | 0xA0|m)
+      // is "MOVL XARn, @ARm" -- a 32-bit *memory read* from the address held in
+      // ARm, NOT a register copy.  Every MOV32rr emission site now stages the
+      // value through PUSH32/POP32 instead (see C28xInstrInfo.cpp and
+      // C28xRegisterInfo.cpp).  If this case is ever reached it means a MOV32rr
+      // slipped through unexpanded -- fail loudly rather than silently emit a
+      // memory read that corrupts data on hardware.
+      report_fatal_error(
+          "C28x: MOV32rr reached the code emitter; it must be expanded to "
+          "PUSH32/POP32 before code emission (see u32-compare-codegen-bug.md)");
     }
     case C28x::MOVL_XAR_AR: {
       // MOVZ ARn,loc16 defines XARn, clearing its high half. MOVL would
@@ -845,9 +936,10 @@ public:
       // Verified: AL=0EA9, AH=0EA8, AR0=0EA0.
       Word = 0x0E00 | loc16RegEncoding(MI.getOperand(1).getReg(), "MOVU_ACC_GR16");
       break;
-    case C28x::LSL_ACC_T:
-      // LSL ACC,T = 0xFF50 (32-bit logical left, count in T(4:0)).
-      Word = 0xFF50;
+    case C28x::LSLL_ACC_T:
+      // LSLL ACC,T = 0x563B (count in T(4:0)), matching TI cl2000.
+      // LSL ACC,T = 0xFF50 masks to T(3:0) and is wrong for 16..31.
+      Word = 0x563B;
       break;
     case C28x::LSRL_ACC_T:
       // LSRL ACC,T = 0x5622 (32-bit logical right, count in T(4:0)).

@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 param(
     [switch]$Verify,
     [string]$Compiler = '',
@@ -9,6 +9,8 @@ param(
 )
 
 . (Join-Path $PSScriptRoot 'toolchain.ps1')
+. (Join-Path $PSScriptRoot '_internal\image-stamp.ps1')
+. (Join-Path $PSScriptRoot '_internal\user-main-image.ps1')
 if (-not $Compiler) { $Compiler = $Toolchain.Compiler }
 if (-not $Cargo) { $Cargo = $Toolchain.Cargo }
 if (-not $Dss) { $Dss = $Toolchain.Dss }
@@ -54,12 +56,12 @@ New-Item -ItemType Directory -Path $outDir -Force | Out-Null
 
 Push-Location $env:TEMP
 try {
-    & $Cargo test --manifest-path $manifest --target x86_64-pc-windows-msvc --features one-file-main --quiet
+    & $Toolchain.HostTestCargo test --manifest-path $manifest --target $Toolchain.HostTestTarget --features one-file-main --quiet
     if ($LASTEXITCODE -ne 0) { throw 'Rust host tests failed.' }
 } finally { Pop-Location }
 
 & (Join-Path $PSScriptRoot 'dump-c28x-mir.ps1') `
-    -InputFile $source -OutputFile $mir -AssemblyFile $assembly -Cargo $Cargo `
+    -InputFile $source -OutputFile $mir -AssemblyFile $assembly -Cargo $Toolchain.MirCargo `
     -OnlyExport rust_user_main `
     -RustcArguments @('-Zmir-opt-level=4', '--cfg', 'feature=\"one-file-main\"')
 if ($LASTEXITCODE -ne 0) { throw 'main.rs is not supported by the C28x MIR backend.' }
@@ -137,6 +139,10 @@ if ($auditedSegments -eq 0) { throw 'No loadable segment found in the linked fir
 Write-Output "RAM_OUT=$out"
 Write-Output 'RAM_ONLY_SEGMENTS=PASS'
 Write-Output 'CSM_PASSWORD_AREA=PASS'
+
+# 新鲜度戳：链接+审计成功后记录全部输入指纹（含实际链入的桥 obj 哈希，
+# 覆盖 -BridgeObject 预构建旁路）。verify-user-main-flash.ps1 上板前断言。
+Set-ImageStamp -Image $out -Key (Get-UserMainImageKey -Compiler $Compiler -ProjectRoot $root -Variant ram)
 
 if ($Verify) {
     $result = @(& $Dss (Join-Path $PSScriptRoot 'verify-user-main.js') $TargetConfig $out 2>&1 | ForEach-Object { "$_" })

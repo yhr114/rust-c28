@@ -8,6 +8,7 @@
 
 #include "C28x.h"
 #include "C28xFrameLowering.h"
+#include "C28xISelLowering.h"
 #include "MCTargetDesc/C28xMCTargetDesc.h"
 #include "C28xSubtarget.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
@@ -19,14 +20,19 @@
 
 using namespace llvm;
 
-// Map a callee-saved physical register to its PUSH/POP opcode.
-static unsigned pushOpcodeFor(unsigned Reg) {
-  switch (Reg) {
-  case C28x::AR4: return C28x::PUSH_AR4;
-  case C28x::AR5: return C28x::PUSH_AR5;
-  case C28x::AR6: return C28x::PUSH_AR6;
-  default:        return 0;
-  }
+static bool isC28xInterrupt(const MachineFunction &MF) {
+  return static_cast<unsigned>(MF.getFunction().getCallingConv()) ==
+             C28xCC::Interrupt || MF.getFunction().hasFnAttribute("interrupt");
+}
+
+void C28xFrameLowering::determineCalleeSaves(MachineFunction &MF,
+                                          BitVector &SavedRegs,
+                                          RegScavenger *RS) const {
+  TargetFrameLowering::determineCalleeSaves(MF, SavedRegs, RS);
+  if (isC28xInterrupt(MF))
+    for (unsigned R : {C28x::XAR0, C28x::XAR1, C28x::XAR2, C28x::XAR3,
+                       C28x::XAR4, C28x::XAR5, C28x::XAR6, C28x::XAR7, C28x::XT})
+      SavedRegs.set(R);
 }
 
 // ADDB/SUBB SP encode only a 7-bit immediate (0..127 words).  Emit the total
@@ -42,70 +48,73 @@ static void emitSPAdjust(const C28xInstrInfo &TII, MachineBasicBlock &MBB,
     Words -= Chunk;
   }
 }
-static unsigned popOpcodeFor(unsigned Reg) {
-  switch (Reg) {
-  case C28x::AR4: return C28x::POP_AR4;
-  case C28x::AR5: return C28x::POP_AR5;
-  case C28x::AR6: return C28x::POP_AR6;
-  default:        return 0;
-  }
-}
-
 C28xFrameLowering::C28xFrameLowering(const C28xSubtarget &STI)
     : TargetFrameLowering(TargetFrameLowering::StackGrowsUp,
-                          Align(2), 0) {}
+                          Align(4), 0) {}
+
+uint64_t C28xFrameLowering::getFrameAllocationWords(const MachineFunction &MF) {
+  // Entry SP and every full-width CSR push are even. Keep a guard word, then
+  // round the local allocation to two TI words so all call boundaries and
+  // transient MOVL pushes remain even-aligned (TI EABI SPRU514, 7.3.1).
+  uint64_t Words = (MF.getFrameInfo().getStackSize() + 1) / 2 + 1;
+  return (Words + 1) & ~uint64_t(1);
+}
 
 // PEI calls this to spill CSRs.  We emit hardware PUSH instructions in
-// prologue order (AR4, AR5, AR6).  Returning true tells PEI we handled it
+// prologue order (XAR1, XAR2, XAR3). Returning true tells PEI we handled it
 // and it must NOT also emit store-to-stack.
 bool C28xFrameLowering::spillCalleeSavedRegisters(
     MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
     ArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const {
   const auto &TII = *MBB.getParent()->getSubtarget<C28xSubtarget>().getInstrInfo();
   DebugLoc DL;
+  if (isC28xInterrupt(*MBB.getParent()))
+    BuildMI(MBB, MI, DL, TII.get(C28x::IRQ_ENTER));
   for (const CalleeSavedInfo &CS : CSI) {
-    unsigned PushOp = pushOpcodeFor(CS.getReg());
-    if (PushOp)
-      BuildMI(MBB, MI, DL, TII.get(PushOp));
+    BuildMI(MBB, MI, DL, TII.get(C28x::PUSH32))
+        .addReg(CS.getReg(), RegState::Kill);
   }
   return true; // we handled all spills
 }
 
 // PEI does NOT reverse the list before calling this; stack is LIFO so
-// we must iterate in reverse: push AR4,AR5,AR6 -> pop AR6,AR5,AR4.
+// we must iterate in reverse.
 bool C28xFrameLowering::restoreCalleeSavedRegisters(
     MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
     MutableArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const {
   const auto &TII = *MBB.getParent()->getSubtarget<C28xSubtarget>().getInstrInfo();
   DebugLoc DL;
   for (int i = CSI.size() - 1; i >= 0; --i) {
-    unsigned PopOp = popOpcodeFor(CSI[i].getReg());
-    if (PopOp)
-      BuildMI(MBB, MI, DL, TII.get(PopOp));
+    BuildMI(MBB, MI, DL, TII.get(C28x::POP32), CSI[i].getReg());
   }
   return true;
 }
 
 void C28xFrameLowering::emitPrologue(MachineFunction &MF,
                                      MachineBasicBlock &MBB) const {
-  MachineFrameInfo &MFI = MF.getFrameInfo();
   const auto &TII = *MF.getSubtarget<C28xSubtarget>().getInstrInfo();
   DebugLoc DL;
 
   // Only adjust SP for the local frame.  CSR PUSH was inserted by
   // spillCalleeSavedRegisters at MBB.begin(); we must place ADDB_SP
   // AFTER those PUSHes so the stack layout is:
-  //   push ar4 / push ar5 ...   (CSR save)
+  //   push xar1 / push xar2 ... (full-width CSR save)
   //   addb sp, #local            (local frame)
-  uint64_t StackSize = MFI.getStackSize();
-  if (StackSize > 0) {
-    uint64_t StackWords = (StackSize + 1) / 2;
+  // Always reserve at least the guard word, even when the function owns no
+  // locals.  The post-RA expansions push ACC (`MOVL *SP++, ACC`, a 32-bit push
+  // that touches the words at and just under SP), so a frame-less function used
+  // to push onto its own return address: rust_mode's 2*x path overwrote the
+  // high return-address word with the accumulator and LRETR jumped to
+  // 0x0014_8023 (observed on target: results 40,0,0,0,40 and PC off in ROM).
+  {
+    // PUSH ACC writes into the word immediately below the current SP on this
+    // target.  Keep one unaddressed word between locals and transient pushes.
+    uint64_t StackWords = getFrameAllocationWords(MF);
     // Skip past the PUSH instructions that PEI already inserted.
     auto InsertPt = MBB.begin();
     while (InsertPt != MBB.end() &&
-           (InsertPt->getOpcode() == C28x::PUSH_AR4 ||
-            InsertPt->getOpcode() == C28x::PUSH_AR5 ||
-            InsertPt->getOpcode() == C28x::PUSH_AR6))
+           (InsertPt->getOpcode() == C28x::PUSH32 ||
+            InsertPt->getOpcode() == C28x::IRQ_ENTER))
       ++InsertPt;
     emitSPAdjust(TII, MBB, InsertPt, DL, /*IsAdd=*/true, StackWords);
   }
@@ -113,7 +122,6 @@ void C28xFrameLowering::emitPrologue(MachineFunction &MF,
 
 void C28xFrameLowering::emitEpilogue(MachineFunction &MF,
                                      MachineBasicBlock &MBB) const {
-  MachineFrameInfo &MFI = MF.getFrameInfo();
   const auto &TII = *MF.getSubtarget<C28xSubtarget>().getInstrInfo();
   DebugLoc DL;
 
@@ -121,20 +129,21 @@ void C28xFrameLowering::emitEpilogue(MachineFunction &MF,
 
   // Deallocate local frame BEFORE the POP instructions (LIFO order):
   //   subb sp, #local
-  //   pop ar4 ...
+  //   pop xar2 / pop xar1 ...
   //   lretr
   // restoreCalleeSavedRegisters already inserted POP right before InsertPt;
   // walk backwards past them so SUBB_SP lands above the POPs.
-  uint64_t StackSize = MFI.getStackSize();
-  if (StackSize > 0) {
-    uint64_t StackWords = (StackSize + 1) / 2;
+  {
+    // Must mirror emitPrologue exactly: the guard word is always reserved, so
+    // it is always released here too.
+    uint64_t StackWords = getFrameAllocationWords(MF);
     while (InsertPt != MBB.begin() &&
-           (std::prev(InsertPt)->getOpcode() == C28x::POP_AR4 ||
-            std::prev(InsertPt)->getOpcode() == C28x::POP_AR5 ||
-            std::prev(InsertPt)->getOpcode() == C28x::POP_AR6))
+           std::prev(InsertPt)->getOpcode() == C28x::POP32)
       --InsertPt;
     emitSPAdjust(TII, MBB, InsertPt, DL, /*IsAdd=*/false, StackWords);
   }
+  if (isC28xInterrupt(MF))
+    BuildMI(MBB, MBB.getFirstTerminator(), DL, TII.get(C28x::IRQ_LEAVE));
 }
 
 // PEI calls this for ADJCALLSTACKDOWN/UP.  C28x stack grows upward:

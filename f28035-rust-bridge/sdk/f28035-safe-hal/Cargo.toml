@@ -12,6 +12,10 @@ arithmetic = []
 embedded-hal = ["dep:embedded-hal"]
 bare-mmio = []
 bare-mmio-negative = ["bare-mmio"]
+# B-1 route: byte-pointer MMIO bus for the patched-rustc LLVM direct-object
+# path (see the second `impl MmioBus for C28xMmio` in src/pac.rs).
+direct-obj-mmio = []
+business-direct-ffi = []
 
 [dependencies]
 embedded-hal = { version = "1.0", optional = true }

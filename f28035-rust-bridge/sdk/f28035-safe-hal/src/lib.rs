@@ -1,20 +1,538 @@
 #![no_std]
+// The LLVM direct-object bus (feature "direct-obj-mmio") lowers MMIO through
+// `core::intrinsics::volatile_*`; the gate is scoped to that feature so host
+// tests and the audited MIR route keep compiling without it.
+#![cfg_attr(all(not(test), feature = "direct-obj-mmio"), feature(core_intrinsics))]
+
+// C2000 EALLOW/EDIS leaf functions from crates/c28x-rt/asm.s, used by the
+// direct-object MMIO bus in pac.rs (protected 0x7000-0x70FF writes) and by
+// the PAC ffi target path.  Declared once at the crate root; pac.rs reaches
+// them through `super::`.
+#[cfg(all(not(test), feature = "direct-obj-mmio"))]
+unsafe extern "C" {
+    fn eallow_inst();
+    fn edis_inst();
+    /// Paints the whole RAMSTACK region (0x0100..0x0400) with a 0xBEEF
+    /// sentinel using registers only, so the post-run JTAG scan can measure how
+    /// deep the ISR ever pushed.  Implemented in crates/c28x-rt/asm.s.
+    fn c28x_rt_fill_stack_sentinel();
+    /// Reads CPU Timer0 TIML (0x0C00), used to time the ISR body.
+    fn c28x_rt_read_timer0_tim() -> u16;
+}
 
 #[cfg(feature = "arithmetic")]
 mod arithmetic;
 pub mod pac;
 use crate::pac::ffi;
 
+/// Minimal panic handler for the standalone `bare-mmio-business` image.
+///
+/// With checks enabled (`-Coverflow-checks=yes -Cdebug-assertions=yes`) the
+/// compiler emits panic paths (`rust_begin_unwind`); without a handler the
+/// link fails with an unresolved symbol.  This handler mirrors `panic-c28x`:
+/// disable interrupts and spin so the debugger can halt and inspect.  It is
+/// gated to the business feature so it never clashes with `panic-c28x` in the
+/// Cargo path, and off in host tests (std provides the handler there).
+/// Set to a non-zero magic by the panic handler so the verifier can tell a
+/// panic apart from any other hang (e.g. a lost interrupt).  Zero == no panic.
+#[cfg(all(feature = "bare-mmio-business", not(test)))]
+#[unsafe(no_mangle)]
+pub static mut PANIC_FLAG: u16 = 0;
+
+/// Magic written by the panic handler.
+#[cfg(all(feature = "bare-mmio-business", not(test)))]
+pub const PANIC_MAGIC: u16 = 0xDEAD;
+
+#[cfg(all(feature = "bare-mmio-business", not(test)))]
+#[panic_handler]
+fn business_panic(_info: &core::panic::PanicInfo) -> ! {
+    // Record the panic where the verifier can read it.  This target has no
+    // inline asm and no formatting, so only a fixed magic is written; the PC
+    // is left to the debugger.  Inline asm for DINT is unsupported here, so a
+    // panic in the control ISR simply freezes it (the trampoline never returns
+    // to clear TIF / ack PIE) -- the frozen ticks plus PANIC_FLAG identify it.
+    unsafe {
+        core::ptr::write_volatile(core::ptr::addr_of_mut!(PANIC_FLAG), PANIC_MAGIC);
+    }
+    loop {
+        core::hint::spin_loop();
+    }
+}
+
 /// RAM-only zero-C compiler experiment using the normal Safe HAL GPIO API.
 #[cfg(feature = "bare-mmio")]
 #[unsafe(no_mangle)]
 pub extern "C" fn rust_safe_gpio34_low() {
-    let mut peripherals = Peripherals::take().expect("peripherals unavailable");
-    let mut pin = peripherals.gpio.output::<34>().expect("GPIO34 unavailable");
+    let Some(mut peripherals) = Peripherals::take() else { return };
+    let Ok(mut pin) = peripherals.gpio.output::<34>() else { return };
     #[cfg(feature = "bare-mmio-negative")]
     pin.set_high();
     #[cfg(not(feature = "bare-mmio-negative"))]
     pin.set_low();
+}
+
+/// Exclusivity self-check for the interrupt-safe one-time take.
+///
+/// The second `Peripherals::take()` and the second `gpio.output::<34>()` must
+/// both fail; only when they do is GPIO34 driven low.  The hardware readback
+/// (GPIO34 low + program at idle) therefore proves the ownership latch rejects
+/// a duplicate take and the pin claim rejects a duplicate claim.
+#[cfg(feature = "bare-mmio-exclusive")]
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_safe_gpio34_exclusive() {
+    let Some(mut peripherals) = Peripherals::take() else { return };
+    // A second take must be rejected by the one-time latch.
+    if Peripherals::take().is_some() {
+        return;
+    }
+    let Ok(mut pin) = peripherals.gpio.output::<34>() else { return };
+    // A second claim of the same pin must be rejected.
+    if peripherals.gpio.output::<34>().is_ok() {
+        return;
+    }
+    pin.set_low();
+}
+
+/// Set by the Timer0 ISR; a 16-bit store is atomic on C28x.
+#[cfg(feature = "bare-mmio-timer")]
+static mut TIMER0_FIRED: u16 = 0;
+
+/// Rust body of the Timer0 (TINT0) interrupt. The c28x-rt `TINT0_ISR`
+/// trampoline (crates/c28x-rt/interrupts.s) saves the context, calls this,
+/// clears TCR.TIF and acknowledges PIE group 1, then IRETs.
+#[cfg(feature = "bare-mmio-timer")]
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_timer0_isr() {
+    // SAFETY: only the ISR writes this flag; the volatile store prevents the
+    // main loop's volatile load from being optimised away.
+    unsafe { core::ptr::write_volatile(core::ptr::addr_of_mut!(TIMER0_FIRED), 1) };
+}
+
+/// Timer0 interrupt self-check entry (runs as `main` under the c28x-rt startup).
+///
+/// Starts Timer0 periodic, enables the CPU interrupt line through the Safe HAL,
+/// and drives GPIO34 low once the TINT0 ISR has run.  The DSS readback
+/// (GPIO34 low + program at idle) proves the fully automatic interrupt path.
+#[cfg(feature = "bare-mmio-timer")]
+#[unsafe(no_mangle)]
+pub extern "C" fn main() -> ! {
+    let Some(mut peripherals) = Peripherals::take() else {
+        loop {}
+    };
+    let Ok(timer) = peripherals.timer0.start_periodic::<1>() else {
+        loop {}
+    };
+    timer.enable_interrupt();
+    let Ok(mut pin) = peripherals.gpio.output::<34>() else {
+        loop {}
+    };
+    loop {
+        // SAFETY: a volatile 16-bit load observes the ISR's store.
+        if unsafe { core::ptr::read_volatile(core::ptr::addr_of!(TIMER0_FIRED)) } != 0 {
+            pin.set_low();
+            loop {}
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Integrated business loop: ADC -> compute -> PWM, plus a SCI status link and
+// a Timer0 interrupt that keeps the whole chain running.
+// ---------------------------------------------------------------------------
+
+/// ePWM1 period used by the integrated business loop, in TBCLK ticks.
+#[cfg(feature = "bare-mmio-business")]
+pub const BUSINESS_PWM_PERIOD_TICKS: u16 = 1000;
+
+/// Full scale of the 12-bit ADC, i.e. the largest raw sample.
+#[cfg(feature = "bare-mmio-business")]
+pub const BUSINESS_ADC_FULL_SCALE: u16 = 4095;
+
+/// Maps a raw 12-bit sample to a compare value: `raw * period / 4095`.
+///
+/// A real `u32` multiply and divide, so the control loop exercises the
+/// `__udivmodsi4` runtime helper on every tick.  Out-of-range samples (the ADC
+/// timeout marker `0xFFFF`) clamp to full scale instead of wrapping.
+#[cfg(feature = "bare-mmio-business")]
+pub fn business_duty_for(raw: u16) -> u16 {
+    let clamped = if raw > BUSINESS_ADC_FULL_SCALE {
+        BUSINESS_ADC_FULL_SCALE
+    } else {
+        raw
+    };
+    ((u32::from(clamped) * u32::from(BUSINESS_PWM_PERIOD_TICKS)) / u32::from(BUSINESS_ADC_FULL_SCALE))
+        as u16
+}
+
+/// The closed-loop application used by the joint hardware validation.
+///
+/// Shape of a real motor-control program: the periodic interrupt samples the
+/// ADC, derives a duty, writes the PWM compare and exchanges a status byte on
+/// the SCI link, while the main loop stays alive in parallel.  Everything the
+/// application touches is the safe HAL; the only unsafe code is the handle
+/// hand-off to the ISR, and it is confined to this module.
+#[cfg(all(feature = "bare-mmio-business", feature = "direct-obj-mmio", not(test)))]
+mod business {
+    use super::*;
+
+    /// SCI divisor: LSPCLK / (8 * 35) = 107 kbaud at 30 MHz LSPCLK.
+    const SCI_BAUD_DIV: u16 = 35;
+    /// Send one status byte every N control ticks.
+    const FRAME_EVERY: u16 = 4;
+
+    static mut PWM: Option<Pwm1Output<BUSINESS_PWM_PERIOD_TICKS>> = None;
+    static mut ADC: Option<ConfiguredAdc<0>> = None;
+    /// Serial link: SCI-A 8N1 at LSPCLK/(8*35). Every frame is verified through
+    /// SCICTL2.TXRDY before and after the write, which is the strongest claim
+    /// available without a peer (the internal loopbacks of both SCI and SPI
+    /// were measured dead on this board).
+    static mut LINK: Option<SciLink<SCI_BAUD_DIV>> = None;
+    static mut MAIN_LOOPS: u16 = 0;
+
+    /// Counters read back over JTAG through one symbol.  Layout v2 (20 words)
+    /// supports a long run (32-bit totals) and a host-injected fault window:
+    ///
+    /// ```text
+    ///  [0]  ticks_lo              [1]  ticks_hi            ticks = lo + hi*65536
+    ///  [2]  raw (last valid)      [3]  duty (last CMPA written)
+    ///  [4]  sci_ok                [5]  sci_err
+    ///  [6]  adc_err (timeouts)    [7]  main_loops_lo (liveness)
+    ///  [8]  last_status           [9]  raw_this_tick
+    /// [10]  ok_samples_lo        [11]  ok_samples_hi
+    /// [12]  SCICTL2 (CPU read)   [13]  ADCCTL1 (CPU read)
+    ///  [14]  fault_state (0 none, 1 window active, 2 recovered)
+    ///  [15]  fault_window_remaining
+    ///  [16]  fault_request  <- host writes 1 over JTAG to inject a fault window
+    ///  [17]  fault_window_size (constant, for the verifier)
+    ///  [18]  fault_count (number of windows opened; supports repeated recovery)
+    ///  [19]  report_magic (0xBEEF, proves the block was read coherently)
+    ///  [20]  isr_min_cycles (fastest ISR body, in SYSCLK cycles)
+    ///  [21]  isr_max_cycles (worst-case ISR body, for real-time headroom)
+    ///  [22]  tz_ost_count (hardware one-shot trips forced by fault injection)
+    ///  [23]  tz_flags (last TZFLG read; bit2 = OST latched)
+    ///  [24]  adc_clkdiv2 (ADCCTL2.CLKDIV2EN: 1 => ADCCLK = SYSCLK/2)
+    ///  [25]  adc_eoc_count (samples whose EOC was observed => fresh)
+    ///  [26]  sci_lb_tx (loopback self-test bytes sent)
+    ///  [27]  sci_lb_rx (loopback self-test bytes received)
+    ///  [28]  sci_lb_mismatch (loopback bytes that differed)
+    ///  [29]  adc_offtrim_before (ADCOFFTRIM before Device_cal)
+    ///  [30]  adc_offtrim_after  (ADCOFFTRIM after Device_cal)
+    ///  [31]  sci_fifo_rx (FIFO-mode loopback bytes read)
+    ///  [32]  sci_fifo_mismatch (FIFO-mode loopback mismatches)
+    ///  [33]  sci_timeout_ok (1 = bounded RX wait timed out without hanging)
+    ///  [34..41] sci_fifo_byte[0..7] (FIFO-mode received bytes, for diagnosis)
+    /// ```
+    ///
+    /// [12]/[13] exist to compare the CPU-side peripheral read with a JTAG
+    /// read of the same register: the ISR reported "not ready" while JTAG
+    /// showed TXRDY/ADCBSY in the ready state, so the two paths must be
+    /// measured on the same run.
+    #[unsafe(no_mangle)]
+    pub static mut HW_BUSINESS_REPORT: [u16; 42] = [0; 42];
+
+    /// Timer0 period in SYSCLK cycles (PRD + 1); the ISR timing wraps at this.
+    const BUSINESS_TIMER_CYCLES: i32 = 60_001;
+
+    /// Length of the simulated sensor dropout, in control ticks.  Chosen long
+    /// enough (0.2 s) to be unambiguous in the counters, short enough that the
+    /// post-fault steady state dominates a 30 s run.
+    const FAULT_WINDOW: u16 = 200;
+    const REPORT_MAGIC: u16 = 0xBEEF;
+
+    #[inline]
+    fn store(index: usize, value: u16) {
+        // SAFETY: index is a literal in this module and each slot has exactly
+        // one writer (the ISR, or the main loop for MAIN_LOOPS).
+        unsafe {
+            core::intrinsics::volatile_store(
+                core::ptr::addr_of_mut!(HW_BUSINESS_REPORT[index]),
+                value,
+            )
+        };
+    }
+
+    #[inline]
+    fn load(index: usize) -> u16 {
+        // SAFETY: see store().
+        unsafe { core::intrinsics::volatile_load(core::ptr::addr_of!(HW_BUSINESS_REPORT[index])) }
+    }
+
+    #[inline]
+    fn bump(index: usize) {
+        store(index, load(index).wrapping_add(1));
+    }
+
+    /// Read the 32-bit control-tick counter ([0] low, [1] high).
+    #[inline]
+    fn tick_count() -> u32 {
+        u32::from(load(0)) | (u32::from(load(1)) << 16)
+    }
+
+    /// Increment the 32-bit control-tick counter without a 16-bit wrap.
+    #[inline]
+    fn bump_ticks() {
+        let lo = load(0);
+        if lo == 0xFFFF {
+            store(0, 0);
+            store(1, load(1).wrapping_add(1));
+        } else {
+            store(0, lo.wrapping_add(1));
+        }
+    }
+
+    /// Increment the 32-bit successful-sample counter ([10] low, [11] high).
+    #[inline]
+    fn bump_ok() {
+        let lo = load(10);
+        if lo == 0xFFFF {
+            store(10, 0);
+            store(11, load(11).wrapping_add(1));
+        } else {
+            store(10, lo.wrapping_add(1));
+        }
+    }
+
+    /// One control tick, called from the TINT0 trampoline.  The trampoline
+    /// clears TCR.TIF and acknowledges PIE group 1 after this returns.
+    pub(super) fn on_tick() {
+        // ISR timing: snapshot the free-running Timer0 down-counter first.
+        let t_entry = unsafe { c28x_rt_read_timer0_tim() };
+
+        // 0. Fault injection.  The host writes [16] = 1 over JTAG while the
+        //    target is halted; this edge opens a window of FAULT_WINDOW ticks
+        //    during which the ADC is treated as a failed sample.  The control
+        //    loop must keep ticking, keep the SCI link alive, and re-sync once
+        //    the window closes -- that is the recovery property under test.
+        //    Re-arming is allowed whenever no window is active (state 0 or 2),
+        //    so the host can inject repeatedly and require N recoveries.
+        if load(16) != 0 && load(14) != 1 {
+            store(14, 1);
+            store(15, FAULT_WINDOW);
+            store(16, 0);
+            store(18, load(18).wrapping_add(1));
+            // Hardware fault protection: a real one-shot trip forces the PWM
+            // output low (TZCTL was configured to force low in run()).
+            unsafe { ffi::f28035_epwm1_tz_ost_force() };
+            store(22, load(22).wrapping_add(1));
+        }
+        let mut fault_active = load(14) == 1;
+        if fault_active {
+            let rem = load(15);
+            if rem == 0 {
+                // Window exhausted: close it *before* sampling, so this tick is
+                // already a normal one and exactly FAULT_WINDOW ticks fail.
+                store(14, 2);
+                fault_active = false;
+                // Release the hardware trip so the output resumes tracking.
+                unsafe { ffi::f28035_epwm1_tz_ost_clear() };
+            } else {
+                store(15, rem - 1);
+            }
+        }
+
+        let ticks = tick_count();
+
+        // 1. ADC -> raw sample.
+        if fault_active {
+            // Simulated sensor dropout: hold the last duty, count a timeout,
+            // and mark this tick's raw invalid.  No PWM write, so the actuator
+            // keeps its last good command (graceful degradation).
+            store(9, 0xFFFF);
+            store(2, 0xFFFF);
+            bump(6);
+        } else {
+            // Keep the earlier FFI form as an explicit diagnostic control.
+            #[cfg(feature = "business-direct-ffi")]
+            let raw = unsafe { ffi::f28035_adc_sample(0) };
+            #[cfg(not(feature = "business-direct-ffi"))]
+            let raw = unsafe {
+                match ADC.as_mut() { Some(adc) => adc.sample(), None => 0xFFFF }
+            };
+            // Diagnostics: the raw value of *this* tick, recorded before the
+            // timeout test, so a wrong classification is visible over JTAG.
+            store(9, raw);
+            if raw == 0xFFFF {
+                bump(6);
+                store(2, raw);
+            } else {
+                bump_ok();
+                let duty = business_duty_for(raw);
+                // SAFETY: slots are initialized before enabling this ISR and
+                // have no concurrent main-loop accesses after initialization.
+                #[cfg(feature = "business-direct-ffi")]
+                unsafe { ffi::f28035_epwm1_set_compare(duty) };
+                #[cfg(not(feature = "business-direct-ffi"))]
+                unsafe { if let Some(pwm) = PWM.as_mut() { pwm.set_compare(duty); } };
+                store(2, raw);
+                store(3, duty);
+            }
+        }
+
+        // 2. Communication: one status byte every FRAME_EVERY ticks.  This is
+        //    deliberately independent of the ADC path, so a sensor fault must
+        //    not silence the link.
+        if ticks % u32::from(FRAME_EVERY) == 0 {
+            let status = (ticks & 0x00ff) as u8;
+            #[cfg(feature = "business-direct-ffi")]
+            let sent = sci_send_byte(status);
+            #[cfg(not(feature = "business-direct-ffi"))]
+            let sent = unsafe {
+                match LINK.as_mut() { Some(link) => link.send(status), None => false }
+            };
+            if sent {
+                bump(4);
+            } else {
+                bump(5);
+            }
+            store(8, u16::from(status));
+        }
+
+        // 3. Diagnostics: what the CPU sees in the peripheral frames.
+        // SAFETY: fixed SCI-A / ADC status registers.
+        store(12, unsafe { ffi::f28035_diag_wait_txrdy() });
+        store(13, unsafe { ffi::f28035_diag_asm_scictl2() });
+        // Trip-zone status: accumulate "OST ever latched" (bit2) so the
+        // verifier can prove the hardware trip actually fired, while the final
+        // TZFLG read proves it was released after recovery.
+        store(23, load(23) | (unsafe { ffi::f28035_epwm1_tz_flags() } & 0x0004));
+        // ADC clock divider and fresh-sample (EOC) accounting.
+        store(24, unsafe { ffi::f28035_adc_clkdiv2_enabled() });
+        store(25, unsafe { ffi::f28035_adc_eoc_count() });
+
+        // 4. Report main-loop liveness, then count this tick.
+        // SAFETY: the main loop is the only writer of MAIN_LOOPS.
+        store(7, unsafe {
+            core::intrinsics::volatile_load(core::ptr::addr_of!(MAIN_LOOPS))
+        });
+        bump_ticks();
+
+        // ISR execution time = entry TIML - exit TIML (down-counter).  The
+        // counter reloads at 0, so a wrapped measurement adds one period.
+        let t_exit = unsafe { c28x_rt_read_timer0_tim() };
+        let mut dur = i32::from(t_entry) - i32::from(t_exit);
+        if dur < 0 {
+            dur += BUSINESS_TIMER_CYCLES;
+        }
+        let dur = dur as u16;
+        let min = load(20);
+        if min == 0 || dur < min {
+            store(20, dur);
+        }
+        if dur > load(21) {
+            store(21, dur);
+        }
+    }
+
+    /// Application entry: build the chain, hand the handles to the ISR, then
+    /// keep the main loop alive.
+    pub(super) fn run() -> ! {
+        // Stack high-water instrumentation.  Paint the whole RAMSTACK region
+        // (0x0100..0x0400) with 0xBEEF *before* any stack-consuming work, using
+        // the register-only asm helper.  The post-run JTAG scan finds the
+        // highest word that is no longer 0xBEEF, which is the deepest the
+        // stack (including the ISR) ever grew.
+        // SAFETY: the helper only writes the RAMSTACK window and clobbers no
+        // Rust state; the region is reserved for the stack by ram.cmd.
+        unsafe { c28x_rt_fill_stack_sentinel() };
+        store(17, FAULT_WINDOW);
+        store(19, REPORT_MAGIC);
+        // Board bring-up: clocks + ADC power-up. The c28x-rt startup does not
+        // do this, and an unpowered ADC never asserts EOC.
+        system_init();
+        // Record the ADC offset trim before/after Device_cal (run inside
+        // system_init -> power_up).  They differ iff the factory calibration
+        // was actually loaded.
+        store(29, unsafe { ffi::f28035_adc_offtrim_before() });
+        store(30, unsafe { ffi::f28035_adc_offtrim_after() });
+        // Let the ADC reference/bandgap settle before the first conversion
+        // (the PAC sequence deliberately leaves the settle delay to the app).
+        delay_us(1000);
+        delay_us(1000);
+        let Some(mut peripherals) = Peripherals::take() else {
+            loop {}
+        };
+        let Ok(adc) = peripherals.adc.into_soc0::<0, 6>() else {
+            loop {}
+        };
+        let Ok(mut pwm) = peripherals.pwm1.configure::<BUSINESS_PWM_PERIOD_TICKS>() else {
+            loop {}
+        };
+        pwm.set_compare(0);
+        pwm.enable();
+        // Fault protection: a trip forces the PWM output low (fail-safe).  The
+        // ISR forces/clears the one-shot trip on fault injection/recovery.
+        unsafe { ffi::f28035_epwm1_tz_force_low_config() };
+        let Ok(link) = peripherals.sci_a.configure::<SCI_BAUD_DIV>() else {
+            loop {}
+        };
+        // SCI real TX/RX: internal-loopback content self-test (send a known
+        // pattern, require the exact bytes back), then restore normal 8N1 for
+        // the business transmit path.
+        unsafe { ffi::f28035_sci_loopback_selftest() };
+        store(26, unsafe { ffi::f28035_sci_loopback_tx() });
+        store(27, unsafe { ffi::f28035_sci_loopback_rx() });
+        store(28, unsafe { ffi::f28035_sci_loopback_mismatch() });
+        store(31, unsafe { ffi::f28035_sci_fifo_rx() });
+        store(32, unsafe { ffi::f28035_sci_fifo_mismatch() });
+        store(33, unsafe { ffi::f28035_sci_timeout_ok() });
+        let mut fi: u16 = 0;
+        while fi < 8 {
+            store(34 + fi as usize, unsafe { ffi::f28035_sci_fifo_byte(fi) });
+            fi += 1;
+        }
+        unsafe { ffi::f28035_sci_configure(SCI_BAUD_DIV) };
+        let Ok(timer) = peripherals.timer0.start_periodic::<1>() else {
+            loop {}
+        };
+        // SAFETY: the ISR cannot run before enable_interrupt(), and these are
+        // the only writes to the three slots.
+        unsafe {
+            ADC = Some(adc);
+            PWM = Some(pwm);
+            LINK = Some(link);
+        }
+        // CPU IER group 1 + EINT: the handler needs no register access.
+        timer.enable_interrupt();
+        loop {
+            // SAFETY: single writer; the volatile store keeps the loop alive
+            // and visible to the ISR-side report.
+            unsafe {
+                let slot = core::ptr::addr_of_mut!(MAIN_LOOPS);
+                let next = core::intrinsics::volatile_load(slot).wrapping_add(1);
+                core::intrinsics::volatile_store(slot, next);
+            }
+        }
+    }
+}
+
+/// Integrated business loop entry (runs as `main` under the c28x-rt startup).
+#[cfg(all(feature = "bare-mmio-business", feature = "direct-obj-mmio", not(test)))]
+#[unsafe(no_mangle)]
+pub extern "C" fn main() -> ! {
+    business::run()
+}
+
+/// Rust body of the TINT0 interrupt for the integrated business loop.
+#[cfg(all(feature = "bare-mmio-business", feature = "direct-obj-mmio", not(test)))]
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_timer0_isr() {
+    business::on_tick();
+}
+
+/// Exercises GPIO0 MUX routing and GPIO34 input configuration/data sampling via
+/// the same Safe HAL API used by applications. The caller checks register
+/// snapshots; bit 4 carries the observed pin level without assuming an
+/// external board strap.
+#[cfg(feature = "bare-mmio")]
+#[unsafe(no_mangle)]
+pub extern "C" fn rust_safe_gpio_probe() -> u16 {
+    let Some(mut peripherals) = Peripherals::take() else { return 0 };
+    if peripherals.gpio.set_mux::<0, 1>().is_err() { return 0 }
+    let mux_one = peripherals.gpio.mux::<0>();
+    if peripherals.gpio.set_mux::<0, 0>().is_err() { return 0 }
+    let mux_zero = peripherals.gpio.mux::<0>();
+    let Ok(input) = peripherals.gpio.input_with::<34, true, 2>() else { return 0 };
+    mux_one | (mux_zero << 2) | (u16::from(input.read()) << 4)
 }
 
 #[cfg(feature = "arithmetic")]
@@ -49,9 +567,13 @@ pub enum HalError {
     /// The pin is already owned by another handle derived from the same
     /// [`Gpio`] root.  Taking it again would alias the same physical pin.
     PinAlreadyTaken(u16),
-    /// The C bridge reported that the resource could not be configured
+    /// The low-level implementation reported that the resource could not be configured
     /// (invalid mode, reserved encoding, or a readback mismatch).
     ConfigurationRejected(u16),
+    /// A bounded hardware poll expired: no end-of-conversion flag, or no
+    /// received character.  Reported instead of returning a stale value so a
+    /// control loop can distinguish "sample failed" from "sample was zero".
+    Timeout,
 }
 
 /// The single ownership root for F28035 peripherals.
@@ -128,14 +650,24 @@ impl Gpio {
     }
 
     /// Claims `PIN` as an output.  Fails if `PIN` is already owned by this
-    /// root, or if the C bridge rejects the configuration.
+    /// root, or if the low-level register configuration rejects it.
     #[inline(always)]
     pub fn output<const PIN: u16>(&mut self) -> Result<OutputPin<PIN>, HalError> {
         assert!(PIN <= 44, "PIN <= 44");
         if !self.claim(PIN) {
             return Err(HalError::PinAlreadyTaken(PIN));
         }
-        // Safety: the const-generic pin is checked before crossing the FFI.
+        #[cfg(all(not(test), feature = "direct-obj-mmio"))]
+        let configured = match pac::gpio::output_config(PIN) {
+            Some(config) => {
+                let mut bus = pac::C28xMmio;
+                // SAFETY: PIN is in range, and the PAC brackets protected writes.
+                unsafe { config.apply(&mut bus) };
+                1
+            }
+            None => 0,
+        };
+        #[cfg(any(test, not(feature = "direct-obj-mmio")))]
         let configured = unsafe { ffi::f28035_gpio_make_output(PIN) };
         if configured == 0 {
             self.release(PIN);
@@ -160,7 +692,25 @@ impl Gpio {
         if !self.claim(PIN) {
             return Err(HalError::PinAlreadyTaken(PIN));
         }
-        // Safety: the const-generic pin and qualifier are checked before FFI.
+        #[cfg(all(not(test), feature = "direct-obj-mmio"))]
+        let configured = {
+            let qualification = match QUALIFICATION {
+                1 => pac::gpio::Qualification::Sample3,
+                2 => pac::gpio::Qualification::Sample6,
+                3 => pac::gpio::Qualification::Async,
+                _ => pac::gpio::Qualification::Sync,
+            };
+            match pac::gpio::input_config(PIN, PULLUP, qualification) {
+                Some(config) => {
+                    let mut bus = pac::C28xMmio;
+                    // SAFETY: PIN and qualification are checked above.
+                    unsafe { config.apply(&mut bus) };
+                    1
+                }
+                None => 0,
+            }
+        };
+        #[cfg(any(test, not(feature = "direct-obj-mmio")))]
         let configured =
             unsafe { ffi::f28035_gpio_make_input(PIN, u16::from(PULLUP), QUALIFICATION) };
         if configured == 0 {
@@ -213,7 +763,7 @@ impl Gpio {
     /// (0 = GPIO, 1..3 = peripheral function).  The MUX routing is
     /// allowed only while `PIN` has no live GPIO or XINT handle. This does
     /// not consume a claim slot; a later input/output claim restores GPIO
-    /// mode through the bridge.
+    /// mode through the selected PAC or bridge path.
     #[inline(always)]
     pub fn set_mux<const PIN: u16, const FUNC: u16>(&mut self) -> Result<(), HalError> {
         assert!(PIN <= 44, "PIN <= 44");
@@ -221,7 +771,16 @@ impl Gpio {
         if self.is_claimed(PIN) {
             return Err(HalError::PinAlreadyTaken(PIN));
         }
-        // Safety: the const-generic pin and function are checked before FFI.
+        #[cfg(all(not(test), feature = "direct-obj-mmio"))]
+        let configured = match pac::gpio::mux_field(PIN) {
+            Some(field) => {
+                let mut bus = pac::C28xMmio;
+                // SAFETY: the PAC brackets the protected MUX write.
+                unsafe { u16::from(field.set(&mut bus, FUNC)) }
+            }
+            None => 0,
+        };
+        #[cfg(any(test, not(feature = "direct-obj-mmio")))]
         let configured = unsafe { ffi::f28035_gpio_set_mux(PIN, FUNC) };
         if configured == 0 {
             return Err(HalError::ConfigurationRejected(PIN));
@@ -234,7 +793,14 @@ impl Gpio {
     #[inline(always)]
     pub fn mux<const PIN: u16>(&self) -> u16 {
         assert!(PIN <= 44, "PIN <= 44");
-        // Safety: the const-generic pin is checked before FFI.
+        #[cfg(all(not(test), feature = "direct-obj-mmio"))]
+        {
+            let Some(field) = pac::gpio::mux_field(PIN) else { return 0xffff };
+            let mut bus = pac::C28xMmio;
+            // SAFETY: the PAC field names a readable MUX register.
+            unsafe { field.read(&mut bus) }
+        }
+        #[cfg(any(test, not(feature = "direct-obj-mmio")))]
         unsafe { ffi::f28035_gpio_mux(PIN) }
     }
 }
@@ -289,7 +855,17 @@ pub struct OutputPin<const PIN: u16>(());
 impl<const PIN: u16> OutputPin<PIN> {
     #[inline(always)]
     pub fn set(&mut self, high: bool) {
-        // Safety: only a pin claimed by Gpio::output constructs this type.
+        #[cfg(all(not(test), feature = "direct-obj-mmio"))]
+        {
+            if let Some(command) = pac::gpio::output_command(PIN) {
+                let mut bus = pac::C28xMmio;
+                // SAFETY: only a pin claimed by Gpio::output constructs this type.
+                unsafe {
+                    if high { command.set(&mut bus) } else { command.clear(&mut bus) }
+                }
+            }
+        }
+        #[cfg(any(test, not(feature = "direct-obj-mmio")))]
         unsafe { ffi::f28035_gpio_write(PIN, u16::from(high)) }
     }
 
@@ -305,15 +881,30 @@ impl<const PIN: u16> OutputPin<PIN> {
 
     #[inline(always)]
     pub fn toggle(&mut self) {
-        // Safety: only a pin claimed by Gpio::output constructs this type.
+        #[cfg(all(not(test), feature = "direct-obj-mmio"))]
+        {
+            if let Some(command) = pac::gpio::output_command(PIN) {
+                let mut bus = pac::C28xMmio;
+                // SAFETY: the GPIO TOGGLE register is a write-only command.
+                unsafe { command.toggle(&mut bus) }
+            }
+        }
+        #[cfg(any(test, not(feature = "direct-obj-mmio")))]
         unsafe { ffi::f28035_gpio_toggle(PIN) }
     }
 
     /// Reads back the output latch for this pin.  For pure GPIO (mux=0) the
-    /// C bridge returns the DATA bit; the value is stable between commands.
+    /// low-level path returns the DATA bit; the value is stable between commands.
     #[inline(always)]
     pub fn is_high(&self) -> bool {
-        // Safety: the pin was validated by Gpio before this handle existed.
+        #[cfg(all(not(test), feature = "direct-obj-mmio"))]
+        {
+            let Some(sample) = pac::gpio::input_sample(PIN) else { return false };
+            let mut bus = pac::C28xMmio;
+            // SAFETY: the pin was validated before this handle existed.
+            unsafe { sample.read(&mut bus) }
+        }
+        #[cfg(any(test, not(feature = "direct-obj-mmio")))]
         unsafe { ffi::f28035_gpio_read(PIN) != 0 }
     }
 
@@ -351,13 +942,31 @@ impl<const PIN: u16> OutputPin<PIN> {
 /// use f28035_safe_hal::InputPin;
 /// let _forged = InputPin::<34>(());
 /// ```
+///
+/// An input handle cannot drive the pin: only [`OutputPin`] exposes the
+/// output commands, so a C program that writes GPBDAT through an "input"
+/// handle has no Safe Rust equivalent.
+///
+/// ```compile_fail
+/// use f28035_safe_hal::InputPin;
+/// fn drive_from_input(pin: &mut InputPin<34>) {
+///     pin.set_low();
+/// }
+/// ```
 #[derive(Debug, PartialEq, Eq)]
 pub struct InputPin<const PIN: u16>(());
 
 impl<const PIN: u16> InputPin<PIN> {
     #[inline(always)]
     pub fn read(&self) -> bool {
-        // Safety: only a pin claimed by Gpio constructs this type.
+        #[cfg(all(not(test), feature = "direct-obj-mmio"))]
+        {
+            let Some(sample) = pac::gpio::input_sample(PIN) else { return false };
+            let mut bus = pac::C28xMmio;
+            // SAFETY: only a validated GPIO pin can construct this handle.
+            unsafe { sample.read(&mut bus) }
+        }
+        #[cfg(any(test, not(feature = "direct-obj-mmio")))]
         unsafe { ffi::f28035_gpio_read(PIN) != 0 }
     }
 
@@ -486,12 +1095,36 @@ impl<const PERIOD_MS: u16> PeriodicTimer0<PERIOD_MS> {
         unsafe { ffi::f28035_timer0_interrupts() }
     }
 
+    /// Enables the Timer0 CPU interrupt line (PIE group 1) and global
+    /// interrupts so the `TINT0` handler runs every period.
+    ///
+    /// [`Timer0::start_periodic`] already enabled PIEIER1 INT7 and the timer
+    /// TIE; this only finishes the CPU-side enable, so the application never
+    /// touches IER or the `EINT` instruction itself.  Call
+    /// [`timer0_interrupt_ack`] at the top of the handler.
+    #[inline(always)]
+    pub fn enable_interrupt(&self) {
+        // Safety: this handle uniquely owns Timer0 and the period was checked.
+        unsafe { ffi::f28035_enable_timer0_interrupt() };
+    }
+
     #[inline(always)]
     pub fn stop(self) -> StoppedTimer0<PERIOD_MS> {
         // Safety: this handle uniquely owns Timer0.
         unsafe { ffi::f28035_timer0_stop() }
         StoppedTimer0(())
     }
+}
+
+/// Acknowledge the Timer0 PIE group-1 line from the `TINT0` handler.
+///
+/// Call this once at the top of the `#[interrupt] fn TINT0()` body; it replaces
+/// the manual `PieCtrlRegs.PIEACK.all = PIEACK_GROUP1` write, so the handler
+/// only contains the application logic.
+#[inline(always)]
+pub fn timer0_interrupt_ack() {
+    // Safety: acknowledging the PIE line is idempotent and only touches PIEACK.
+    unsafe { ffi::f28035_timer0_ack() };
 }
 
 impl<const PERIOD_MS: u16> StoppedTimer0<PERIOD_MS> {
@@ -575,7 +1208,18 @@ impl<const PERIOD_TICKS: u16> Pwm1Output<PERIOD_TICKS> {
         unsafe { ffi::f28035_epwm1_compare() }
     }
 
-    /// Enables the ePWM1A output (TBCTL PWMENABLE).  Idempotent.
+    /// Makes ePWM1 emit a start-of-conversion pulse to the ADC on every
+    /// CTR = ZERO, so the sample instant is locked to the PWM period.
+    ///
+    /// Pair with [`ConfiguredAdc::use_pwm1_soca_trigger`]; the control ISR then
+    /// only reads the finished conversion instead of forcing one.
+    #[inline(always)]
+    pub fn enable_adc_trigger(&mut self) {
+        // Safety: this handle uniquely owns ePWM1.
+        unsafe { ffi::f28035_epwm1_enable_soca_trigger() };
+    }
+
+    /// Starts driving the configured waveform on EPWM1A.
     #[inline(always)]
     pub fn enable(&mut self) {
         // Safety: ePWM1 is uniquely owned by this handle.
@@ -698,6 +1342,26 @@ impl<const CHANNEL: u16> ConfiguredAdc<CHANNEL> {
     pub fn timeout_count(&self) -> u16 {
         self.0.timeout_count()
     }
+
+    /// Switches SOC0 to the ePWM1 SOCA hardware trigger.
+    ///
+    /// After this the conversion starts at every PWM zero event, so the ISR
+    /// must call [`Self::sample_triggered`] instead of [`Self::sample`].
+    #[inline(always)]
+    pub fn use_pwm1_soca_trigger(&mut self) {
+        // Safety: SOC0 is exclusively configured by this handle.
+        unsafe { ffi::f28035_adc_soc0_use_epwm1_soca() };
+    }
+
+    /// Reads the conversion started by the hardware trigger.
+    ///
+    /// Returns the 12-bit result, or `0xFFFF` when no end-of-conversion flag
+    /// arrived before the bounded wait expired.
+    #[inline(always)]
+    pub fn sample_triggered(&mut self) -> u16 {
+        // Safety: this handle owns SOC0 and the trigger is configured.
+        unsafe { ffi::f28035_adc_wait_result() }
+    }
 }
 
 /// A uniquely owned SPI-B controller handle.
@@ -713,10 +1377,100 @@ pub struct SpiB(());
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpiLoopback<const CHAR_BITS: u16>(());
 
+/// A configured SCI-A link (8-bit characters, 1 stop bit, no parity).
+///
+/// The transmitter is verified end to end: every [`send`](Self::send) waits for
+/// `SCICTL2.TXRDY` before writing `SCITXBUF`. TXRDY is clear while the buffer
+/// still holds a byte, so a successful return means the previous character had
+/// already moved into the shifter and this one was accepted. Receiving needs a
+/// peer or a loopback jumper; `SCIRXST.RXRDY` is not part of the send path.
+///
+/// ```compile_fail
+/// use f28035_safe_hal::SciLink;
+/// let _forged = SciLink(());
+/// ```
+#[derive(Debug, PartialEq, Eq)]
+pub struct SciLink<const BAUD_DIV: u16>(());
+
+impl<const BAUD_DIV: u16> SciLink<BAUD_DIV> {
+    /// Sends one byte; returns `true` when the transmitter accepted it.
+    ///
+    /// The completion indication is a plain `bool`. B-1's compiler regression
+    /// separately covers bool and tagged Result method returns; the historical
+    /// wrapper failure alone did not establish a general enum ABI defect.
+    ///
+    /// Delegates to [`sci_send_byte`], which is the form verified on hardware.
+    pub fn send(&mut self, byte: u8) -> bool {
+        sci_send_byte(byte)
+    }
+}
+
+/// Sends one byte through the configured SCI-A transmitter.
+///
+/// [`SciLink::send`] delegates here. This free form is also available as a
+/// diagnostic control for the method path; the old difference between those
+/// forms was insufficient evidence of a general zero-sized-handle ABI defect.
+///
+/// Returns `true` when the transmitter accepted the byte (`SCICTL2.TXRDY` was
+/// set before the write).
+#[inline(never)]
+pub fn sci_send_byte(byte: u8) -> bool {
+    // Safety: the caller configured SCI-A (see `SciA::configure`).
+    (unsafe { ffi::f28035_sci_send(u16::from(byte)) }) != 0
+}
+
+/// A configured SPI-B hardware-loopback link (8-bit characters).
+///
+/// The module loops its own shift-register output back into the receiver
+/// (`SPICCR.SPILBK`), so a business path can prove real serial transmission
+/// with no pins and no external wiring.
+///
+/// ```compile_fail
+/// use f28035_safe_hal::SpiLink;
+/// let _forged = SpiLink(());
+/// ```
+#[derive(Debug, PartialEq, Eq)]
+pub struct SpiLink<const CHAR_BITS: u16>(());
+
+impl<const CHAR_BITS: u16> SpiLink<CHAR_BITS> {
+    /// Exchanges one frame and returns the byte received back.
+    ///
+    /// Returns [`HalError::Timeout`] when the transfer never completes, so a
+    /// dead link cannot be mistaken for a valid `0x00`.
+    #[inline(always)]
+    pub fn transfer(&mut self, byte: u8) -> Result<u8, HalError> {
+        // Safety: this handle was produced by `SpiB::loopback_link`, so the
+        // block is configured in hardware loopback mode.
+        let received = unsafe { ffi::f28035_spi_loopback_xfer(u16::from(byte)) };
+        if received & 0x8000 != 0 {
+            return Err(HalError::Timeout);
+        }
+        Ok((received & 0x00ff) as u8)
+    }
+}
+
 impl SpiB {
     #[inline(always)]
     pub fn reg_readback(&mut self) {
         pac::f28035_spi_reg_if_rw_basic();
+    }
+
+    /// Configures SPI-B for the hardware internal loopback and returns a link
+    /// handle that can exchange 8-bit frames.
+    ///
+    /// The configuration is the audited register sequence (8-bit characters,
+    /// master, `SPILBK`, FIFO words) that the C bridge and the host-verified
+    /// [`pac::spi::run_internal_loopback`] share, so a caller never writes a
+    /// register. Only 8-bit characters are supported; other widths are
+    /// rejected at compile time.
+    #[inline(always)]
+    pub fn loopback_link<const CHAR_BITS: u16>(&mut self) -> Result<SpiLink<CHAR_BITS>, HalError> {
+        assert!(CHAR_BITS == 8, "SPI loopback uses 8-bit characters");
+        // Safety: this handle uniquely owns SPI-B.
+        if unsafe { ffi::f28035_spi_loopback_configure() } == 0 {
+            return Err(HalError::ConfigurationRejected(CHAR_BITS));
+        }
+        Ok(SpiLink(()))
     }
 
     /// Runs the SPI-B internal-loopback 8-bit exchange.
@@ -791,6 +1545,23 @@ pub struct SciA(());
 pub struct SciProfile<const BAUD_DIV: u16, const CHAR_BITS: u16>(());
 
 impl SciA {
+    /// Configures SCI-A as 8N1 at `LSPCLK / (8 * BAUD_DIV)` and returns a link
+    /// handle.
+    ///
+    /// The bridge enables the SCI-A clock, routes GPIO28/GPIO29 to
+    /// SCITXD/SCIRXD, programs the divisor and releases the software reset
+    /// (`SWRESET = 0` is the operating state on F2803x; asserting it last would
+    /// hold the module in reset). A zero divisor is rejected at compile time.
+    #[inline(always)]
+    pub fn configure<const BAUD_DIV: u16>(&mut self) -> Result<SciLink<BAUD_DIV>, HalError> {
+        assert!(BAUD_DIV > 0, "BAUD_DIV > 0");
+        // Safety: the divisor is nonzero and this handle uniquely owns SCI-A.
+        if unsafe { ffi::f28035_sci_configure(BAUD_DIV) } == 0 {
+            return Err(HalError::ConfigurationRejected(BAUD_DIV));
+        }
+        Ok(SciLink(()))
+    }
+
     /// Runs the fixed SCI-A baud programming self-test in the C bridge.
     #[inline(always)]
     pub fn baud_program_self_test(&mut self) {
@@ -1227,6 +1998,29 @@ mod tests {
     fn fresh_peripherals() -> Peripherals {
         ffi::reset_peripherals();
         Peripherals::take().unwrap()
+    }
+
+    /// The business loop's ADC->duty mapping is pinned here so the hardware
+    /// readback has a single reference formula (the DSS script mirrors it).
+    #[cfg(feature = "bare-mmio-business")]
+    #[test]
+    fn business_duty_mapping_matches_expected_curve() {
+        use super::{BUSINESS_ADC_FULL_SCALE, BUSINESS_PWM_PERIOD_TICKS, business_duty_for};
+        assert_eq!(business_duty_for(0), 0);
+        assert_eq!(business_duty_for(1), 0);
+        assert_eq!(business_duty_for(2048), 500);
+        assert_eq!(business_duty_for(BUSINESS_ADC_FULL_SCALE), BUSINESS_PWM_PERIOD_TICKS);
+        // The ADC timeout marker clamps to full scale instead of wrapping.
+        assert_eq!(business_duty_for(0xFFFF), BUSINESS_PWM_PERIOD_TICKS);
+    }
+
+    /// T2 proof: peripheral ownership is a singleton.  A second
+    /// `Peripherals::take` returns `None` instead of aliasing the handles,
+    /// so no two safe owners of the same peripheral root can exist.
+    #[test]
+    fn peripherals_can_only_be_taken_once() {
+        let _first = fresh_peripherals();
+        assert!(Peripherals::take().is_none());
     }
 
     #[test]

@@ -22,8 +22,8 @@
       "src": "backend/llvm-c28x/test/CodeGen/const3.ll",
       "golden": "golden/const3.ll.s",
       "checks": ["mov al, #3", "lretr"],
-      "objbytes": "039a0600",
-      "note": "MC 层对象字节回归（MOVB AL,#3 = word 9A03; LRETR = word 0006）。字节序为小端（低字节在前），与 TI cl2000/asm2000 输出一致"
+      "objbytes": "01fe039a81fe0600",
+      "note": "MC 层对象字节回归：B-1 保护字 prologue/epilogue 包住 MOVB AL,#3（word 9A03）与 LRETR（word 0006）；指令编码由 TI cl2000/asm2000 oracle 核对"
     },
     {
       "id": "llvm-const255",
@@ -31,32 +31,32 @@
       "src": "backend/llvm-c28x/test/CodeGen/const255.ll",
       "golden": "golden/const255.ll.s",
       "checks": ["mov al, #255", "lretr"],
-      "objbytes": "ff9a0600",
-      "note": "imm8 边界（MOVB AX,#8bit 为无符号字节，不得符号扩展到操作码）"
+      "objbytes": "01feff9a81fe0600",
+      "note": "B-1 保护字帧内的 imm8 边界；MOVB AX,#8bit 为无符号字节，不得符号扩展到操作码"
     },
     {
       "id": "llvm-addsub",
       "kind": "ll",
       "src": "backend/llvm-c28x/test/CodeGen/addsub.ll",
-      "checks": ["add al, ar0", "sub al, ar0", "lretr"],
-      "objbytes": "a0940600a09e0600",
-      "note": "ADD/SUB AL,@AR0 对象字节（word 94A0/9EA0 + LRETR 0006，小端存储）"
+      "checks": ["add al, ah", "sub al, ah", "lretr"],
+      "objbytes": "01fea89481fe060001fea89e81fe0600",
+      "note": "B-1 保护字帧包住 ADD/SUB AL,@AR0 与 LRETR；核心操作码由 TI oracle 核对"
     },
     {
       "id": "llvm-logic",
       "kind": "ll",
       "src": "backend/llvm-c28x/test/CodeGen/logic.ll",
-      "checks": ["and al, ar0", "or al, ar0", "xor al, ar0", "lretr"],
-      "objbytes": "a0ce0600a0ca0600a0700600",
-      "note": "AND/OR/XOR AL,@AR0 对象字节（word CEA0/CAA0/70A0 + LRETR 0006，小端存储）"
+      "checks": ["and al, ah", "or al, ah", "xor al, ah", "lretr"],
+      "objbytes": "01fea8ce81fe060001fea8ca81fe060001fea87081fe0600",
+      "note": "B-1 保护字帧包住 AND/OR/XOR AL,@AR0 与 LRETR；核心操作码由 TI oracle 核对"
     },
     {
       "id": "llvm-mmio-const",
       "kind": "ll",
       "src": "backend/llvm-c28x/test/CodeGen/mmio-const.ll",
-      "checks": ["movl xar0, #4160", "mov al, *xar0", "mov *xar0, al", "lretr"],
-      "objbytes": "008d4010c0920600008d4010c0960600",
-      "note": "裸常量地址（MMIO，无重定位）：inttoptr(i32 4160) → MOVL XAR0,#0x1040 + MOV AL,*XAR0 + LRETR；store 版走 MOV_ind_store(96C0)。需要 (i32 imm22) → MOVL_XAR_imm 模式，否则报 Cannot select: Constant<4160>。22 位打包（XAR2,#0x10000→8D81、XAR3,#0x3FFFFF→8DFF）与间接寻址 0xC0|n 均由 asm2000/dis2000 实证。越界地址的负向守卫在 verify-llvm-c28x.ps1（mmio-oor.ll）"
+      "checks": ["movl xar0, #4160", "movl xar7, acc", "mov al, *xar7", "mov *xar7, al", "lretr"],
+      "objbytes": "01fe008d4010a93a082952ffa9c5c79281fe060001fe008d4010bd1ea93a082952ffa9c5be06c79681fe0600",
+      "note": "裸常量 MMIO 地址在 B-1 保护字帧中通过已验证的 32 位地址构造与间接 load/store 序列；22 位立即数和核心操作码由 asm2000/dis2000 oracle 核对，越界地址由 verify-llvm-c28x.ps1 拒绝"
     },
     {
       "id": "contract-eallow-store",

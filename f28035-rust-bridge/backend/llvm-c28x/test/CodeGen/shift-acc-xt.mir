@@ -1,0 +1,30 @@
+# RUN: llc -mtriple=c28x-ti-none -run-pass=postrapseudos %s -o - | FileCheck %s
+# Shift count staging must preserve an ACC input when the count lives in XT.
+---
+name: shift_acc_xt
+tracksRegLiveness: false
+body: |
+  bb.0:
+    $xar4 = SRL32_VAR_PSEUDO $acc, $xt, implicit-def $acc, implicit-def $xt
+    LRETR
+...
+# CHECK-LABEL: name: shift_acc_xt
+# CHECK: PUSH_ACC
+# CHECK-NEXT: $acc = MOV_ACC_rr $xt
+# CHECK-NEXT: $xar7 = MOVL_XAR_ACC $acc
+# CHECK-NEXT: POP_ACC
+# CHECK-NEXT: MOV_T $ar7
+# CHECK-NEXT: $acc = LSRL_ACC_T $acc
+
+---
+name: shift_src_xt
+tracksRegLiveness: false
+body: |
+  bb.0:
+    $xar4 = SRL32_VAR_PSEUDO $xt, $xar0, implicit-def $acc, implicit-def $xt
+    LRETR
+...
+# CHECK-LABEL: name: shift_src_xt
+# CHECK: $acc = MOV_ACC_rr $xt
+# CHECK-NEXT: MOV_T $ar7
+# CHECK-NEXT: $acc = LSRL_ACC_T $acc

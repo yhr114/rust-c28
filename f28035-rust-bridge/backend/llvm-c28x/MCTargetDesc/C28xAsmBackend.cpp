@@ -6,15 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// Minimal MCAsmBackend so that `llc -filetype=obj` can produce an ELF object
-// for self-checking encoded machine bytes (llvm-objdump -s). This object is a
-// verification vehicle only: the TI toolchain consumes .s + cl2000 (COFF), so
-// no TI-side tool ever reads this ELF.
-//
-// Two-word branches are the only verified instructions that emit a target
-// fixup (FK_C28x_BRANCH). Because a branch always targets a basic-block label
-// in the same section, the fixup resolves completely and no relocation is
-// written; getRelocType stays fail-closed for anything else.
+// B-1 emits TI C28x EABI ELF directly. Local branches resolve in MC; absolute
+// instruction and static-data addresses are relocated by the TI linker.
 //
 //===----------------------------------------------------------------------===//
 
@@ -28,7 +21,9 @@
 #include "llvm/MC/MCFixup.h"
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCRegisterInfo.h"
+#include "llvm/MC/MCSectionELF.h"
 #include "llvm/MC/MCSubtargetInfo.h"
+#include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/MCTargetOptions.h"
 #include "llvm/MC/MCValue.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -48,7 +43,13 @@ public:
                         bool IsPCRel) const override {
     // TI C28x EABI relocation type numbers (from ofd2000 on asm2000 output):
     //   R_C28X_ABS22_BR = 20  -- two-word 22-bit absolute address (LCR/MOVL)
-    // We only emit that one today; anything else is still unsupported.
+    // Plain data fields use TI's ABS8/16/32 relocations.
+    switch (Fixup.getKind()) {
+    case FK_Data_1: return 1; // R_C28X_ABS8
+    case FK_Data_2: return 2; // R_C28X_ABS16
+    case FK_Data_4: return 3; // R_C28X_ABS32
+    default: break;
+    }
     if (Fixup.getKind() == C28x::FK_C28x_ABS22)
       return 20; // R_C28X_ABS22_BR
     report_fatal_error(
@@ -79,19 +80,32 @@ public:
     uint8_t *const FieldBase = Data;
 
     if (Kind == C28x::FK_C28x_BRANCH) {
-      // Unresolved (external) branch target: the verified design only allows
-      // PC-relative branches to same-section basic-block labels.  core references
-      // a noreturn/external symbol that reaches here (a tail-call to a noreturn
-      // callee lowered to B).  This ELF object is a verification vehicle only
-      // (real output goes through asm2000, which resolves the relocation), so
-      // rather than abort, zero the offset field and warn.  A proper PC-relative
-      // branch relocation type is a later linker gap.
+      // Fail closed on an unresolved branch target. B-1 emits this
+      // ELF object directly for the TI linker -- no later asm2000 pass exists
+      // that could repair a zeroed field. The object writer implements
+      // no PC-relative branch relocation (only ABS8/ABS16/ABS32/ABS22_BR), so
+      // there is nothing correct to write here; diagnose instead of emitting a
+      // corrupt instruction. External calls use LCR/ABS22_BR, which has a
+      // relocation; a B across sections still cannot be resolved here.
       if (!IsResolved) {
-        errs() << "C28x BRANCH to unresolved target: leaving offset=0 "
-                  "(Value=" << Value << ")\n";
-        FieldBase[0] = 0;
-        FieldBase[1] = 0;
-        return;
+        std::string Expression;
+        raw_string_ostream OS(Expression);
+        if (const MCSymbol *S = Target.getAddSym())
+          OS << (S->getName().empty() ? StringRef("<unnamed temporary>")
+                                     : S->getName());
+        else
+          OS << "<absolute expression>";
+        if (Target.getSubSym())
+          OS << " minus " << *Target.getSubSym();
+        if (Target.getConstant())
+          OS << " + " << Target.getConstant();
+        report_fatal_error(
+            Twine("C28x: BRANCH to unresolved target '") + Expression +
+            "' in section '" + F.getParent()->getName() +
+            "' (external, undefined, or cross-section target). No PC-relative branch "
+            "relocation is implemented, so this cannot be emitted safely; "
+            "route the call through LCR (ABS22_BR) or make the target "
+            "resolvable in this object");
       }
       // "B 16bitOffset,COND" stores (target word address - branch word address)
       // in its second word. The fixup sits on that second word, so the
@@ -122,13 +136,23 @@ public:
     }
 
     if (Kind == C28x::FK_C28x_ABS22) {
-      // Two-word 22-bit absolute: value is the 22-bit word address.
+      // Two-word 22-bit absolute: value is a 22-bit *word* address.
       //   FieldBase[0..1] = word0 = (existing opcode) | (addr >> 16)
       //   FieldBase[2..3] = word1 = addr & 0xFFFF
       // C28x is little-endian: low byte first. The placeholder bytes are
       // already written by the code emitter (word0 low byte has the opcode
       // low nibble; OR in the high 6 bits of the address).
-      uint32_t Addr = uint32_t(Value) & 0x3FFFFFu;
+      //
+      // MC::Value is byte-based (LLVM MC tracks byte offsets even for this
+      // 16-bit word-addressed target; FK_C28x_BRANCH below divides by two for
+      // the same reason).  The ELF addend for R_C28X_ABS22_BR is consumed by
+      // the TI linker as a WORD offset -- `getRelocationOffsetDivisor()`
+      // returns 2 for r_offset -- so the field must hold Value/2.  Writing the
+      // raw byte offset made the linker compute `section_word_addr + byte_off`
+      // (e.g. `MOVL XAR0,#0x8244` for a constant that actually lives at word
+      // 0x8122), i.e. a pointer two words past the intended object, landing
+      // inside unrelated code.
+      uint32_t Addr = (uint32_t(Value) >> 1) & 0x3FFFFFu;
       FieldBase[0] |= uint8_t((Addr >> 16) & 0x3F);
       FieldBase[2] = uint8_t(Addr & 0xFF);
       FieldBase[3] = uint8_t((Addr >> 8) & 0xFF);
@@ -141,6 +165,22 @@ public:
     if (Kind >= FirstTargetFixupKind)
       report_fatal_error("C28x: target applyFixup not implemented yet");
 
+    // LLVM 23 delegates relocation registration to applyFixup.  The generic
+    // data path previously wrote the unresolved value (zero) without recording
+    // anything, silently losing static function/data pointers.
+    //
+    // Allocated address constants must hold a Rust logical BYTE address while
+    // TI symbols are WORD addresses. Two ABS32 relocations on the same field
+    // compose as S + (S + A), yielding 2*S + byte_addend. Verified against TI
+    // asm2000's ABS32 and cl2000's linker, including nonzero addends. Debug
+    // sections retain native symbol addresses and need only one relocation.
+    if (Kind == FK_Data_4) {
+      maybeAddReloc(F, Fixup, Target, Value, IsResolved);
+      if (static_cast<const MCSectionELF *>(F.getParent())->getFlags() & ELF::SHF_ALLOC)
+        maybeAddReloc(F, Fixup, Target, Value, IsResolved);
+    } else {
+      maybeAddReloc(F, Fixup, Target, Value, IsResolved);
+    }
     MCFixupKindInfo Info = getFixupKindInfo(Kind);
     unsigned NumBytes = (Info.TargetOffset + Info.TargetSize + 7) / 8;
     Value <<= Info.TargetOffset;
@@ -167,8 +207,8 @@ public:
   bool writeNopData(raw_ostream &OS, uint64_t Count,
                     const MCSubtargetInfo *STI) const override {
     // ELF layout may request zero bytes as well as alignment padding. The
-    // verification object uses zero-filled words; executable TI output still
-    // goes through the vendor assembler.
+    // Keep padding separate from instruction fixups; executable B-1 objects
+    // are passed directly to the TI linker.
     OS.write_zeros(Count);
     return true;
   }

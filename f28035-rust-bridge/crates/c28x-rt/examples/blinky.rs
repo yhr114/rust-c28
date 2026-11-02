@@ -1,19 +1,17 @@
 //! Minimal blinky for F28035 using c28x-rt.
 //!
-//! Build (once a C28x Rust target exists):
-//!   cargo build --target c28x-none-elf --example blinky
-//!
-//! This example documents the intended usage pattern; it will not compile
-//! until a LLVM C28x backend is available.
+//! Attribute usage sketch. For the complete B-1 Cargo/TI RAM profile and a
+//! hardware regression, use the sibling B-1 crates/c28x-cargo-runtime project.
 
 #![no_std]
 #![no_main]
+#![feature(abi_c28x_interrupt)]
 
 use c28x_rt::{entry, interrupt, pre_init};
 
 /// Runs before .bss/.data are initialized — disable the watchdog here.
 #[pre_init]
-fn early_init() {
+unsafe fn early_init() {
     /* TODO: WDOG->disable() once the PAC exposes it. */
 }
 

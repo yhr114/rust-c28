@@ -1,0 +1,51 @@
+diff --git a/f28035-rust-bridge/backend/c28x-mir/src/main.rs b/f28035-rust-bridge/backend/c28x-mir/src/main.rs
+index 4cd190f..0341f5e 100644
+--- a/f28035-rust-bridge/backend/c28x-mir/src/main.rs
++++ b/f28035-rust-bridge/backend/c28x-mir/src/main.rs
+@@ -18,7 +18,7 @@ use rustc_interface::interface;
+ use rustc_middle::mir::{
+     BasicBlock, BinOp, Body, CastKind, Operand, Rvalue, StatementKind, TerminatorKind, UnOp,
+ };
+-use rustc_middle::ty::{self, TyCtxt};
++use rustc_middle::ty::{self, consts::ConstExt, TyCtxt};
+ use rustc_span::def_id::DefId;
+ 
+ struct C28xCallbacks {
+@@ -818,7 +818,7 @@ fn classify_platform_control_loop<'tcx>(
+         };
+         !allowed && !block.statements.is_empty()
+     }) || gpio_update.statements.len() != 2
+-        || !matches!(loop_back.terminator().kind, TerminatorKind::Goto { target } if target == bb1)
++        || !matches!(loop_back.terminator().kind, TerminatorKind::Goto { target, .. } if target == bb1)
+     {
+         return None;
+     }
+@@ -1016,8 +1016,8 @@ fn classify_platform_control_loop<'tcx>(
+             {
+                 return None;
+             }
+-            if !matches!(high.terminator().kind, TerminatorKind::Goto { target } if target == update_bb)
+-                || !matches!(sample.terminator().kind, TerminatorKind::Goto { target } if target == update_bb)
++            if !matches!(high.terminator().kind, TerminatorKind::Goto { target, .. } if target == update_bb)
++                || !matches!(sample.terminator().kind, TerminatorKind::Goto { target, .. } if target == update_bb)
+             {
+                 return None;
+             }
+@@ -3340,7 +3340,7 @@ fn classify_user_main_cfg<'tcx>(tcx: TyCtxt<'tcx>, body: &Body<'tcx>) -> Option<
+ 
+         let terminator = match &block.terminator().kind {
+             TerminatorKind::Assert { target, .. } => UserTerminator::Goto(target.as_usize()),
+-            TerminatorKind::Goto { target } => UserTerminator::Goto(target.as_usize()),
++            TerminatorKind::Goto { target, .. } => UserTerminator::Goto(target.as_usize()),
+             TerminatorKind::SwitchInt { discr, targets } => {
+                 let entries: Vec<_> = targets.iter().collect();
+                 if entries.len() != 1 || entries[0].0 > u16::MAX as u128 {
+@@ -5668,5 +5668,7 @@ fn main() {
+ 
+     driver_arguments.push("--crate-type=lib".to_owned());
+     driver_arguments.push("--emit=metadata".to_owned());
+-    rustc_driver::run_compiler(&driver_arguments, &mut callbacks);
++    // 2026-10-27 nightly API 迁移：rustc_driver::run_compiler 已移除，
++    // 其后继为 compiler_entrypoint（同样的 CLI 参数 + Callbacks 语义）。
++    rustc_driver::compiler_entrypoint(&driver_arguments, &mut callbacks);
+ }

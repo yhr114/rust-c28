@@ -1,0 +1,108 @@
+{
+  "schema": 1,
+  "rustCommit": "4b6d04e706108ccfeafe2547fbe857dfe8972bad",
+  "patch": "0001-add-c28x-target.patch",
+  "patchSha256": "7a9b1e0e8a2d6e704d22e0b3e29c5de37b58cf15b62b554e7e0b78843ee4838f",
+  "files": [
+    {
+      "path": "compiler/rustc_llvm/build.rs",
+      "baseSha256": "cb7d5e3a3ecf0bf396856dac3f4f359d7b2eec5f60b911657b38c701ab266845",
+      "sha256": "1d59ffb1eb8da63565e8cd88ff9fd34771ce5a421697903127304cea21b5f3af"
+    },
+    {
+      "path": "compiler/rustc_llvm/src/lib.rs",
+      "baseSha256": "3f17914961913b2f3cae9cd80b445af10c6c89b8823241c1a9aa14f680f3c9f2",
+      "sha256": "46f4eb168899da46e372f126bc7f00f7f7b5a866d797ee79e789e9808d64a453"
+    },
+    {
+      "path": "compiler/rustc_target/src/callconv/mod.rs",
+      "baseSha256": "ef2e3df43b74e1c52878ad0169f328d363ad2c76e9612ece8ef8ad69f9b16364",
+      "sha256": "e616971970dffdd1cae6c82849e1444b1d45834d6c437ae72b94ed536a182c8d"
+    },
+    {
+      "path": "compiler/rustc_target/src/spec/mod.rs",
+      "baseSha256": "5704961089877c30410b17d8458e62922699b55e616a48a73e6d25326e4f0cd9",
+      "sha256": "6bab67d7745f8902cc62764f8df0d2cab3933a76fb96f6748d34cc97999dc08e"
+    },
+    {
+      "path": "compiler/rustc_target/src/spec/targets/c28x_none_elf.rs",
+      "baseSha256": null,
+      "sha256": "e314fb81c12042974cc46e3253f44736f695cbad67977676139c2fcd8e941a59"
+    },
+    {
+      "path": "compiler/rustc_abi/src/extern_abi.rs",
+      "baseSha256": "e9264f4771556614e60d0b543e214126f4dec79441f12e917999747888f5271a",
+      "sha256": "d82ba09c4cdc5a8931d72f185d71b75494481b52d557278f2263fab8564f2b9d"
+    },
+    {
+      "path": "compiler/rustc_abi/src/canon_abi.rs",
+      "baseSha256": "6fac1f0452e60789b399cda733e5339d5652f92ac9b38fbe96ef9082e3f60c0f",
+      "sha256": "7f9608e2d23865ebc0b63e610742f62d5791081855ab8f0b5acf54d9047509ff"
+    },
+    {
+      "path": "compiler/rustc_ast_lowering/src/stability.rs",
+      "baseSha256": "c76abac2d9e0427b299c6e3a6a4f325e7d922322c14a1c76f7c4f185651f1386",
+      "sha256": "53503651c28363264e86cbe5ca1f79030c86f6730299da101bdd96d78d85dd06"
+    },
+    {
+      "path": "compiler/rustc_feature/src/unstable.rs",
+      "baseSha256": "f089d5bf8774e8a54a91feb5e064a067e89eaf9f17208f2317454c1f0a674f78",
+      "sha256": "dd87e4497a4e6056ec43a707c1d27bdf514132f85d0ea9577e14f541c68e9851"
+    },
+    {
+      "path": "compiler/rustc_span/src/symbol.rs",
+      "baseSha256": "ff676094e2d3b4fc24c8a32c08c56c0b5eefbf0519e08a282c2c9fcfd43e2527",
+      "sha256": "de239578ab1d73707aec2bacfe28f86ceff4a11c0a5e01f832b9b874996486ea"
+    },
+    {
+      "path": "compiler/rustc_target/src/spec/abi_map.rs",
+      "baseSha256": "4262e18400b99eb7a24d9a3658f8152464fe6d0779e48f31ed7fe00a4b593377",
+      "sha256": "07ba3f302531bda3315bf3b631fb70d9235bec66eaaaaf42e6bd89afcb36b991"
+    },
+    {
+      "path": "compiler/rustc_middle/src/ty/layout.rs",
+      "baseSha256": "ec66529345d12c1a1f90020f1822dca0e5045a4209cf6c1dab2d0c50c39f1ff1",
+      "sha256": "1f5a186478309f194a7178debcebd94bb9130f1a5d6e9bfbd2a6c1ecc0bd8d3c"
+    },
+    {
+      "path": "compiler/rustc_codegen_llvm/src/llvm/ffi.rs",
+      "baseSha256": "feb791943cc418a884ec67d0cf96d14ffc2860edaf0d7e9f116620ebb0008823",
+      "sha256": "136d4ac93afe3a39c2df211c01415a7409fd725f0a2b36b16001dd35eeb31f5e"
+    },
+    {
+      "path": "compiler/rustc_codegen_llvm/src/abi.rs",
+      "baseSha256": "f1fb330444664ba96130f3d5c9271be429d70ac882116db627b9e39631ec3b62",
+      "sha256": "7d30e27b8b902c2f76354f4711d59ae6f9b08a01617cae5db25025280b3c7722"
+    },
+    {
+      "path": "compiler/rustc_codegen_gcc/src/abi.rs",
+      "baseSha256": "7ac6ca557912efb3961f592ae677bc232e797617aabb23d674cb464f4993f4c1",
+      "sha256": "0dc1915caf52c397104d0ebeca463d9b48c9ca1e9e67d28144ba8668d6af318d"
+    },
+    {
+      "path": "compiler/rustc_public/src/ty/tys.rs",
+      "baseSha256": "ff2d1a84f315033cd50e7add63c853ec7704041cbffcd63b33453ad74c3140f4",
+      "sha256": "84f8d9803c2ea6a72b7db18be73cc0c8a106127c7cc9dbaedbbcd33de392135f"
+    },
+    {
+      "path": "compiler/rustc_public/src/unstable/convert/stable/ty.rs",
+      "baseSha256": "d2187f4c7e0e8438382c26c359f8231ad0f76e35de05367640ca27628a57a9be",
+      "sha256": "231a46af6488c416819a10e3fb782b65d709c4fb9b38b5e211fc43e3129cde80"
+    },
+    {
+      "path": "compiler/rustc_public/src/unstable/convert/internal.rs",
+      "baseSha256": "f8fa87413e8405890e0c9fd916b4e6885a7a77642583845219cd6eb8e626902a",
+      "sha256": "6b6cf9e2d7cec14a0413677d39271d07f78f2ad2ef046c95813511625b0d41fa"
+    },
+    {
+      "path": "compiler/rustc_public/src/abi.rs",
+      "baseSha256": "c46844f0f8754fbe5de09913b29aa1e45ede7422a43007226e4df4342bebbbf5",
+      "sha256": "5cf4df2d38a7562d6cc05ad31b5824e4826a5dfc83470bbc0d652f01f5937538"
+    },
+    {
+      "path": "compiler/rustc_public/src/unstable/convert/stable/abi.rs",
+      "baseSha256": "633075f41cb6d29701f5227564b2a7758f7a33001a83d36884b58fde401c2f5e",
+      "sha256": "a51831796610ac01066b27f3ff3289731d663c641909840dacb5021b430e81ad"
+    }
+  ]
+}

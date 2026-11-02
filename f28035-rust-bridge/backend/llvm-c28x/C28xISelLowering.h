@@ -53,6 +53,62 @@ public:
 
   const char *getTargetNodeName(unsigned Opcode) const override;
 
+  /// Expand `llvm.memcpy`/`llvm.memset`/`llvm.memmove` into plain loads and
+  /// stores instead of a library call.
+  ///
+  /// The generic chooser rejects every candidate type on this target, so each
+  /// memcpy became a call to the TI RTS `memcpy`.  That routine dereferences C
+  /// word addresses while the Rust ABI passes logical byte addresses, so every
+  /// in-memory aggregate copy of 4 bytes or more read and wrote the wrong
+  /// memory (hardware symptom: `zip(iter, iter.skip(1))` summed 12 instead of
+  /// 30 because `ZipImpl::new`'s 12-byte Skip copy came from an unrelated
+  /// address; minimal repro in tools/iter-probe/parts13.rs).
+  bool findOptimalMemOpLowering(LLVMContext &Context,
+                                std::vector<EVT> &MemOps, unsigned Limit,
+                                const MemOp &Op, unsigned DstAS, unsigned SrcAS,
+                                const AttributeList &FuncAttributes,
+                                EVT *LargestVT = nullptr) const override;
+
+  /// A 16-bit word access at an even byte address is always fine on C28x: the
+  /// backend converts the logical byte address to a word address with a
+  /// logical shift, so only odd byte addresses need the byte-offset path.
+  bool allowsMisalignedMemoryAccesses(EVT VT, unsigned AddrSpace = 0,
+                                      Align Alignment = Align(1),
+                                      MachineMemOperand::Flags Flags =
+                                          MachineMemOperand::MONone,
+                                      unsigned *Fast = nullptr) const override {
+    (void)AddrSpace;
+    (void)Flags;
+    if (!VT.isSimple())
+      return false;
+    MVT SVT = VT.getSimpleVT();
+    if (SVT != MVT::i16 && SVT != MVT::i32)
+      return false;
+    if (Alignment.value() < 2)
+      return false;
+    if (Fast)
+      *Fast = 1;
+    return true;
+  }
+
+  /// C28x is a single-core MCU with no cache and no other bus master, so an
+  /// aligned 16-bit load or store is already indivisible.  Telling
+  /// AtomicExpandPass to drop the atomicity in IR is the only way to get a
+  /// plain MOV out of it: the generic fallbacks either emit a cmpxchg loop or
+  /// call __atomic_* libcalls, and the TI runtime provides neither.
+  AtomicExpansionKind shouldExpandAtomicLoadInIR(LoadInst *LI) const override {
+    (void)LI;
+    return AtomicExpansionKind::NotAtomic;
+  }
+  AtomicExpansionKind shouldExpandAtomicStoreInIR(StoreInst *SI) const override {
+    (void)SI;
+    return AtomicExpansionKind::NotAtomic;
+  }
+  bool shouldInsertFencesForAtomic(const Instruction *I) const override {
+    (void)I;
+    return false;
+  }
+
   MVT getTypeForExtLoad(EVT VT) const;
 
   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;

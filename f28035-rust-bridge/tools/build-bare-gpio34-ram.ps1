@@ -3,7 +3,7 @@ param([string]$Compiler = '', [string]$Cargo = '', [switch]$SafeHal)
 
 . (Join-Path $PSScriptRoot 'toolchain.ps1')
 if (-not $Compiler) { $Compiler = $Toolchain.Compiler }
-if (-not $Cargo) { $Cargo = $Toolchain.Cargo }
+if (-not $Cargo) { $Cargo = $Toolchain.MirCargo }
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -25,7 +25,7 @@ New-Item -ItemType Directory -Path $outDir -Force | Out-Null
 if ($SafeHal) {
     & (Join-Path $PSScriptRoot 'dump-c28x-mir.ps1') -InputFile $source -OutputFile $mir `
         -AssemblyFile $asm -Cargo $Cargo -OnlyExport $entry `
-        -RustcArguments @('-Zmir-opt-level=4', '--cfg', 'feature="bare-mmio"')
+        -RustcArguments @('-Zmir-opt-level=4', '--cfg', 'feature=\"bare-mmio\"')
 } else {
     & (Join-Path $PSScriptRoot 'dump-c28x-mir.ps1') -InputFile $source -OutputFile $mir `
         -AssemblyFile $asm -Cargo $Cargo -RustcArguments '-Zmir-opt-level=4'

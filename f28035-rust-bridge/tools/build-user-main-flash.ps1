@@ -1,10 +1,12 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 param(
     [string]$Compiler = '',
     [string]$Cargo = ''
 )
 
 . (Join-Path $PSScriptRoot 'toolchain.ps1')
+. (Join-Path $PSScriptRoot '_internal\image-stamp.ps1')
+. (Join-Path $PSScriptRoot '_internal\user-main-image.ps1')
 if (-not $Compiler) { $Compiler = $Toolchain.Compiler }
 if (-not $Cargo) { $Cargo = $Toolchain.Cargo }
 $ErrorActionPreference = 'Continue'
@@ -97,4 +99,9 @@ if ($flashSegments -eq 0 -or $bootSegment -ne 1) {
 Write-Output "FLASH_OUT=$out"
 Write-Output 'FLASH_SEGMENTS_AUDIT=PASS'
 Write-Output 'CSM_PASSWORD_AREA=PASS'
+
+# 新鲜度戳：RAM 对象刚由 run-user-main.ps1 重建并写戳，这里再给 Flash
+# 映像写独立戳（含 flash 专属输入：prepare.c、F28035.cmd、FLASH_BOOT define）。
+Set-ImageStamp -Image $out -Key (Get-UserMainImageKey -Compiler $Compiler -ProjectRoot $root -Variant flash)
+
 Write-Output 'FLASH_BUILD_ONLY=PASS'

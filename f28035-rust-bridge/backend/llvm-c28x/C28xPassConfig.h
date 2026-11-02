@@ -20,6 +20,7 @@ public:
   C28xPassConfig(C28xTargetMachine &TM, PassManagerBase &PM);
 
   C28xTargetMachine &getC28xTargetMachine() const;
+  void addIRPasses() override;
   bool addInstSelector() override;
 };
 

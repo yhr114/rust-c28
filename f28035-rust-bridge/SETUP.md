@@ -392,17 +392,19 @@ powershell -File tools\build-rustc-c28x.ps1
 ### Q: PATH A 和 PATH B 有什么区别
 
 - **PATH A（c28x-mir）**：外挂工具，读取 rustc MIR 生成汇编，轻量快速，已真机验证，但只支持有限的 Rust 语法
-- **PATH B（llvm-c28x）**：内嵌 LLVM 后端，理论上支持任意 Rust，但工程量大，当前骨架阶段
+- **PATH B（llvm-c28x）**：B-1 定制 rustc 是当前主路径，推进 Cargo 接入、
+  汇编与直接对象两条输出分支及真机验证。旧 B-2 独立 `llc` 交付流水线已
+  迁至同级归档目录；共享后端的 `llc` 单测仍保留。当前尚未覆盖任意 Rust 程序。先读
+  [B-1 主路径与操作入口](docs/PATH_B.md#b1-main)。
 
-详细对比见 `docs/ARCHITECTURE.md`。
+详细对比见 [路径 A](docs/path-a/PATH_A.md) 和 [路径 B](docs/PATH_B.md)。
 
 ---
 
 ## 参考文档
 
 - `README.md` — 项目总览和快速开始
-- `docs/ARCHITECTURE.md` — 完整架构说明
-- `docs/SAFETY.md` — 安全边界和审计
-- `docs/ABI_FREEZE.md` — ABI 冻结约定
+- `docs/path-a/PATH_A.md` — 应用、Safe HAL、MIR、安全边界和迁移记录
+- `docs/PATH_B.md` — LLVM、ABI、B-1 工具链和验证记录
 - `backend/llvm-c28x/README.md` — LLVM 后端状态
-- `backend/llvm-c28x/PATCHING_RUSTC.md` — rustc 补丁说明
+- [路径 B 中的 rustc 补丁说明](docs/PATH_B.md#b-11)

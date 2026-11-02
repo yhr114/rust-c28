@@ -12,6 +12,12 @@
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 
+# Make the script self-contained when invoked with `powershell -File`.
+# Previously the usage comment required callers to dot-source
+# llvm-c28x-env.ps1 first; without that step $C28xToolchain was unset and the
+# first `llc` invocation failed before the end-to-end link test even started.
+. (Join-Path $PSScriptRoot 'llvm-c28x-env.ps1')
+
 # --- Inputs ---------------------------------------------------------------
 # Minimal IR: caller calls external callee; result discarded.
 $callerLl = @'
@@ -78,12 +84,18 @@ $runtime = Join-Path (Split-Path -Parent (Split-Path -Parent $C28xToolchain.Cl20
 $ramCmd   = Join-Path $root 'tools\F28035_ram.cmd'
 $eabiCmd  = Join-Path $root 'tools\F28035_EABI_sections_ram.cmd'
 
-& $C28xToolchain.Cl2000 `
-    --silicon_version=28 --float_support=softlib --abi=eabi --run_linker `
-    --rom_model --stack_size=0x100 --unused_section_elimination=off `
-    --map_file=$mapPath --output_file=$outPath `
-    $callerObjPath $calleeObjPath $mainObjPath $runtime $ramCmd $eabiCmd
-if ($LASTEXITCODE -ne 0) { throw "TI link failed" }
+# Capture via Invoke-NativeCapture (redirected pipes) so benign TI
+# "no matching section" warnings on stderr do not trip PowerShell's
+# NativeCommandError under $ErrorActionPreference='Stop'. The real failure
+# signal is the exit code.
+$link = Invoke-NativeCapture $C28xToolchain.Cl2000 @('--silicon_version=28',
+    '--float_support=softlib', '--abi=eabi', '--run_linker',
+    '--rom_model', '--stack_size=0x100', '--unused_section_elimination=off',
+    "--map_file=$mapPath", "--output_file=$outPath",
+    $callerObjPath, $calleeObjPath, $mainObjPath, $runtime, $ramCmd, $eabiCmd)
+if ($link.StdOut) { Write-Host $link.StdOut }
+if ($link.StdErr) { Write-Host $link.StdErr }
+if ($link.ExitCode -ne 0) { throw "TI link failed: $($link.StdErr)" }
 if (-not (Test-Path $outPath)) { throw "TI link did not produce .out" }
 Write-Host "OK: TI linker produced linked.out ($((Get-Item $outPath).Length) bytes)"
 
@@ -107,6 +119,56 @@ if ($disasm -match [regex]::Escape($expectedLcr)) {
     throw "LCR relocation NOT resolved. Expected '$expectedLcr' in disasm."
 }
 
-Write-Host ""
-Write-Host "=== ALL CHECKS PASSED ===" -ForegroundColor Green
-Write-Host "LLVM .obj -> TI linker -> .out with R_C28X_ABS22_BR works end-to-end."
+# Static pointers need allocated-data relocations as well as instruction
+# relocations. Test byte lanes and signed addends against the real TI linker.
+$pointerObj = Join-Path $work 'static-pointers.obj'
+$dataAsm = Join-Path $work 'pointer-data.asm'
+$dataObj = Join-Path $work 'pointer-data.obj'
+$pointerOut = Join-Path $work 'static-pointers.out'
+$pointerMap = Join-Path $work 'static-pointers.map'
+$ir = Join-Path $root 'backend\llvm-c28x\test\CodeGen\static-pointers.ll'
+$compile = Invoke-Llc -Arguments @('-filetype=obj', $ir, '-o', $pointerObj)
+if ($compile.ExitCode -ne 0) { throw "Static pointer emission failed: $($compile.StdErr)" }
+[xml]$objectXml = (Invoke-NativeCapture $C28xToolchain.Ofd2000 @('-x', $pointerObj)).StdOut
+$pointerRelocs = @($objectXml.SelectNodes('//elf32_reloc') | Where-Object { $_.r_type -eq 'R_C28X_ABS32' })
+if ($pointerRelocs.Count -ne 12) { throw "Expected 12 composed ABS32 relocations, got $($pointerRelocs.Count)" }
+[IO.File]::WriteAllText($dataAsm, "    .sect `".data.reloc_data`"`n    .global reloc_data`nreloc_data:`n    .word 1,2,3,4`n")
+& $C28xToolchain.Cl2000 @compileFlags "--output_file=$dataObj" $dataAsm
+if ($LASTEXITCODE -ne 0) { throw 'TI pointer data assembly failed' }
+$link = Invoke-NativeCapture $C28xToolchain.Cl2000 @('--abi=eabi', '--silicon_version=28',
+    '--float_support=softlib', '--run_linker', '--ram_model', '--entry_point=main',
+    '--unused_section_elimination=off', "--map_file=$pointerMap", "--output_file=$pointerOut",
+    $pointerObj, $dataObj, $calleeObjPath, $mainObjPath, $callerObjPath, $ramCmd, $eabiCmd)
+if ($link.ExitCode -ne 0) { throw "Static pointer TI link failed: $($link.StdOut)`n$($link.StdErr)" }
+$pointerMapText = Get-Content -LiteralPath $pointerMap -Raw
+function Read-MapAddress([string]$symbol) {
+    $match = [regex]::Match($pointerMapText, '(?m)^\s*[01]\s+([0-9a-fA-F]+)\s+' + [regex]::Escape($symbol) + '\s*$')
+    if (-not $match.Success) { throw "Missing pointer test symbol: $symbol" }
+    [Convert]::ToUInt32($match.Groups[1].Value, 16)
+}
+$tableAddress = Read-MapAddress 'reloc_pointers'
+$dataAddress = Read-MapAddress 'reloc_data'
+$expected = @((2 * (Read-MapAddress 'callee')), (2 * $dataAddress),
+    (2 * $dataAddress + 1), (2 * $dataAddress + 3), (2 * $dataAddress - 1),
+    (2 * (Read-MapAddress 'reloc_local')))
+[xml]$linkedXml = (Invoke-NativeCapture $C28xToolchain.Ofd2000 @('-x', $pointerOut)).StdOut
+$found = $false
+foreach ($section in $linkedXml.SelectNodes('//section')) {
+    if (-not $section.raw_data) { continue }
+    $header = $section.elf32_shdr
+    if ($header.sh_flags.flag -notcontains 'SHF_ALLOC') { continue }
+    $baseAddress = [Convert]::ToUInt32([string]$header.sh_addr, 16)
+    $bytes = [Convert]::FromBase64String([string]$section.raw_data)
+    $offset = ([int64]$tableAddress - $baseAddress) * 2
+    if ($offset -lt 0 -or $offset + 24 -gt $bytes.Length) { continue }
+    for ($i = 0; $i -lt $expected.Count; $i++) {
+        $actual = [BitConverter]::ToUInt32($bytes, [int]($offset + $i * 4))
+        if ($actual -ne $expected[$i]) { throw "Static pointer $i has address $actual; expected $($expected[$i])" }
+    }
+    $found = $true
+    break
+}
+if (-not $found) { throw 'Could not find the relocated static pointer table in allocated ELF data' }
+Write-Host 'OK: six static pointers match 2*symbol+byte_addend (function, data, odd lanes, negative offset, local)'
+Write-Host '=== ALL CHECKS PASSED ===' -ForegroundColor Green
+Write-Host 'LLVM .obj -> TI link: ABS22 calls and logical-byte static pointers verified.'

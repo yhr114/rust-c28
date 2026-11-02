@@ -1,0 +1,21 @@
+[package]
+name = "pac-hwtest-b1"
+version = "0.1.0"
+edition = "2021"
+description = "B-1 hardware probe exercising the calibrated c28x-pac register map (LLVM backend path)"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+c28x-pac = { path = "../c28x-pac" }
+
+[profile.dev]
+panic = "abort"
+debug-assertions = false
+
+[profile.release]
+panic = "abort"
+opt-level = "s"
+
+[lib]
+name = "pac_hwtest_b1"
+path = "src/lib.rs"

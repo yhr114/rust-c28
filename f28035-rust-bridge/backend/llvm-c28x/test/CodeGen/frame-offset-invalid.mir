@@ -1,0 +1,18 @@
+# Inject a frame-index displacement beyond the allocated local frame. The
+# backend must diagnose this rather than redirect it to the first stack word.
+# RUN: not llc -mtriple=c28x-ti-none -mcpu=c28x -start-before=prolog-epilog -filetype=obj %s -o %t 2>&1 | FileCheck %s
+# CHECK: C28x: frame object FI=0 of function 'frame_offset_invalid'
+# CHECK-SAME: is not below SP
+--- |
+  target triple = "c28x-ti-none"
+  define void @frame_offset_invalid() { ret void }
+...
+---
+name: frame_offset_invalid
+stack:
+  - { id: 0, size: 4, alignment: 4 }
+body: |
+  bb.0:
+    $xar0 = MOV32fi_off %stack.0, 1024
+    LRETR
+...

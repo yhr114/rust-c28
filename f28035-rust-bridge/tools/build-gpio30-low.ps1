@@ -4,6 +4,8 @@
 )
 
 . (Join-Path $PSScriptRoot 'toolchain.ps1')
+. (Join-Path $PSScriptRoot '_internal\image-stamp.ps1')
+. (Join-Path $PSScriptRoot '_internal\standalone-image-keys.ps1')
 if (-not $Compiler) { $Compiler = $Toolchain.Compiler }
 if (-not $Cargo) { $Cargo = $Toolchain.Cargo }
 
@@ -53,7 +55,7 @@ $rustToTiCManifest = Join-Path $PSScriptRoot 'rust-to-ti-c\Cargo.toml'
 $rustToTiCTarget = Join-Path $PSScriptRoot 'rust-to-ti-c\target-host'
 Push-Location (Split-Path -Parent $projectRoot)
 try {
-    & $Cargo test --manifest-path $rustToTiCManifest --target x86_64-pc-windows-msvc --target-dir $rustToTiCTarget
+    & $Toolchain.HostTestCargo test --manifest-path $rustToTiCManifest --target $Toolchain.HostTestTarget --target-dir $rustToTiCTarget
     if ($LASTEXITCODE -ne 0) {
         throw "rust-to-ti-c tests failed with exit code $LASTEXITCODE"
     }
@@ -132,3 +134,6 @@ Write-Output "Built $firmwareOut"
 Write-Output "Hex   $firmwareHex"
 Write-Output "Map   $mapFile"
 Write-Output "Asm   $rustAssembly"
+
+# 新鲜度戳：链接+hex 成功后记录输入指纹，flash-and-verify-gpio30-low.ps1 上板前断言
+Set-ImageStamp -Image $firmwareOut -Key (Get-GpioTargetImageKey -Compiler $Compiler -ProjectRoot $projectRoot -Target gpio30)

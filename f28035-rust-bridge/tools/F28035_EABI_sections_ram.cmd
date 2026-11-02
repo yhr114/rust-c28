@@ -16,6 +16,10 @@ SECTIONS
     .sysmem : { *(.sysmem) *(.esysmem) } > RAMM1 PAGE = 1
     .const : > RAML0L1 PAGE = 0
     .init_array : > RAML0L1 PAGE = 0
-    .rodata : { *(.rodata) *(.rodata.*) } > RAML0L1 PAGE = 0
+    .rodata : {
+        *(.rodata) *(.rodata.*)
+        /* C28x TI linker formats read-only data in 16-bit words. */
+        . = ALIGN(2);
+    } > RAML0L1 PAGE = 0
     .pie_vect_table : > PIEVECT PAGE = 1
 }

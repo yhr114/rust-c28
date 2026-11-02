@@ -8,6 +8,11 @@ extern "C" {
 typedef unsigned short f28035_u16;
 
 void f28035_system_init(void);
+void f28035_enable_interrupts(void);
+void f28035_disable_interrupts(void);
+/* Task-level global INTM state (1 = enabled).  Shadowed by the
+ * enable/disable implementations above; ISR-transient INTM is not visible. */
+f28035_u16 f28035_interrupts_enabled(void);
 f28035_u16 f28035_gpio_make_output(f28035_u16 pin);
 f28035_u16 f28035_gpio_make_input(f28035_u16 pin, f28035_u16 pullup_enabled, f28035_u16 qualification);
 f28035_u16 f28035_gpio_read(f28035_u16 pin);

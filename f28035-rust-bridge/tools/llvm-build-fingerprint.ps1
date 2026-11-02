@@ -8,9 +8,19 @@ function Get-C28xLlvmFingerprint([string]$BuildDirectory) {
     if ($libraries.Count -eq 0) { throw 'No LLVM libraries found for fingerprinting' }
     $inputs = @((Get-Item -LiteralPath $config)) + $libraries
     $inputs += @(Get-ChildItem -LiteralPath (Join-Path $BuildDirectory 'bin') -Filter '*LLVM*.dll' -File)
-    $lines = foreach ($inputFile in $inputs) {
-        $inputFile.FullName + ':' + (Get-FileHash -LiteralPath $inputFile.FullName -Algorithm SHA256).Hash
-    }
+    # The Cargo linker can run under Windows PowerShell with a restricted
+    # PSModulePath where Get-FileHash is unavailable. Use the same SHA-256
+    # bytes directly through .NET, independent of PowerShell modules.
+    $fileSha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $lines = foreach ($inputFile in $inputs) {
+            $stream = [IO.File]::OpenRead($inputFile.FullName)
+            try {
+                $hash = [BitConverter]::ToString($fileSha.ComputeHash($stream)).Replace('-', '')
+            } finally { $stream.Dispose() }
+            $inputFile.FullName + ':' + $hash
+        }
+    } finally { $fileSha.Dispose() }
     $sha = [Security.Cryptography.SHA256]::Create()
     try {
         [BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes(($lines -join "`n")))).Replace('-', '')

@@ -2,12 +2,24 @@
 
 Rust on TI TMS320F28035 (C28x) — SDK（应用层 + 底层库）+ MIR/LLVM 编译器后端。
 
+工程文档集中在 [路径 A](docs/path-a/PATH_A.md) 和 [路径 B](docs/PATH_B.md)。
+每次修改都按 [维护规则](AGENTS.md) 同步更新相关路线文档，并在
+[工作日志](WORK_LOG.md) 记录完成内容、过程事件、验证结果和遗留事项。
+
 ## What this is
 
 This project brings Rust to the TI C2000 F28035 microcontroller, modeled after
 the STM32 embedded Rust ecosystem (`stm32f1xx-hal` / `embedded-hal`).
 
 工程由两条路径组成：
+
+**当前主路径是 B-1：定制 rustc + 内置 C28x LLVM 后端 + TI 链接。**
+新 Rust 应用、Cargo 接入和编译器能力完善统一走 B-1。旧 B-2 独立 `llc`
+流水线已迁至同级 `f28035-rust-bridge-b2-archive/`，不再参与日常构建。先阅读
+[B-1 主路径与操作入口](docs/PATH_B.md#b1-main)。
+具体工具、文件职责、编译发布和验证命令见 [B-1 工具与文件手册](docs/PATH_B.md#b1-files)。
+当前维护工作只推进 PATH B-1。现有 PATH A、Rust-to-C 与 MIR 内容保持原状；
+除非后续明确提出，不处理其构建失败、用例迁移或优化事项。
 
 1. **应用开发路径（sdk + app）**：`sdk/` 提供 Rust HAL（`f28035-safe-hal`）与
    C ABI 桥（`c-abi`，155 个窄接口）；`app/` 放例程源码（firmware 入口、
@@ -18,8 +30,12 @@ the STM32 embedded Rust ecosystem (`stm32f1xx-hal` / `embedded-hal`).
    LLVM 后端，本项目自制了两套后端：
    - **PATH A（当前可用）**：`backend/c28x-mir/` 读取 rustc 的 MIR，
      生成手写 C28x 汇编（输入在 `crates/rust-api/`），已在 XDS100v2 真机验证。
-   - **PATH B（未来）**：`backend/llvm-c28x/` 从零写的 LLVM C28x 后端骨架，
-     目标是让 rustc 直接把任意 Rust 编译成 C28x 机器码。
+   - **PATH B-1（当前主路径）**：定制 rustc 内置 `backend/llvm-c28x/`
+     后端。Cargo 主样板直接使用 `.o` 并解包依赖/core/builtins 的 `.rlib`，
+     专用脚本由 rustc 生成 `.obj`，均交 TI 链接。两者已有受限样板真机验证，
+     不代表任意 Rust crate 已支持。
+   - 共享 `backend/llvm-c28x/` 仍可用独立 `llc` 做机器码级开发测试，
+     但标准 rustc 改 IR 再调用 `llc` 的旧 B-2 交付流水线已归档。
 
 ## Repository Layout
 
@@ -46,14 +62,14 @@ f28035-rust-bridge/
 │
 ├── backend/                 # 编译器后端
 │   ├── c28x-mir/            # Out-of-tree MIR backend（~1700 行 main.rs）
-│   └── llvm-c28x/           # LLVM C28x backend skeleton（43 files）
+│   └── llvm-c28x/           # LLVM C28x backend（146 files）
 │
 ├── platform/                # TI C / asm 平台支持
 │   ├── vendor/ti/f2803x/    # TI C2000Ware headers + linker scripts
 │   ├── firmware/            # 链接脚本 .cmd（F28035_EABI_sections 等）
 │   └── runtime/             # C28x asm runtime（delay, byte runtime）
 │
-├── tools/                   # 构建/烧录/验证脚本（两套：MIR + case 应用）
+├── tools/                   # 构建、烧录、验证及共享 LLVM 后端工具
 │   ├── build-case.ps1       # 应用路径：Rust case → C → 编译 → 链接
 │   ├── verify-case-ram.ps1  # 应用路径：RAM-only JTAG 验证
 │   ├── build-mir-*.ps1      # MIR 路径：rust-api → C28x asm → 链接
@@ -88,7 +104,7 @@ Rust 应用只调用 `sdk/f28035-safe-hal` 暴露的安全 API；新外设先在
 验证。目前支持已验证的 `u16` 运算、循环、条件分支、GPIO 读回和输出操作，
 还不是任意 Rust 程序的通用后端。默认流程已从当前 C bridge 源码重新构建，
 并在 RAM/JTAG 上通过；
-具体边界见 [One-file application pilot](docs/ONE_FILE_MAIN.md)。
+具体边界见 [路径 A 文档中的单文件实验](docs/path-a/PATH_A.md#a-9)。
 
 同一份 `app/src/main.rs` 现在还可用 `tools/build-user-main-flash.ps1`
 生成独立的 Flash `.out`，RAM 测试不变。Flash 写入是单独的显式操作
@@ -121,20 +137,20 @@ The older GPIO34 scripts have RAM-only linkage and should not be used as
 evidence of a persistent Flash image. Use the one-file Flash build and guarded
 programming flow above for new work. GPIO34/GPIO37 must be strapped for
 boot-to-Flash during reset. See
-[`HARDWARE_RECOVERY.md`](docs/HARDWARE_RECOVERY.md) for the read-only CSM evidence,
+[路径 A 文档中的硬件恢复记录](docs/path-a/PATH_A.md#a-7) for the read-only CSM evidence,
 memory-map correction, and safety checks.
 
 ## Architecture
 
-See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full picture. 安全边界、
-ABI 约定和审计清单见 `docs/`（SAFETY.md / ABI_FREEZE.md / C28X_RUST_ABI.md /
-UNSAFE_AUDIT.md），迁移记录见 `docs/migration_ledger.md`。
+完整说明见 [路径 A](docs/path-a/PATH_A.md) 与 [路径 B](docs/PATH_B.md)。
+路径 A 汇总应用开发、安全审计和迁移记录；路径 B 汇总 LLVM、ABI、B-1
+工具链和验证流程。旧 B-2 资料只在归档目录中保留。
 
 ## Current Status (verified on hardware)
 
 | Component | Status |
 |---|---|
-| SDK Rust HAL（safe-hal） | ✅ 39 host tests passing |
+| SDK Rust HAL（safe-hal） | ✅ 53 host unit tests + 15 doc tests passing |
 | SDK C ABI bridge | ✅ 155 narrow interfaces |
 | 硬件测试用例 | ✅ 146 个（verified 29 / compiled 54 / scaffold 63） |
 | MIR MMIO lowering（5 variants） | ✅ Imm/Acc/Modify/WriteU32/ReadIndirect |
@@ -142,9 +158,9 @@ UNSAFE_AUDIT.md），迁移记录见 `docs/migration_ledger.md`。
 | MIR Safe HAL GPIO sweep | ✅ RAM/JTAG: GPIO0..34 + GPIO39..44 PASS；GPIO35..38 为当前 JTAG 占用脚 |
 | App-registered Safe HAL cases | ✅ 7 GPIO bridge cases + 3 ADC/ePWM/Timer single cases + 1 integration bridge |
 | Real hardware (XDS100v2) | ✅ TBPRD=4095, CMPA=ADC, tracking_error=0 |
-| LLVM C28x backend skeleton | ✅ 43 files, ready to build |
-| rustc target patch | ✅ files in `backend/llvm-c28x/rustc-patches/` |
-| core porting guide | ✅ in `backend/llvm-c28x/PORTING_CORE.md` |
+| LLVM C28x backend | ✅ 146 files；`llc` 出 C28x asm/obj，机器码回归与 TI 链接通过 |
+| rustc target patch | ✅ 补丁与构建脚本在 `f28035-rust-bridge-b1/backend/llvm-c28x/rustc-patches/` |
+| core porting guide | ✅ in [路径 B 的 core 移植章节](docs/PATH_B.md#b-12) |
 
 ## What "working" means today
 

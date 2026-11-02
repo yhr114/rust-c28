@@ -1,0 +1,22 @@
+diff --git a/f28035-rust-bridge/crates/rust-api/src/lib.rs b/f28035-rust-bridge/crates/rust-api/src/lib.rs
+index 15ea1da..bcc394a 100644
+--- a/f28035-rust-bridge/crates/rust-api/src/lib.rs
++++ b/f28035-rust-bridge/crates/rust-api/src/lib.rs
+@@ -139,11 +139,12 @@ impl AdcResults {
+ }
+ 
+ // ---- Interrupt callback ----
+-
+-#[unsafe(no_mangle)]
+-pub extern "C" fn rust_timer0_isr_callback() {
+-    // Default: do nothing
+-}
++// 注意：这里曾有一个 `#[unsafe(no_mangle)] pub extern "C" fn
++// rust_timer0_isr_callback()` 空桩。任何 #[no_mangle] 导出都会让 c28x-mir
++// 对无 -OnlyExport 的标准 case 报 "not implemented for exported function(s)"
++// （backend/c28x-mir/src/main.rs contains_extern_indicator 路径），导致全部
++// 标准 MIR case 构建失败。该桩无任何使用方（C 桥调用的是
++// rust_timer0_interrupt，由各 case/harness 自行提供），2026-10-27 移除。
+ // ---- Timer0 state machine ----
+ 
+ pub struct Stopped;

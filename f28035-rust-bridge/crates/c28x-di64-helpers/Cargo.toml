@@ -1,0 +1,8 @@
+[package]
+name = "c28x-di64-helpers"
+version = "0.1.0"
+edition = "2021"
+description = "64-bit multiply/divide/modulo helpers (__muldi3/__udivdi3/__umoddi3/__moddi3) for C28x EABI"
+
+[lib]
+path = "src/lib.rs"

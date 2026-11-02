@@ -1,10 +1,13 @@
 ﻿param(
     [string]$Dss = '',
     [string]$TargetConfig,
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    [switch]$Force
 )
 
 . (Join-Path $PSScriptRoot 'toolchain.ps1')
+. (Join-Path $PSScriptRoot '_internal\image-stamp.ps1')
+. (Join-Path $PSScriptRoot '_internal\standalone-image-keys.ps1')
 if (-not $Dss) { $Dss = $Toolchain.Dss }
 
 $ErrorActionPreference = 'Stop'
@@ -21,6 +24,10 @@ if (-not $SkipBuild) {
     & (Join-Path $PSScriptRoot 'build-gpio39-low.ps1')
     if ($LASTEXITCODE -ne 0) { throw 'GPIO39 firmware build failed.' }
 }
+
+# 上板前门禁：映像必须来自当前输入（源码/features/桥/编译器），否则拒绝加载
+Assert-ImageFresh -Image $firmware -Key (Get-GpioTargetImageKey -Compiler $Toolchain.Compiler -ProjectRoot $projectRoot -Target gpio39) `
+    -Context 'flash-and-verify-gpio39-low' -AllowStale:$Force
 
 foreach ($requiredFile in @($Dss, $TargetConfig, $firmware, $verificationScript)) {
     if (-not (Test-Path -LiteralPath $requiredFile)) {
